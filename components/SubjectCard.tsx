@@ -1,0 +1,60 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+	getSubjectLabel,
+	getTopicChapters,
+	getTopicLabel,
+	listTopics,
+} from "@/lib/content";
+import { ArrowUpRight, BookOpen } from "lucide-react";
+import Link from "next/link";
+
+export function SubjectCard({ subject }: { subject: string }) {
+	const topics = listTopics(subject);
+
+	return (
+		<Card className="group overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-md">
+			<CardHeader className="pb-3">
+				<div className="bg-muted mb-2 flex size-10 items-center justify-center rounded-lg">
+					<BookOpen className="size-5" />
+				</div>
+
+				<CardTitle className="text-lg">
+					<Link href={`/${subject}/`} className="hover:underline">
+						{getSubjectLabel(subject)}
+					</Link>
+				</CardTitle>
+			</CardHeader>
+
+			<CardContent>
+				<p className="text-muted-foreground mb-4 text-sm">
+					{topics.length} topic
+					{topics.length === 1 ? "" : "s"}
+				</p>
+
+				<div className="space-y-1">
+					{topics.map((topic) => {
+						const chapters = getTopicChapters(subject, topic);
+
+						return (
+							<Link
+								key={topic}
+								href={`/${subject}/${topic}/`}
+								className="text-muted-foreground hover:bg-muted hover:text-foreground flex items-center justify-between rounded-md px-2 py-2 text-sm transition-colors"
+							>
+								<span>
+									{getTopicLabel(topic)}
+									<span className="ml-2 text-xs">
+										{chapters.length} chapter
+										{chapters.length === 1 ? "" : "s"}
+									</span>
+								</span>
+
+								<ArrowUpRight className="size-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
+							</Link>
+						);
+					})}
+				</div>
+			</CardContent>
+		</Card>
+	);
+}

@@ -1,47 +1,50 @@
-import Link from 'next/link'
-import { getSubjectChapters, getSubjectLabel, listSubjects } from '@/lib/notes'
+import { SubjectCard } from "@/components/SubjectCard";
+import { Badge } from "@/components/ui/badge";
+import { listSubjects } from "@/lib/content";
+import { BookOpen, Search } from "lucide-react";
 
-export default function HomePage() {
-  const subjects = listSubjects()
+const HomePage = () => {
+	const subjects = listSubjects();
 
-  return (
-    <main className="min-h-screen">
-      <header className="border-b border-neutral-200 bg-white">
-        <div className="mx-auto max-w-6xl px-6 py-10 md:px-8">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-neutral-500">Knowledge base</p>
-          <h1 className="text-4xl font-bold tracking-tight md:text-5xl">My Notes</h1>
-          <p className="mt-4 max-w-2xl text-lg text-neutral-600">
-            Structured notes written in MDX and rendered as a fast static site.
-          </p>
-        </div>
-      </header>
+	return (
+		<main className="bg-background min-h-screen">
+			<header className="border-border bg-muted/30 border-b">
+				<div className="mx-auto max-w-6xl px-5 py-14 md:px-8 md:py-20">
+					<Badge className="bg-background text-muted-foreground mb-5 shadow-sm">
+						Personal knowledge base
+					</Badge>
+					<h1 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-6xl">
+						Learn, organize, and revisit your notes.
+					</h1>
+					<p className="text-muted-foreground mt-5 max-w-2xl text-base leading-7 md:text-lg">
+						A fast static notes site powered by Next.js, Tailwind CSS,
+						shadcn/ui, and MDX.
+					</p>
+					<div className="text-muted-foreground mt-8 flex flex-wrap gap-3 text-sm">
+						<span className="bg-background inline-flex items-center gap-2 rounded-full border px-3 py-1.5">
+							<BookOpen className="size-4" /> {subjects.length} subjects
+						</span>
+						<span className="bg-background inline-flex items-center gap-2 rounded-full border px-3 py-1.5">
+							<Search className="size-4" /> MDX notes
+						</span>
+					</div>
+				</div>
+			</header>
+			<section className="mx-auto max-w-6xl px-5 py-12 md:px-8 md:py-16">
+				<div className="mb-8">
+					<h2 className="text-2xl font-semibold tracking-tight">Subjects</h2>
+					<p className="text-muted-foreground mt-1 text-sm">
+						Choose a subject to browse its chapters.
+					</p>
+				</div>
+				<div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+					{subjects.map((subject) => (
+						<SubjectCard key={subject} subject={subject} />
+					))}
+				</div>
+			</section>
+		</main>
+	);
+};
 
-      <section className="mx-auto max-w-6xl px-6 py-12 md:px-8">
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {subjects.map((subject) => {
-            const chapters = getSubjectChapters(subject)
-            return (
-              <article key={subject} className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                <h2 className="text-xl font-semibold">{getSubjectLabel(subject)}</h2>
-                <p className="mt-2 text-sm text-neutral-500">{chapters.length} chapter{chapters.length === 1 ? '' : 's'}</p>
-                <ul className="mt-5 space-y-2">
-                  {chapters.map((chapter) => (
-                    <li key={chapter.slug}>
-                      <Link
-                        className="group flex items-center justify-between rounded-lg px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
-                        href={`/notes/${subject}/${chapter.slug}/`}
-                      >
-                        <span>{chapter.title}</span>
-                        <span className="opacity-0 transition group-hover:opacity-100">→</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            )
-          })}
-        </div>
-      </section>
-    </main>
-  )
-}
+export default HomePage;

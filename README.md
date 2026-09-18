@@ -1,18 +1,19 @@
 # Notes Site
 
-Static personal notes website built with Next.js App Router, TypeScript, Tailwind CSS, and MDX.
+A static personal notes website built with Next.js App Router, TypeScript, Tailwind CSS v4, MDX, shadcn/ui conventions, and static generation.
 
 ## Stack
 
-- Next.js 16.3.x
-- React 19.2.x
+- Next.js App Router
 - TypeScript
-- Tailwind CSS 4.3.x
-- MDX via `@next/mdx`
-- `remark-gfm`, `remark-math`
-- `rehype-slug`, `rehype-katex`, `rehype-pretty-code`
+- Tailwind CSS v4
+- MDX
+- remark-gfm / remark-math
+- rehype-slug / rehype-katex / rehype-pretty-code
+- shadcn/ui-compatible component structure
 - Next.js DevTools MCP
-- `AGENTS.md` + project skills under `.agents/skills/`
+- shadcn MCP
+- Agent skill in `.agents/skills/shadcn-ui/`
 
 ## Run
 
@@ -21,9 +22,7 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:3000.
-
-For a production static build:
+Static production build:
 
 ```bash
 npm run build
@@ -31,18 +30,33 @@ npm run build
 
 The exported site is written to `out/`.
 
-## Add notes
+## Add shadcn components
 
-Create:
-
-```text
-content/<subject>/<chapter>.mdx
+```bash
+npx shadcn@latest add button
+npx shadcn@latest add card
 ```
 
-Export `title`, optional `description`, and optional `order`. The home page and route list discover content automatically.
+The project already contains `components.json`, Tailwind v4 CSS variables, aliases, and `.mcp.json` for the shadcn MCP server.
+
+## Content
+
+Add a subject directory and MDX chapters under `content/`:
+
+```text
+content/
+  databases/
+    relational-model.mdx
+    sql.mdx
+```
+
+The home page and subject navigation discover them automatically.
 
 ## Agent support
 
-- `AGENTS.md` tells coding agents to use the version-matched Next.js docs bundled in `node_modules/next/dist/docs/`.
-- `.mcp.json` enables the official Next.js DevTools MCP server for Next.js 16+.
-- `.agents/skills/` contains reusable instructions for MDX authoring and note management.
+`.mcp.json` configures:
+
+- `next-devtools`
+- `shadcn`
+
+Restart the MCP-capable coding agent after changing MCP configuration.
