@@ -1,0 +1,42 @@
+export const title = 'Data Structures'
+export const description = 'Core structures for organizing data and understanding algorithmic trade-offs.'
+export const order = 1
+
+## Arrays
+
+Arrays store elements in contiguous logical positions and support constant-time indexed access.
+
+### Complexity
+
+| Operation | Typical complexity |
+| --- | --- |
+| Index access | $O(1)$ |
+| Search | $O(n)$ |
+| Insert at end | $O(1)$ amortized |
+| Insert at front | $O(n)$ |
+
+## Linked lists
+
+A linked list stores nodes connected by references. Access by position is linear, but insertion can be constant time when the insertion point is already known.
+
+## Hash tables
+
+Hash tables map keys to buckets using a hash function. With a good hash function and controlled load factor, lookup is typically $O(1)$ on average.
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    counts := map[string]int{"go": 2, "rust": 1}
+    counts["go"]++
+    fmt.Println(counts["go"])
+}
+```
+
+![Notes diagram placeholder](/images/placeholder.png)
+
+## Trees and graphs
+
+Trees represent hierarchical relationships. Graphs generalize this idea to arbitrary relationships between vertices and edges.

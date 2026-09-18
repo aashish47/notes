@@ -1,0 +1,56 @@
+export const title = 'Linear Algebra'
+export const description = 'Vectors, matrices, linear transformations, and the ideas behind them.'
+export const order = 1
+
+## Vectors
+
+A vector is an object that represents a quantity with multiple components. In two dimensions we can write
+
+$$
+\mathbf{v} = \begin{bmatrix} 3 \\ 4 \end{bmatrix}
+$$
+
+Its Euclidean length is
+
+$$
+\lVert \mathbf{v} \rVert = \sqrt{3^2 + 4^2} = 5.
+$$
+
+### Dot product
+
+For vectors $\mathbf{a}$ and $\mathbf{b}$, the dot product is
+
+$$
+\mathbf{a}\cdot\mathbf{b}=\sum_i a_i b_i.
+$$
+
+It measures how strongly two vectors point in the same direction.
+
+## Matrices
+
+A matrix is a rectangular collection of numbers. Matrix multiplication composes linear transformations.
+
+| Operation | Meaning |
+| --- | --- |
+| Addition | Combine corresponding entries |
+| Multiplication | Compose transformations |
+| Transpose | Swap rows and columns |
+| Inverse | Undo a transformation when it exists |
+
+## Example: matrix multiplication
+
+```python
+A = [[1, 2],
+     [3, 4]]
+
+x = [5, 6]
+
+result = [
+    A[0][0] * x[0] + A[0][1] * x[1],
+    A[1][0] * x[0] + A[1][1] * x[1],
+]
+
+print(result)
+```
+
+The important idea is that the matrix acts as a function on the vector.

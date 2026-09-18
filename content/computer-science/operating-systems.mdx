@@ -1,0 +1,28 @@
+export const title = 'Operating Systems'
+export const description = 'Processes, memory, files, scheduling, and the abstractions an operating system provides.'
+export const order = 2
+
+## Processes
+
+A process is a running program together with its execution state and resources.
+
+### Process states
+
+A simplified model is:
+
+```text
+NEW -> READY -> RUNNING -> TERMINATED
+             ^      |
+             |      v
+             +--- WAITING
+```
+
+## Virtual memory
+
+Virtual memory gives each process an address space that is translated to physical memory by the memory-management system.
+
+A page table maps virtual pages to physical frames.
+
+## File systems
+
+A file system organizes persistent data into files, directories, metadata, and allocation structures. Different file systems make different trade-offs around performance, durability, and recovery.
