@@ -1,3 +1,4 @@
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import {
 	SidebarInset,
 	SidebarProvider,
@@ -13,7 +14,6 @@ import {
 	type NoteMeta,
 	type TocItem,
 } from "@/lib/content";
-import { Breadcrumbs } from "./Breadcrumbs";
 import { NotesSidebar, type NotesSidebarNavigationItem } from "./NotesSidebar";
 import { TableOfContents } from "./TableOfContents";
 
@@ -74,16 +74,18 @@ export const NotePage = ({
 
 							<article className="prose-notes max-w-full min-w-0">
 								<header className="border-border mb-10 max-w-full min-w-0 border-b pb-8">
-									<h1 className="break-words">{meta.title}</h1>
+									<h1 className="wrap-break-word">{meta.title}</h1>
 
 									{meta.description && (
-										<p className="!text-muted-foreground !mt-3 !text-lg break-words">
+										<p className="text-muted-foreground! mt-3! text-lg! wrap-break-word">
 											{meta.description}
 										</p>
 									)}
 								</header>
 
-								<div className="max-w-full min-w-0 break-words">{children}</div>
+								<div className="max-w-full min-w-0 wrap-break-word">
+									{children}
+								</div>
 							</article>
 						</div>
 

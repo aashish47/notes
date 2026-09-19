@@ -6,7 +6,7 @@ import Link from "next/link";
 export const Breadcrumbs = ({ items }: { items: BreadcrumbItem[] }) => (
 	<nav
 		aria-label="Breadcrumb"
-		className="text-muted-foreground flex items-center gap-2 text-sm"
+		className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm"
 	>
 		{items.map((item, index) => {
 			const isLast = index === items.length - 1;

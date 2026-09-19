@@ -1,4 +1,4 @@
-import { NotePage } from "@/components/NotePage";
+import { NotePage } from "@/app/[subject]/[topic]/[chapter]/components/NotePage";
 import {
 	getNoteMeta,
 	getSubjectLabel,

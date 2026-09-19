@@ -17,7 +17,7 @@ export function TableOfContents({ items }: { items: TocItem[] }) {
 								className={item.depth === 3 ? "pl-3" : ""}
 							>
 								<a
-									className="text-muted-foreground hover:text-foreground block py-1 break-words transition-colors"
+									className="text-muted-foreground hover:text-foreground block py-1 wrap-break-word transition-colors"
 									href={`#${item.slug}`}
 								>
 									{item.text}

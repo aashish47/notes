@@ -1,4 +1,4 @@
-import { SubjectCard } from "@/components/SubjectCard";
+import { SubjectCard } from "@/app/components/SubjectCard";
 import { listSubjects } from "@/lib/content";
 
 const HomePage = () => {

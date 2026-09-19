@@ -18,14 +18,14 @@ A static personal notes website built with Next.js App Router, TypeScript, Tailw
 ## Run
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Static production build:
 
 ```bash
-npm run build
+pnpm build
 ```
 
 The exported site is written to `out/`.

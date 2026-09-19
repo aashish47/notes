@@ -16,14 +16,13 @@ import remarkParse from "remark-parse";
 import { unified } from "unified";
 import { visit } from "unist-util-visit";
 
-const toPlugin = (plugin: any) => plugin?.default ?? plugin;
-const remarkGfmPlugin = toPlugin(remarkGfm);
-const remarkMathPlugin = toPlugin(remarkMath);
-const rehypeSlugPlugin = toPlugin(rehypeSlug);
-const rehypeKatexPlugin = toPlugin(rehypeKatex);
-const rehypePrettyCodePlugin = toPlugin(rehypePrettyCode);
-const remarkMdxPlugin = toPlugin(remarkMdx);
-const remarkParsePlugin = toPlugin(remarkParse);
+const remarkGfmPlugin = remarkGfm;
+const remarkMathPlugin = remarkMath;
+const rehypeSlugPlugin = rehypeSlug;
+const rehypeKatexPlugin = rehypeKatex;
+const rehypePrettyCodePlugin = rehypePrettyCode;
+const remarkMdxPlugin = remarkMdx;
+const remarkParsePlugin = remarkParse;
 
 export type NoteMeta = {
 	title: string;
@@ -47,9 +46,21 @@ export type TocItem = {
 	slug: string;
 };
 
+type TocHeadingChild = {
+	type: "text" | "inlineCode";
+	value: string;
+};
+
+type TocHeading = {
+	type: "heading";
+	depth: 2 | 3;
+	children: TocHeadingChild[];
+};
+
 const contentRoot = path.join(process.cwd(), "content");
 
 const subjectDir = (subject: string) => path.join(contentRoot, subject);
+
 const topicDir = (subject: string, topic: string) =>
 	path.join(subjectDir(subject), topic);
 
@@ -210,6 +221,7 @@ export const getNoteContent = (
 ) => {
 	const source = readNoteSource(subject, topic, chapter);
 	const parsed = matter(source);
+
 	return {
 		metadata: getNoteMeta(subject, topic, chapter),
 		content: parsed.content,
@@ -223,13 +235,20 @@ export const renderNoteContent = async (
 ) => {
 	const source = readNoteSource(subject, topic, chapter);
 	const { content } = matter(source);
+
 	const mdxModule = await evaluate(content, {
 		...runtime,
 		remarkPlugins: [remarkGfmPlugin, remarkMathPlugin],
 		rehypePlugins: [
 			rehypeSlugPlugin,
 			[rehypeKatexPlugin, { strict: false }],
-			[rehypePrettyCodePlugin, { theme: "github-dark", keepBackground: false }],
+			[
+				rehypePrettyCodePlugin,
+				{
+					theme: "github-dark",
+					keepBackground: false,
+				},
+			],
 		],
 	});
 
@@ -248,21 +267,21 @@ export const getToc = async (source: string): Promise<TocItem[]> => {
 	const slugger = new GithubSlugger();
 	const items: TocItem[] = [];
 
-	visit(tree, "heading", (node: any) => {
-		if (node.depth !== 2 && node.depth !== 3) return;
+	visit(tree, "heading", (node) => {
+		const heading = node as unknown as TocHeading;
 
-		const text = node.children
-			.filter(
-				(child: any) => child.type === "text" || child.type === "inlineCode",
-			)
-			.map((child: any) => child.value)
+		if (heading.depth !== 2 && heading.depth !== 3) return;
+
+		const text = heading.children
+			.filter((child) => child.type === "text" || child.type === "inlineCode")
+			.map((child) => child.value)
 			.join("")
 			.trim();
 
 		if (!text) return;
 
 		items.push({
-			depth: node.depth,
+			depth: heading.depth,
 			text,
 			slug: slugger.slug(text),
 		});
