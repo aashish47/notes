@@ -20,7 +20,7 @@ export function NavigationCard({
 }: NavigationCardProps) {
 	return (
 		<Link href={href} className={`group block ${className}`}>
-			<Card className="border-border/80 hover:bg-muted/50 overflow-hidden transition-colors duration-200">
+			<Card className="border-border/60 bg-card/80 hover:bg-muted/30 hover:border-border overflow-hidden transition-all duration-200">
 				<div className="flex items-center gap-2.5 px-3 py-3.5 sm:gap-4 sm:px-5 sm:py-5">
 					<span className="text-muted-foreground w-8 shrink-0 text-sm tabular-nums">
 						{String(index).padStart(2, "0")}

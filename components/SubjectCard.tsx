@@ -12,20 +12,23 @@ export function SubjectCard({ subject }: { subject: string }) {
 	const topics = listTopics(subject);
 
 	return (
-		<Card className="group overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-md">
+		<Card className="group border-border/60 bg-card/80 hover:border-border overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm">
 			<CardHeader className="pb-3">
-				<div className="bg-muted mb-2 flex size-10 items-center justify-center rounded-lg">
-					<BookOpen className="size-5" />
+				<div className="border-border bg-muted text-muted-foreground mb-3 flex size-10 items-center justify-center rounded-lg border">
+					<BookOpen className="size-4" />
 				</div>
 
-				<CardTitle className="text-lg">
-					<Link href={`/${subject}/`} className="hover:underline">
+				<CardTitle className="text-lg tracking-tight">
+					<Link
+						href={`/${subject}/`}
+						className="hover:text-foreground transition-colors"
+					>
 						{getSubjectLabel(subject)}
 					</Link>
 				</CardTitle>
 			</CardHeader>
 
-			<CardContent>
+			<CardContent className="pt-0">
 				<p className="text-muted-foreground mb-4 text-sm">
 					{topics.length} topic
 					{topics.length === 1 ? "" : "s"}
@@ -39,11 +42,11 @@ export function SubjectCard({ subject }: { subject: string }) {
 							<Link
 								key={topic}
 								href={`/${subject}/${topic}/`}
-								className="text-muted-foreground hover:bg-muted hover:text-foreground flex items-center justify-between rounded-md px-2 py-2 text-sm transition-colors"
+								className="text-muted-foreground hover:bg-accent hover:text-foreground flex items-center justify-between rounded-md px-2 py-2 text-sm transition-colors"
 							>
 								<span>
 									{getTopicLabel(topic)}
-									<span className="ml-2 text-xs">
+									<span className="ml-2 text-[11px] opacity-80">
 										{chapters.length} chapter
 										{chapters.length === 1 ? "" : "s"}
 									</span>

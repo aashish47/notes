@@ -1,25 +1,28 @@
 @import "tailwindcss";
 
 :root {
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.145 0 0);
+	--background: oklch(0.985 0.004 240);
+	--foreground: oklch(0.17 0.01 240);
 	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.145 0 0);
+	--card-foreground: oklch(0.17 0.01 240);
 	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.205 0 0);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
-	--accent: oklch(0.97 0 0);
-	--accent-foreground: oklch(0.205 0 0);
-	--border: oklch(0.922 0 0);
-	--input: oklch(0.922 0 0);
-	--ring: oklch(0.708 0 0);
-	--sidebar: oklch(0.985 0 0);
-	--sidebar-foreground: oklch(0.145 0 0);
+	--popover-foreground: oklch(0.17 0.01 240);
+	--primary: oklch(0.23 0.02 240);
+	--primary-foreground: oklch(0.99 0 0);
+	--secondary: oklch(0.96 0.01 240);
+	--secondary-foreground: oklch(0.23 0.02 240);
+	--muted: oklch(0.96 0.01 240);
+	--muted-foreground: oklch(0.52 0.02 240);
+	--accent: oklch(0.95 0.03 240);
+	--accent-foreground: oklch(0.23 0.02 240);
+	--border: oklch(0.91 0.01 240);
+	--input: oklch(0.91 0.01 240);
+	--ring: oklch(0.68 0.03 240);
+	--sidebar: oklch(0.988 0.003 240);
+	--sidebar-foreground: oklch(0.17 0.01 240);
+	--sidebar-border: oklch(0.945 0.006 240);
+	--sidebar-accent: oklch(0.975 0.004 240);
+	--sidebar-accent-foreground: oklch(0.17 0.01 240);
 }
 
 @theme inline {
@@ -42,6 +45,9 @@
 	--color-ring: var(--ring);
 	--color-sidebar: var(--sidebar);
 	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
 }
 
 * {
@@ -49,11 +55,13 @@
 }
 html {
 	scroll-behavior: smooth;
+	overflow-x: clip;
 }
 body {
 	margin: 0;
 	background: var(--background);
 	color: var(--foreground);
+	overflow-x: clip;
 }
 button,
 a {
@@ -64,8 +72,11 @@ a {
 }
 
 .prose-notes {
-	max-width: none;
+	max-width: 100%;
+	min-width: 0;
 	line-height: 1.8;
+	overflow-wrap: break-word;
+	word-break: break-word;
 }
 .prose-notes h1,
 .prose-notes h2,
@@ -74,6 +85,8 @@ a {
 	scroll-margin-top: 6rem;
 	font-weight: 700;
 	letter-spacing: -0.025em;
+	overflow-wrap: break-word;
+	word-break: break-word;
 }
 .prose-notes h1 {
 	font-size: clamp(2rem, 5vw, 3.25rem);
@@ -93,6 +106,7 @@ a {
 .prose-notes p {
 	margin: 1rem 0;
 	color: color-mix(in oklab, var(--foreground) 78%, transparent);
+	overflow-wrap: break-word;
 }
 .prose-notes ul,
 .prose-notes ol {
@@ -101,9 +115,11 @@ a {
 }
 .prose-notes li {
 	margin: 0.35rem 0;
+	overflow-wrap: break-word;
 }
 .prose-notes a {
 	color: oklch(0.5 0.16 255);
+	overflow-wrap: break-word;
 }
 .prose-notes blockquote {
 	margin: 1.5rem 0;
@@ -115,6 +131,7 @@ a {
 	display: block;
 	overflow-x: auto;
 	width: 100%;
+	max-width: 100%;
 	border-collapse: collapse;
 	margin: 1.5rem 0;
 	font-size: 0.95rem;
@@ -135,16 +152,27 @@ a {
 	background: var(--muted);
 	padding: 0.12rem 0.35rem;
 	font-size: 0.9em;
+	word-break: break-word;
+}
+.prose-notes figure {
+	margin: 1.5rem 0;
+	max-width: 100%;
+	min-width: 0;
 }
 .prose-notes pre {
 	overflow-x: auto;
+	max-width: 100%;
+	min-width: 0;
 	border: 1px solid var(--border);
 	border-radius: 0.75rem;
 	padding: 1rem;
 	margin: 1.5rem 0;
 	font-size: 0.875rem;
 }
-.prose-notes img {
+.prose-notes img,
+.prose-notes svg,
+.prose-notes video,
+.prose-notes iframe {
 	max-width: 100%;
 	height: auto;
 	border-radius: 0.75rem;
@@ -157,5 +185,10 @@ a {
 .prose-notes .katex-display {
 	overflow-x: auto;
 	overflow-y: hidden;
+	max-width: 100%;
+	min-width: 0;
 	padding: 0.5rem 0;
+}
+.prose-notes .katex {
+	max-width: 100%;
 }

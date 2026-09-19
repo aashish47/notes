@@ -81,7 +81,9 @@ const NoteRoute = async ({
 			topic={topic}
 			chapter={chapter}
 		>
-			<Content />
+			<div className="max-w-full min-w-0">
+				<Content />
+			</div>
 		</NotePage>
 	);
 };

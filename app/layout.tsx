@@ -9,6 +9,9 @@ import "./globals.css";
 export const metadata: Metadata = {
 	title: "Notes",
 	description: "A fast, static, MDX-powered personal knowledge base.",
+	icons: {
+		icon: "/icon.svg",
+	},
 };
 
 const initialResults = getSearchIndex(
@@ -25,9 +28,12 @@ const RootLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => (
 	<html lang="en">
 		<body className="bg-background text-foreground min-h-screen antialiased">
 			<TooltipProvider>
-				<div className="min-h-screen">
-					<header className="bg-background/80 border-border sticky top-0 z-40 border-b backdrop-blur-sm">
-						<div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 md:px-8">
+				<div
+					className="min-h-screen"
+					style={{ ["--header-height" as string]: "4rem" }}
+				>
+					<header className="bg-background/80 border-border sticky top-0 z-40 flex h-(--header-height) border-b backdrop-blur-sm">
+						<div className="mx-auto flex h-full w-full max-w-7xl items-center justify-between gap-4 px-4 md:px-8">
 							<Link href="/" className="flex shrink-0 items-center gap-3">
 								<span className="bg-primary text-primary-foreground grid size-9 place-items-center rounded-lg text-sm font-bold">
 									N

@@ -3,10 +3,18 @@ import {
 	SidebarProvider,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { getBreadcrumbs, type NoteMeta, type TocItem } from "@/lib/content";
-import { ChevronRight, Home } from "lucide-react";
-import Link from "next/link";
-import { NotesSidebar } from "./NotesSidebar";
+import {
+	getBreadcrumbs,
+	getSubjectLabel,
+	getTopicChapters,
+	getTopicLabel,
+	listSubjects,
+	listTopics,
+	type NoteMeta,
+	type TocItem,
+} from "@/lib/content";
+import { Breadcrumbs } from "./Breadcrumbs";
+import { NotesSidebar, type NotesSidebarNavigationItem } from "./NotesSidebar";
 import { TableOfContents } from "./TableOfContents";
 
 export const NotePage = ({
@@ -25,81 +33,63 @@ export const NotePage = ({
 	children: React.ReactNode;
 }) => {
 	const breadcrumbs = getBreadcrumbs({ subject, topic, chapter });
+	const navigation: NotesSidebarNavigationItem[] = listSubjects().map(
+		(subjectItem) => ({
+			subject: subjectItem,
+			subjectLabel: getSubjectLabel(subjectItem),
+			topics: listTopics(subjectItem).map((topicItem) => ({
+				topic: topicItem,
+				topicLabel: getTopicLabel(topicItem),
+				chapters: getTopicChapters(subjectItem, topicItem).map(
+					(chapterItem) => ({
+						slug: chapterItem.slug,
+						title: chapterItem.metadata.title,
+					}),
+				),
+			})),
+		}),
+	);
 
 	return (
 		<SidebarProvider defaultOpen className="min-h-screen">
 			<NotesSidebar
+				navigation={navigation}
 				activeSubject={subject}
 				activeTopic={topic}
 				activeChapter={chapter}
 			/>
 
-			<SidebarInset className="min-w-0">
-				<div className="border-border flex items-center border-b px-4 py-3 lg:hidden">
-					<SidebarTrigger className="-ml-2" />
-					<span className="text-sm font-medium">Browse subjects</span>
+			<SidebarInset className="max-w-full min-w-0 overflow-x-clip">
+				<div className="border-border border-b px-4 py-3 md:px-6">
+					<div className="mx-auto flex max-w-7xl items-center gap-2">
+						<SidebarTrigger className="-ml-2 shrink-0" />
+						<Breadcrumbs items={breadcrumbs} />
+					</div>
 				</div>
 
-				<main className="min-w-0 flex-1">
-					<div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-5 py-6 md:px-8 md:py-10 xl:grid-cols-[minmax(0,1fr)_240px]">
-						<div className="min-w-0">
-							<nav
-								aria-label="Breadcrumb"
-								className="text-muted-foreground mb-6 flex flex-wrap items-center gap-2 text-sm"
-							>
-								{breadcrumbs.map((item, index) => {
-									const isLast = index === breadcrumbs.length - 1;
+				<div className="max-w-full min-w-0 flex-1">
+					<div className="mx-auto grid w-full max-w-7xl min-w-0 grid-cols-1 gap-10 px-5 py-6 md:px-8 md:py-10 xl:grid-cols-[minmax(0,1fr)_240px]">
+						<div className="max-w-full min-w-0">
+							<div className="mb-6" />
 
-									return (
-										<div
-											key={`${item.label}-${index}`}
-											className="flex items-center gap-2"
-										>
-											{index > 0 && <ChevronRight className="size-3.5" />}
-
-											{item.href && !isLast ? (
-												<Link
-													href={item.href}
-													className="hover:text-foreground inline-flex items-center gap-1.5"
-												>
-													{index === 0 && <Home className="size-3.5" />}
-													{item.label}
-												</Link>
-											) : (
-												<span
-													className={
-														index === 0
-															? "inline-flex items-center gap-1.5"
-															: undefined
-													}
-												>
-													{index === 0 && <Home className="size-3.5" />}
-													{item.label}
-												</span>
-											)}
-										</div>
-									);
-								})}
-							</nav>
-
-							<article className="prose-notes">
-								<header className="border-border mb-10 border-b pb-8">
-									<h1>{meta.title}</h1>
+							<article className="prose-notes max-w-full min-w-0">
+								<header className="border-border mb-10 max-w-full min-w-0 border-b pb-8">
+									<h1 className="break-words">{meta.title}</h1>
 
 									{meta.description && (
-										<p className="!text-muted-foreground !mt-3 !text-lg">
+										<p className="!text-muted-foreground !mt-3 !text-lg break-words">
 											{meta.description}
 										</p>
 									)}
 								</header>
 
-								{children}
+								<div className="max-w-full min-w-0 break-words">{children}</div>
 							</article>
 						</div>
 
 						<TableOfContents items={toc} />
 					</div>
-				</main>
+				</div>
 			</SidebarInset>
 		</SidebarProvider>
 	);
