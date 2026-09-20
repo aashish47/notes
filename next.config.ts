@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
 	output: "export",
 	pageExtensions: ["js", "jsx", "ts", "tsx", "mdx"],
 	trailingSlash: true,
+	reactCompiler: true,
 };
 
 export default withMDX(nextConfig);

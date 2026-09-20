@@ -11,7 +11,7 @@ import {
 import { searchNotes, type SearchResult } from "@/lib/search";
 import { Search } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export const NoteSearch = ({
 	initialResults,
@@ -22,10 +22,7 @@ export const NoteSearch = ({
 	const [query, setQuery] = useState("");
 	const inputRef = useRef<HTMLInputElement>(null);
 
-	const results = useMemo(
-		() => searchNotes(initialResults, query),
-		[initialResults, query],
-	);
+	const results = searchNotes(initialResults, query);
 
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
