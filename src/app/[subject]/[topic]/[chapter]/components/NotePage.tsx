@@ -17,7 +17,7 @@ import {
 import { NotesSidebar, type NotesSidebarNavigationItem } from "./NotesSidebar";
 import { TableOfContents } from "./TableOfContents";
 
-export const NotePage = ({
+export const NotePage = async ({
 	meta,
 	toc,
 	subject,
@@ -32,21 +32,31 @@ export const NotePage = ({
 	chapter?: string;
 	children: React.ReactNode;
 }) => {
-	const breadcrumbs = getBreadcrumbs({ subject, topic, chapter });
-	const navigation: NotesSidebarNavigationItem[] = listSubjects().map(
-		(subjectItem) => ({
-			subject: subjectItem,
-			subjectLabel: getSubjectLabel(subjectItem),
-			topics: listTopics(subjectItem).map((topicItem) => ({
-				topic: topicItem,
-				topicLabel: getTopicLabel(topicItem),
-				chapters: getTopicChapters(subjectItem, topicItem).map(
-					(chapterItem) => ({
-						slug: chapterItem.slug,
-						title: chapterItem.metadata.title,
-					}),
-				),
-			})),
+	const breadcrumbs = await getBreadcrumbs({ subject, topic, chapter });
+	const navigation: NotesSidebarNavigationItem[] = await Promise.all(
+		listSubjects().map(async (subjectItem) => {
+			const topics = listTopics(subjectItem);
+
+			const topicItems = await Promise.all(
+				topics.map(async (topicItem) => {
+					const chapters = await getTopicChapters(subjectItem, topicItem);
+
+					return {
+						topic: topicItem,
+						topicLabel: getTopicLabel(topicItem),
+						chapters: chapters.map((chapterItem) => ({
+							slug: chapterItem.slug,
+							title: chapterItem.metadata.title,
+						})),
+					};
+				}),
+			);
+
+			return {
+				subject: subjectItem,
+				subjectLabel: getSubjectLabel(subjectItem),
+				topics: topicItems,
+			};
 		}),
 	);
 

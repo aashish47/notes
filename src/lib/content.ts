@@ -1,30 +1,26 @@
 import "server-only";
 
-import { evaluate } from "@mdx-js/mdx";
 import GithubSlugger from "github-slugger";
-import matter from "gray-matter";
+import { notFound } from "next/navigation";
 import fs from "node:fs";
 import path from "node:path";
-import * as runtime from "react/jsx-runtime";
-import rehypeKatex from "rehype-katex";
-import rehypePrettyCode from "rehype-pretty-code";
-import rehypeSlug from "rehype-slug";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
 import remarkMdx from "remark-mdx";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 import { visit } from "unist-util-visit";
 
-const remarkGfmPlugin = remarkGfm;
-const remarkMathPlugin = remarkMath;
-const rehypeSlugPlugin = rehypeSlug;
-const rehypeKatexPlugin = rehypeKatex;
-const rehypePrettyCodePlugin = rehypePrettyCode;
 const remarkMdxPlugin = remarkMdx;
 const remarkParsePlugin = remarkParse;
 
 export type NoteMeta = {
+	title: string;
+	description?: string;
+	order?: number;
+	draft?: boolean;
+	tags?: string[];
+};
+
+export type Metadata = {
 	title: string;
 	description?: string;
 	order?: number;
@@ -119,24 +115,14 @@ export const readNoteSource = (
 		"utf8",
 	);
 
-export const getNoteMeta = (
+export const getNoteMeta = async (
 	subject: string,
 	topic: string,
 	chapter: string,
-): NoteMeta => {
-	const source = readNoteSource(subject, topic, chapter);
-	const { data } = matter(source);
+): Promise<Metadata> => {
+	const mod = await import(`../../content/${subject}/${topic}/${chapter}.mdx`);
 
-	return {
-		title: typeof data.title === "string" ? data.title : chapter,
-		description:
-			typeof data.description === "string" ? data.description : undefined,
-		order: typeof data.order === "number" ? data.order : undefined,
-		draft: typeof data.draft === "boolean" ? data.draft : undefined,
-		tags: Array.isArray(data.tags)
-			? data.tags.filter((tag): tag is string => typeof tag === "string")
-			: undefined,
-	};
+	return mod.metadata;
 };
 
 export const getSubjectLabel = (subject: string): string =>
@@ -151,35 +137,58 @@ export const getTopicLabel = (topic: string): string =>
 		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
 		.join(" ");
 
-export const getTopicChapters = (subject: string, topic: string): Note[] =>
-	listChapters(subject, topic)
-		.map((chapter) => ({
+export const getTopicChapters = async (
+	subject: string,
+	topic: string,
+): Promise<Note[]> => {
+	const chapters = listChapters(subject, topic);
+	const notes: Note[] = [];
+
+	for (const chapter of chapters) {
+		const metadata = await getNoteMeta(subject, topic, chapter);
+		notes.push({
 			subject,
 			topic,
 			chapter,
 			slug: chapter,
-			metadata: getNoteMeta(subject, topic, chapter),
-		}))
+			metadata,
+		});
+	}
+
+	return notes
 		.filter((note) => !note.metadata.draft)
 		.sort(
 			(a, b) =>
 				(a.metadata.order ?? 999) - (b.metadata.order ?? 999) ||
 				a.metadata.title.localeCompare(b.metadata.title),
 		);
+};
 
-export const getAllNotes = (): Note[] =>
-	listSubjects().flatMap((subject) =>
-		listTopics(subject).flatMap((topic) => getTopicChapters(subject, topic)),
-	);
+export const getAllNotes = async (): Promise<Note[]> => {
+	const subjects = listSubjects();
+	const allNotes: Note[] = [];
 
-export const getNote = (
+	for (const subject of subjects) {
+		const topics = listTopics(subject);
+		for (const topic of topics) {
+			const chapters = await getTopicChapters(subject, topic);
+			allNotes.push(...chapters);
+		}
+	}
+
+	return allNotes;
+};
+
+export const getNote = async (
 	subject: string,
 	topic: string,
 	chapter: string,
-): Note | undefined =>
-	getTopicChapters(subject, topic).find((note) => note.slug === chapter);
+): Promise<Note | undefined> => {
+	const chapters = await getTopicChapters(subject, topic);
+	return chapters.find((note) => note.slug === chapter);
+};
 
-export const getBreadcrumbs = ({
+export const getBreadcrumbs = async ({
 	subject,
 	topic,
 	chapter,
@@ -187,7 +196,7 @@ export const getBreadcrumbs = ({
 	subject?: string;
 	topic?: string;
 	chapter?: string;
-}): BreadcrumbItem[] => {
+}): Promise<BreadcrumbItem[]> => {
 	const breadcrumbs: BreadcrumbItem[] = [{ label: "Home", href: "/" }];
 
 	if (subject) {
@@ -204,9 +213,10 @@ export const getBreadcrumbs = ({
 		});
 	}
 
-	if (chapter) {
+	if (chapter && subject && topic) {
+		const meta = await getNoteMeta(subject, topic, chapter);
 		breadcrumbs.push({
-			label: getNoteMeta(subject!, topic!, chapter).title,
+			label: meta.title,
 			href: `/${subject}/${topic}/${chapter}/`,
 		});
 	}
@@ -214,55 +224,30 @@ export const getBreadcrumbs = ({
 	return breadcrumbs;
 };
 
-export const getNoteContent = (
+export const getNoteComponent = async (
 	subject: string,
 	topic: string,
 	chapter: string,
 ) => {
-	const source = readNoteSource(subject, topic, chapter);
-	const parsed = matter(source);
-
-	return {
-		metadata: getNoteMeta(subject, topic, chapter),
-		content: parsed.content,
-	};
+	try {
+		return await import(`../../content/${subject}/${topic}/${chapter}.mdx`);
+	} catch (err) {
+		if (hasCode(err) && err.code === "MODULE_NOT_FOUND") {
+			notFound();
+		}
+		throw err;
+	}
 };
 
-export const renderNoteContent = async (
-	subject: string,
-	topic: string,
-	chapter: string,
-) => {
-	const source = readNoteSource(subject, topic, chapter);
-	const { content } = matter(source);
-
-	const mdxModule = await evaluate(content, {
-		...runtime,
-		remarkPlugins: [remarkGfmPlugin, remarkMathPlugin],
-		rehypePlugins: [
-			rehypeSlugPlugin,
-			[rehypeKatexPlugin, { strict: false }],
-			[
-				rehypePrettyCodePlugin,
-				{
-					theme: "github-dark",
-					keepBackground: false,
-				},
-			],
-		],
-	});
-
-	return mdxModule.default as React.ComponentType;
-};
+function hasCode(err: unknown): err is { code: string } {
+	return typeof err === "object" && err !== null && "code" in err;
+}
 
 export const getToc = async (source: string): Promise<TocItem[]> => {
-	const { content } = matter(source);
-
 	const tree = unified()
 		.use(remarkParsePlugin)
-		.use(remarkMathPlugin)
 		.use(remarkMdxPlugin)
-		.parse(content);
+		.parse(source);
 
 	const slugger = new GithubSlugger();
 	const items: TocItem[] = [];

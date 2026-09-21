@@ -1,5 +1,6 @@
 import { NotePage } from "@/app/[subject]/[topic]/[chapter]/components/NotePage";
 import {
+	getNoteComponent,
 	getNoteMeta,
 	getSubjectLabel,
 	getToc,
@@ -7,23 +8,32 @@ import {
 	listSubjects,
 	listTopics,
 	readNoteSource,
-	renderNoteContent,
 } from "@/lib/content";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 export const dynamicParams = false;
 
-export const generateStaticParams = () =>
-	listSubjects().flatMap((subject) =>
-		listTopics(subject).flatMap((topic) =>
-			getTopicChapters(subject, topic).map((chapter) => ({
-				subject,
-				topic,
-				chapter: chapter.slug,
-			})),
-		),
-	);
+export const generateStaticParams = async () => {
+	const subjects = listSubjects();
+	const params: { subject: string; topic: string; chapter: string }[] = [];
+
+	for (const subject of subjects) {
+		const topics = listTopics(subject);
+		for (const topic of topics) {
+			const chapters = await getTopicChapters(subject, topic);
+			for (const chapter of chapters) {
+				params.push({
+					subject,
+					topic,
+					chapter: chapter.slug,
+				});
+			}
+		}
+	}
+
+	return params;
+};
 
 export const generateMetadata = async ({
 	params,
@@ -35,13 +45,14 @@ export const generateMetadata = async ({
 	}>;
 }): Promise<Metadata> => {
 	const { subject, topic, chapter } = await params;
-	const chapters = getTopicChapters(subject, topic);
+
+	const chapters = await getTopicChapters(subject, topic);
 
 	if (!chapters.some((item) => item.slug === chapter)) {
-		return {};
+		return { title: "Not Found" };
 	}
 
-	const meta = getNoteMeta(subject, topic, chapter);
+	const meta = await getNoteMeta(subject, topic, chapter);
 
 	return {
 		title: `${meta.title} · ${getSubjectLabel(subject)}`,
@@ -60,18 +71,21 @@ const NoteRoute = async ({
 }) => {
 	const { subject, topic, chapter } = await params;
 
+	const chapters = await getTopicChapters(subject, topic);
+
 	if (
 		!listSubjects().includes(subject) ||
 		!listTopics(subject).includes(topic) ||
-		!getTopicChapters(subject, topic).some((item) => item.slug === chapter)
+		!chapters.some((item) => item.slug === chapter)
 	) {
 		notFound();
 	}
 
-	const Content = await renderNoteContent(subject, topic, chapter);
+	const { default: Content } = await getNoteComponent(subject, topic, chapter);
 	const source = readNoteSource(subject, topic, chapter);
 	const toc = await getToc(source);
-	const meta = getNoteMeta(subject, topic, chapter);
+
+	const meta = await getNoteMeta(subject, topic, chapter);
 
 	return (
 		<NotePage

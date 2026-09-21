@@ -29,7 +29,20 @@ const SubjectPage = async ({
 	}
 
 	const topics = listTopics(subject);
-	const breadcrumbs = getBreadcrumbs({ subject });
+
+	// 1. Await breadcrumbs since it's now async
+	const breadcrumbs = await getBreadcrumbs({ subject });
+
+	// 2. Resolve chapter counts for each topic asynchronously
+	const topicData = await Promise.all(
+		topics.map(async (topic) => {
+			const chapters = await getTopicChapters(subject, topic);
+			return {
+				topic,
+				chapterCount: chapters.length,
+			};
+		}),
+	);
 
 	return (
 		<main className="bg-background min-h-screen">
@@ -45,21 +58,17 @@ const SubjectPage = async ({
 				</div>
 
 				<div className="mt-8 space-y-2.5">
-					{topics.map((topic, index) => {
-						const chapters = getTopicChapters(subject, topic);
-
-						return (
-							<NavigationCard
-								key={topic}
-								href={`/${subject}/${topic}/`}
-								index={index + 1}
-								title={getTopicLabel(topic)}
-								description={`${chapters.length} chapter${
-									chapters.length === 1 ? "" : "s"
-								}`}
-							/>
-						);
-					})}
+					{topicData.map(({ topic, chapterCount }, index) => (
+						<NavigationCard
+							key={topic}
+							href={`/${subject}/${topic}/`}
+							index={index + 1}
+							title={getTopicLabel(topic)}
+							description={`${chapterCount} chapter${
+								chapterCount === 1 ? "" : "s"
+							}`}
+						/>
+					))}
 				</div>
 			</div>
 		</main>

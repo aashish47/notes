@@ -13,13 +13,19 @@ import { notFound } from "next/navigation";
 
 export const dynamicParams = false;
 
-export const generateStaticParams = () =>
-	listSubjects().flatMap((subject) =>
-		listTopics(subject).map((topic) => ({
-			subject,
-			topic,
-		})),
-	);
+export const generateStaticParams = async () => {
+	const subjects = listSubjects();
+	const params: { subject: string; topic: string }[] = [];
+
+	for (const subject of subjects) {
+		const topics = listTopics(subject);
+		for (const topic of topics) {
+			params.push({ subject, topic });
+		}
+	}
+
+	return params;
+};
 
 const TopicPage = async ({
 	params,
@@ -38,8 +44,9 @@ const TopicPage = async ({
 		notFound();
 	}
 
-	const chapters = getTopicChapters(subject, topic);
-	const breadcrumbs = getBreadcrumbs({ subject, topic });
+	// Await both asynchronous calls
+	const chapters = await getTopicChapters(subject, topic);
+	const breadcrumbs = await getBreadcrumbs({ subject, topic });
 
 	return (
 		<main className="bg-background min-h-screen">
