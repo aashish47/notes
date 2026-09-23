@@ -16,243 +16,305 @@ export const metadata = {
 	],
 };
 
-# Introduction
+## Introduction
 
 Did you know that every time your computer sends an IP packet across the globe, it is wrapped, unwrapped, and re-wrapped in entirely different link-layer frames like a traveler switching from a limousine, to a plane, to a train? Welcome to the link layer—the place where software meets hardware to move bits across physical reality.
 
 In this lesson, you will learn:
 
 - The fundamental services of the link layer and how it bridges the gap between software and physical networking hardware.
+
 - How errors are detected and corrected at the bit level using parity checks, checksums, and Cyclic Redundancy Checks (CRCs).
+
 - How multiple nodes coordinate access to shared broadcast channels.
+
 - The mechanics of local area networks, including MAC addressing, ARP, Ethernet, transparent switching, and Virtual LANs (VLANs).
+
 - High-scale network concepts like link virtualization (MPLS and VXLANs) and modern leaf-spine data center topologies.
 
-# Introduction to the Link Layer
+## Introduction to the Link Layer
 
 To understand the link layer, we must first establish key terminology. Any device that runs a link-layer protocol is called a **node** (which includes hosts, routers, switches, and wireless access points). The communication channels that connect adjacent nodes along a path are called **links**. To transfer a datagram from a source to a destination, it must be encapsulated into a link-layer frame and transmitted over each individual link along the route.
 
-# Services Provided by the Link Layer
+### Services Provided by the Link Layer
 
 While the basic job of the link layer is to move a datagram over a single link, the services can vary widely across protocols:
 
 - **Framing:** Almost all link-layer protocols encapsulate network-layer datagrams within a link-layer frame. A frame consists of a data field (carrying the datagram) and several header fields specified by the protocol.
+
 - **Link Access:** A Medium Access Control (MAC) protocol specifies the rules for transmitting a frame onto the link. While simple for point-to-point links, it is critical for coordinating multiple nodes sharing a broadcast link.
+
 - **Reliable Delivery:** This service guarantees to move each datagram across the link without error. While often used on error-prone links (like wireless), it can be considered unnecessary overhead for low-error wired links (like fiber or coax), which is why many wired link-layer protocols omit it.
+
 - **Error Detection and Correction:** Signal attenuation and electromagnetic noise can flip bits during transmission. The transmitting node adds error-detection bits into the frame, allowing the receiving hardware to check for errors and potentially correct them locally without waiting for end-to-end transport-layer retransmission.
 
-# Where Is the Link Layer Implemented?
+## Where Is the Link Layer Implemented?
 
 In a typical host, the link layer is primarily implemented in a dedicated hardware chip called a **network adapter**, or **Network Interface Controller (NIC)**. This hardware implements framing, link access, and error-detection services.
 
 However, the link layer is not entirely hardware-locked. Higher-level functionalities—such as assembling link-layer addressing information and responding to controller interrupts—run as software components on the host CPU. Thus, the link layer represents the boundary where software meets hardware in the protocol stack.
 
-# Error-Detection and -Correction Techniques
+## Error-Detection and -Correction Techniques
 
 At the sending node, data $D$ to be protected is augmented with Error-Detection and Correction (EDC) bits. The receiver checks the received bits $D'$ and $EDC'$ to determine if an error occurred. While sophisticated schemes reduce the probability of undetected bit errors, they incur higher computational and transmission overhead.
 
-## Parity Checks
+### Parity Checks
 
 - **Single Parity Bit:** In an even parity scheme, the sender adds a single bit to ensure the total number of 1s in the data plus the parity bit is even. The receiver counts the 1s; an odd number reveals an error. If an even number of bit errors occur, the error goes undetected.
+
 - **Two-Dimensional Parity:** The data bits are divided into $i$ rows and $j$ columns. A parity value is computed for each row and column. This allows the receiver to detect and locate a single bit error, enabling **Forward Error Correction (FEC)** by flipping the corrupted bit at the intersection of the failed row and column. It can also detect (but not correct) any combination of two errors.
 
-## Checksumming Methods
+### Checksumming Methods
 
 In checksumming, bytes of data are treated as $k$ -bit integers and summed. The **Internet checksum** treats data bytes as 16-bit integers, sums them, and takes the 1s complement. The receiver sums the received data (including the checksum) and verifies the result is all 1s. This method requires minimal packet overhead and is simple to implement in transport-layer software, but it offers relatively weak protection compared to hardware-based cyclic redundancy checks.
 
-## Cyclic Redundancy Check (CRC)
+### Cyclic Redundancy Check (CRC)
 
 Cyclic Redundancy Check (CRC) codes, also known as polynomial codes, operate on bit strings using modulo-2 arithmetic (where addition and subtraction are equivalent to bitwise XOR operations without carries or borrows).
 
 To perform a CRC check:
 
 1. The sender and receiver agree on an \(r+1\) bit pattern called the **generator $(G)$** , whose leftmost bit must be 1.
+
 2. The sender appends $r$ additional bits $(R)$ to the data $(D)$ such that the resulting $d+r$ bit pattern is exactly divisible by $G$ modulo-2.
+
 3. The sender computes $R$ as the remainder of:
 
 $$
+
 R = \text{remainder of } \frac{D \cdot 2^r}{G}
+
+
 $$
 
 4. The receiver divides the $d+r$ received bits by $G$ . If the remainder is nonzero, an error has occurred.
 
 CRC checks can detect burst errors of fewer than $r+1$ bits, and under appropriate assumptions, any burst of length greater than $r+1$ bits with a probability of $1 - 0.5^r$ . It can also detect any odd number of bit errors.
 
-# Multiple Access Links and Protocols
+## Multiple Access Links and Protocols
 
 There are two types of network links: **point-to-point links** (connecting a single sender and receiver) and **broadcast links** (where multiple nodes share the same physical channel). When multiple nodes transmit frames simultaneously on a broadcast channel, they **collide**, scrambling the signals and wasting the channel capacity. **Multiple access protocols** coordinate access to prevent these collisions.
 
 An ideal multiple access protocol for a channel of rate $R$ bps should be:
 
 1. Highly efficient: A single active node achieves a throughput of $R$ bps.
+
 2. Fair: When $M$ nodes transmit, each gets an average throughput of $R/M$ bps.
+
 3. Decentralized: No single point of failure (no central controller).
+
 4. Simple and inexpensive to implement.
 
 There are three broad classes of multiple access protocols:
 
-## 1. Channel Partitioning Protocols
+### 1. Channel Partitioning Protocols
 
 - **Time-Division Multiplexing (TDM):** Divides time into frames, with each frame partitioned into $N$ time slots assigned to $N$ nodes. It is collision-free and fair, but inefficient because active nodes are limited to $R/N$ bandwidth even when no other nodes are transmitting.
+
 - **Frequency-Division Multiplexing (FDM):** Divides the channel bandwidth into $N$ smaller frequency bands of rate $R/N$ bps. It shares the same advantages and limitations as TDM.
+
 - **Code Division Multiple Access (CDMA):** Assigns a unique mathematical code to each node, allowing them to transmit simultaneously over the same frequency band without interfering.
 
-## 2. Random Access Protocols
+### 2. Random Access Protocols
 
 In random access, active nodes transmit at the full channel rate of $R$ bps. If a collision occurs, nodes wait a random delay before retransmitting.
 
 - **Slotted ALOHA:** Time is divided into slots of frame-transmission size $L/R$ . Nodes only transmit at slot boundaries. If a collision occurs, the node retransmits in each subsequent slot with probability $p$ . The maximum efficiency when $N \to \infty$ is $1/e \approx 37\%$ .
+
 - **Pure ALOHA:** Unslotted and fully decentralized. Nodes transmit frames immediately upon arrival. Retransmission occurs with probability \(p\) after a collision. The maximum efficiency is exactly half of slotted ALOHA: $1/(2e) \approx 18.5\%$ .
+
 - **Carrier Sense Multiple Access (CSMA):** Nodes listen to the channel before speaking (carrier sensing). If another node is transmitting, the node waits.
+
 - **CSMA with Collision Detection (CSMA/CD):** While transmitting, the node monitors the channel. If it detects a collision, it aborts transmission immediately to avoid wasting channel time.
+
 - **Binary Exponential Backoff:** Used in Ethernet. After \(n\) collisions, a node selects a random backoff multiplier $K$ from the set ${0, 1, 2, \dots, 2^n - 1}$ , waiting $K \times 512$ bit times before re-sensing the channel.
 
-## 3. Taking-Turns Protocols
+### 3. Taking-Turns Protocols
 
 - **Polling Protocol:** A designated controller node polls each node in a cyclic, round-robin fashion. It eliminates collisions but introduces a polling delay and suffers from a single point of failure (the controller).
+
 - **Token-Passing Protocol:** A small, special frame called a token is passed from node to node in a fixed order. A node can only transmit if it holds the token. It is decentralized and highly efficient, but a single node failure can break the token-passing chain.
 
-# Real-World Case Study: DOCSIS
+### Real-World Case Study: DOCSIS
 
 The Data-Over-Cable Service Interface Specifications (DOCSIS) defines the cable internet access protocol and uses a hybrid of these methods. It uses FDM to divide downstream and upstream channels. In the upstream direction, the Cable Modem Termination System (CMTS) uses TDM to divide time into mini-slots. The CMTS dynamically grants modems permission to transmit via downstream MAP messages. To request these slots, cable modems send request frames using a random access protocol, resolving collisions with binary exponential backoff.
 
-# Switched Local Area Networks
+### Switched Local Area Networks
 
 Local Area Networks (LANs) are switched networks operating at the link layer. These networks route packets using flat physical addresses rather than hierarchical network addresses.
 
-# Link-Layer Addressing and ARP
+## Link-Layer Addressing and ARP
 
 - **MAC Addresses:** Adapters (interfaces), not hosts, have MAC addresses. They are 6 bytes (48 bits) long, typically represented in hexadecimal (e.g., `1A-23-F9-CD-06-9B`). They are flat and permanent. The IEEE manages the address space to ensure global uniqueness. The link-layer broadcast address is `FF-FF-FF-FF-FF-FF`.
+
 - **Address Resolution Protocol (ARP):** Translates an IP address to a MAC address for interfaces on the same subnet. Every host maintains an ARP table mapping IP-to-MAC associations, which expire after a Time-To-Live (TTL) value (typically 20 minutes).
+
 - **ARP Resolution Process:** To resolve an IP address, a host broadcasts an ARP query packet (`FF-FF-FF-FF-FF-FF`). The target host responds with a unicast ARP reply containing its MAC address.
+
 - **Sending Off-Subnet:** To send a packet to another subnet, a host encapsulates the IP datagram (destined for the remote host's IP) in a frame addressed to the local _gateway router's_ MAC address. The router extracts the datagram, resolves the next-hop MAC via its own ARP, and re-encapsulates it in a new frame.
 
-# Ethernet
+## Ethernet
 
 Ethernet is the dominant wired LAN technology. Modern Ethernet networks use a hub-free, star topology with switches at the center.
 
-## Frame Structure
+### Frame Structure
 
 - **Preamble (8 bytes):** Synchronizes receiver clocks.
+
 - **Destination & Source Addresses (6 bytes each):** MAC addresses.
+
 - **Type (2 bytes):** Demultiplexes payload up to the correct network protocol (e.g., IP or ARP).
+
 - **Data (46 to 1,500 bytes):** Carries the IP datagram.
+
 - **CRC (4 bytes):** Detects bit-level transmission errors.
 
-## Connectionless & Unreliable
+### Connectionless & Unreliable
 
 Ethernet does not establish a connection before sending, nor does it acknowledge received frames. Gaps in data are resolved by upper-layer protocols like TCP.
 
-# Link-Layer Switches
+## Link-Layer Switches
 
 A switch is a store-and-forward packet switch operating at Layer 2. It is transparent to hosts, meaning hosts send frames directly to destination MAC addresses without knowing the switch is forwarding them.
 
 - **Filtering and Forwarding:** Decisions are made using a switch table containing MAC addresses, matching interfaces, and entry creation times.
-  - If a destination MAC is not in the table, the switch **broadcasts (floods)** the frame on all interfaces except the incoming one.
-  - If the destination MAC is on the incoming interface, the frame is **filtered (dropped)**.
-  - If the destination MAC is mapped to a different interface, the frame is **forwarded** to that interface's buffer.
+
+  - If a destination MAC is not in the table, the switch **broadcasts (floods)** the frame on all interfaces except the incoming one.
+
+  - If the destination MAC is on the incoming interface, the frame is **filtered (dropped)**.
+
+  - If the destination MAC is mapped to a different interface, the frame is **forwarded** to that interface's buffer.
+
 - **Self-Learning:** Switches automatically build their switch tables. When a frame arrives, the switch records the sender's MAC address and its incoming interface. It deletes inactive entries after an aging time, making switches true plug-and-play devices.
 
-# Virtual Local Area Networks (VLANs)
+### Virtual Local Area Networks (VLANs)
 
 A physical switch can be partitioned into multiple logical networks called VLANs to isolate traffic, optimize switch ports, and manage moving users.
 
 - **Port-based VLAN:** The network administrator assigns switch ports to specific VLANs. Broadcast traffic is restricted to ports within the same VLAN.
+
 - **VLAN Trunking:** To connect VLANs across multiple switches, a physical link is configured as a trunk port belonging to all VLANs. Frames crossing a trunk port use the **IEEE 802.1Q** standard, which adds a 4-byte VLAN tag (containing a 12-bit VLAN identifier) to the standard Ethernet frame header.
 
-# Link Virtualization: A Network as a Link Layer
+### Link Virtualization: A Network as a Link Layer
 
 In advanced configurations, an entire network of switches and routers can be virtualized to behave like a single, physical link-layer channel connecting two endpoints.
 
-## Multiprotocol Label Switching (MPLS)
+### Multiprotocol Label Switching (MPLS)
 
 MPLS is a packet-switched, virtual-circuit network designed to speed up IP router forwarding. It adds a small MPLS header between the Layer 2 (Ethernet) and Layer 3 (IP) headers.
 
 - **Label-Switched Routers:** MPLS-capable routers look up a fixed-length MPLS label in their forwarding tables and immediately pass the frame to the outgoing interface, bypassing the need to perform a slow longest-prefix IP match.
+
 - **Traffic Engineering:** A network operator can override standard IP least-cost routing, forcing traffic destined for the same IP address along different paths based on policies or resource availability.
 
-## VXLANs: Ethernet Over IP
+### VXLANs: Ethernet Over IP
 
 Standard 802.1Q VLANs are limited to 4,096 logical networks and must be contained within a single end-to-end switched Ethernet infrastructure. Virtual Extensible LANs (VXLANs) solve this constraint by tunneling Layer 2 subnets across standard Layer 3 IP network boundaries.
 
 - **VXLAN Tunnel Endpoints (VTEPs):** Devices at the boundaries of the local LANs. When Host A sends an Ethernet frame to Host B across a WAN, VTEP x encapsulates the Layer 2 Ethernet frame inside a UDP segment (along with a 24-bit VXLAN Network Identifier, or VNI, supporting up to 16 million VXLANs).
+
 - **Encapsulation Pathway:** The UDP segment is wrapped in an IP datagram addressed to VTEP y. The intermediary IP network routes the datagram normally. VTEP y receives the IP datagram, extracts the original Ethernet frame, and transmits it to Host B's local LAN. This process virtualizes the Layer 3 internet as a single logical link-layer channel.
 
-# Data Center Networking
+## Data Center Networking
 
 Data centers house tens to hundreds of thousands of commodity hosts (called blades) stacked in racks of 20 to 40 servers. Each rack is connected to a **Top of Rack (TOR) switch**, which in turn links to the broader data center network.
 
-# Hierarchical Data Center Topologies
+### Hierarchical Data Center Topologies
 
 Traditional data center networks use a tiered, tree-like structure:
 
 1. **Border Routers:** Connect the internal network to the public Internet.
+
 2. **Access Routers:** Interface with Layer 3 networks and sit above the switch hierarchy.
+
 3. **Tier-1 (Core) Switches:** Connect access routers and aggregate load balancers.
+
 4. **Tier-2 (Aggregation) Switches:** Distribute traffic to the TOR switches.
+
 5. **TOR Switches:** Interconnect hosts within a single rack.
 
-# Load Balancing
+### Load Balancing
 
 External requests for applications are directed to a **load balancer** (often called a "Layer-4 switch"). The load balancer distributes traffic across internal hosts based on their current computational load, translates the public destination IP address to the selected host's private IP (a NAT-like function), and translates back for outgoing responses.
 
-# Leaf-Spine (Clos) Topologies
+### Leaf-Spine (Clos) Topologies
 
 Traditional hierarchical structures suffer from over-subscription: links higher up the tree become congested when many servers communicate across racks. To solve this, modern data centers use a flat **leaf-spine topology** (a type of Clos network):
 
 - **Leaf Switches:** Every TOR access switch connects directly to every spine switch.
+
 - **Spine Switches:** The core switching fabric.
+
 - **East-West Traffic:** This topology ensures that server-to-server traffic always requires exactly two hops, dramatically increasing throughput for distributed computing tasks.
 
-# Trends in Data Center Networking
+### Trends in Data Center Networking
 
 - **Centralized SDN Control:** Simplifies network management by programming the forwarding tables of commodity switches from a central controller.
+
 - **Virtualization:** Emulates a single flat Layer 2 network across different physical subnets to support seamless Virtual Machine (VM) migrations.
+
 - **Low-latency Congestion Control:** Implements technologies like RDMA over Ethernet to manage buffer overruns in microsecond-delay environments.
+
 - **Energy Efficiency:** Data centers consume 1% to 2% of global electricity. Modern operators prioritize energy-efficiency and carbon-efficiency, particularly to support AI workloads.
 
-# Retrospective: A Day in the Life of a Web Page Request
+## Retrospective: A Day in the Life of a Web Page Request
 
 Let's trace the step-by-step lifecycle of a web page request when a student, Bob, connects his laptop to a school switch and visits `www.google.com`.
 
-## Step 1: Initialization (DHCP, UDP, IP, and Ethernet)
+### Step 1: Initialization (DHCP, UDP, IP, and Ethernet)
 
 Before Bob can do anything, his laptop needs an IP address:
 
 1. Bob's laptop creates a **DHCP request** message, wraps it in a **UDP segment** (destination port 67), places it inside an **IP datagram** (destination `255.255.255.255`, source `0.0.0.0`), and encapsulates it in an **Ethernet frame** (destination MAC `FF:FF:FF:FF:FF:FF`, source MAC `00:16:D3:23:68:8A`).
+
 2. The school switch floods this broadcast frame. The local router receives it, extracts the DHCP request, and allocates IP address `68.85.2.101`.
+
 3. The router creates a **DHCP ACK** containing the allocated IP, the DNS server's IP (`68.87.71.226`), and the gateway router's IP (`68.85.2.1`). It wraps this inside a unicast Ethernet frame back to Bob's laptop.
+
 4. Bob's laptop receives the DHCP ACK, records its IP, and installs the gateway router in its routing table.
 
-## Step 2: Name Resolution (DNS and ARP)
+### Step 2: Name Resolution (DNS and ARP)
 
 To contact Google, Bob's laptop needs its IP address:
 
 1. The OS creates a **DNS query** (destination IP `68.87.71.226`). To send this off-subnet, the laptop needs the MAC address of its default gateway (`68.85.2.1`).
+
 2. The laptop creates an **ARP query** asking for the MAC of `68.85.2.1` and broadcasts it.
+
 3. The gateway router receives the query and unicasts an **ARP reply** with its MAC address (`00:22:6B:45:1F:1B`).
+
 4. Bob's laptop receives the ARP reply, extracts the router's MAC, and transmits the Ethernet frame containing the DNS query, addressed to the router's MAC.
 
-## Step 3: Routing to the DNS Server
+### Step 3: Routing to the DNS Server
 
 1. The school router forwards the DNS query packet to Comcast's backbone network using intra-domain (OSPF) and inter-domain (BGP) routing protocols.
+
 2. The DNS server processes the query, finds the IP for `www.google.com` (`64.233.169.105`), and sends a **DNS reply** back to Bob's laptop.
 
-## Step 4: Web Client-Server Interaction (TCP and HTTP)
+### Step 4: Web Client-Server Interaction (TCP and HTTP)
 
 1. Bob's laptop initiates a TCP connection by sending a **TCP SYN** segment to Google's IP (`64.233.169.105`).
+
 2. Routers forward the SYN packet. Google responds with a **TCP SYNACK** segment.
+
 3. Bob's laptop receives the SYNACK and responds with an **ACK**, completing the three-way handshake.
+
 4. Bob's browser creates an **HTTP GET** message and writes it to the socket. It is transmitted as the payload of a TCP segment to Google.
+
 5. Google's web server reads the HTTP GET, encapsulates the requested HTML page in an **HTTP response**, and sends it back to Bob's laptop. Bob's browser reads the HTML and displays the web page.
 
-# Summary
+## Summary
 
-## Key Takeaways
+### Key Takeaways
 
 - **Encapsulation & Framing:** The link layer encapsulates Layer 3 network-layer datagrams into Layer 2 frames for node-to-node transmission across physical links.
+
 - **Error Detection:** Schemes range from basic 1D and 2D parity (supporting single-bit correction via FEC) to hardware-driven cyclic redundancy checks (CRCs).
+
 - **Collision Management:** Multiple access protocols coordinate shared channels using channel partitioning (TDM/FDM), random access (CSMA/CD), or taking-turns (polling/token passing).
+
 - **Transparent Switched LANs:** Local networks use self-learning Layer 2 switches to filter and forward frames based on flat MAC addresses, using ARP to map IP-to-MAC associations.
+
 - **Overlays & Scalability:** VLANs isolate traffic on a single switch, while VXLANs tunnel Layer 2 networks over Layer 3 infrastructures to scale data centers.
+
 - **Clos Networks:** Modern leaf-spine topologies reduce over-subscription in data centers, providing scalable, high-speed paths for east-west server traffic.

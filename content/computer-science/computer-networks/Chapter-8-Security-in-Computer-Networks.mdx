@@ -15,204 +15,291 @@ export const metadata = {
 	],
 };
 
-# Introduction
+## Introduction
 
 How can two entities who have never met establish a perfectly secure, encrypted conversation over a public medium teeming with adversaries? This is the fundamental challenge of network security. In this lesson, we will explore how mathematical algorithms, protocol designs, and operational devices work together to protect our digital lives from sniffing, tampering, and impersonation.
 
 By the end of this lesson, you will be able to:
 
 - Explain the core pillars of secure communication: confidentiality, integrity, end-point authentication, and operational security.
+
 - Analyze and contrast symmetric-key, public-key (RSA, Diffie-Hellman), and cryptographic hash algorithms.
+
 - Describe how security protocols function at different layers of the network stack, including PGP, TLS, IPsec, WPA3, and 5G cellular security.
+
 - Evaluate operational defense mechanisms like stateful firewalls and intrusion detection/prevention systems (IDS/IPS).
 
-# What Is Network Security?
+## What Is Network Security?
 
 To understand network security, we must define the properties of **secure communication** between two parties (historically named Alice and Bob) over an insecure channel monitored by an intruder (Trudy):
 
 - **Confidentiality:** Only the sender and intended receiver should understand the contents of the transmitted message. This requires encryption.
+
 - **Message Integrity:** Ensuring that the content of the communication is not altered in transit, either maliciously or accidentally.
+
 - **End-point Authentication:** Both sender and receiver must confirm the unique identity of the other party involved in the communication.
+
 - **Operational Security:** Protecting organizational networks from attacks (such as worms, corporate espionage, and DoS attacks) using structural devices like firewalls and intrusion detection systems.
 
-# Principles of Cryptography
+## Principles of Cryptography
 
 Cryptography allows a sender to disguise data so that an intruder gains no information from the intercepted transmission.
 
 - **Plaintext (or Cleartext):** The message in its original, readable form $(m)$.
+
 - **Ciphertext:** The encrypted message, rendered unintelligible to eavesdroppers.
+
 - **Encryption Algorithm:** A standardized, public mathematical function that takes plaintext and an encryption key $(K_A)$ as inputs to output ciphertext: $(m)_{K_A}$.
+
 - **Decryption Algorithm:** A standardized public function that takes ciphertext and a decryption key $(K_B)$ as inputs to output plaintext:
 
 $$
+
 m = ((m)_{K_A})_{K_B}
+
+
 $$
 
 _Did you know?_ In modern cryptography, the encryption and decryption algorithms are publicly known and standardized. The security relies entirely on keeping the keys secret!
 
-# Symmetric Key Cryptography
+## Symmetric Key Cryptography
 
 In symmetric key systems, the sender and receiver share the exact same secret key $(K_{AB})$.
 
 - **Historical Ciphers:**
-  - **Caesar Cipher:** Substitutes each letter with one that is \(k\) letters later in the alphabet. Easy to break since there are only 25 possible keys.
-  - **Monoalphabetic Cipher:** Maps any letter to any other letter uniquely. Provides \(26!\) possible pairings, but is easily cracked using statistical letter-frequency analysis.
-  - **Polyalphabetic Cipher:** Uses multiple monoalphabetic ciphers in a repeating pattern, meaning the same plaintext letter can be encrypted to different ciphertext letters depending on its position.
+
+  - **Caesar Cipher:** Substitutes each letter with one that is \(k\) letters later in the alphabet. Easy to break since there are only 25 possible keys.
+
+  - **Monoalphabetic Cipher:** Maps any letter to any other letter uniquely. Provides \(26!\) possible pairings, but is easily cracked using statistical letter-frequency analysis.
+
+  - **Polyalphabetic Cipher:** Uses multiple monoalphabetic ciphers in a repeating pattern, meaning the same plaintext letter can be encrypted to different ciphertext letters depending on its position.
 
 - **Intruder Attack Profiles:**
-  - **Ciphertext-only attack:** The intruder only has access to the intercepted ciphertext.
-  - **Known-plaintext attack:** The intruder knows some (plaintext, ciphertext) pairings.
-  - **Chosen-plaintext attack:** The intruder can choose a specific plaintext message and obtain its corresponding ciphertext form.
+
+  - **Ciphertext-only attack:** The intruder only has access to the intercepted ciphertext.
+
+  - **Known-plaintext attack:** The intruder knows some (plaintext, ciphertext) pairings.
+
+  - **Chosen-plaintext attack:** The intruder can choose a specific plaintext message and obtain its corresponding ciphertext form.
 
 - **Modern Block Ciphers:**
-  - The message is processed in \(k\)-bit blocks (typically 64 or 128 bits). The algorithm simulates randomly permuted tables through multiple cycles (rounds) of splitting, table lookups, and scrambling.
-  - **Standards:** DES (56-bit key, 64-bit blocks), 3DES, and AES (128, 192, and 256-bit keys, 128-bit blocks).
+
+  - The message is processed in \(k\)-bit blocks (typically 64 or 128 bits). The algorithm simulates randomly permuted tables through multiple cycles (rounds) of splitting, table lookups, and scrambling.
+
+  - **Standards:** DES (56-bit key, 64-bit blocks), 3DES, and AES (128, 192, and 256-bit keys, 128-bit blocks).
 
 - **Cipher-Block Chaining (CBC):**
-  - If identical plaintext blocks are encrypted independently, they yield identical ciphertext blocks, allowing patterns to leak.
-  - **CBC** solves this. The sender generates a random \(k\)-bit string called the **Initialization Vector (IV)** $(c_0)$ sent in cleartext.
-  - For the first block:
+
+  - If identical plaintext blocks are encrypted independently, they yield identical ciphertext blocks, allowing patterns to leak.
+
+  - **CBC** solves this. The sender generates a random \(k\)-bit string called the **Initialization Vector (IV)** $(c_0)$ sent in cleartext.
+
+  - For the first block:
 
 $$
+
 c_1 = K_S(m_1 \oplus c_0)
+
+
 $$
 
 - For subsequent blocks:
 
 $$
+
 c_i = K_S(m_i \oplus c_{i-1})
+
+
 $$
 
 This chain ensures identical blocks encrypt to entirely different ciphertexts.
 
-# Public Key Cryptography
+## Public Key Cryptography
 
 Public key cryptography utilizes a pair of keys: a **public key** $(K^+)$ available to the world, and a **private key** $(K^-)$ known only to the owner.
 
 - **RSA Algorithm:** Named after Rivest, Shamir, and Adleman, RSA relies on modular arithmetic and the extreme difficulty of factoring large numbers.
 
-  1. Choose two large prime numbers, $p$ and $q$.
-  2. Compute $n = pq$ and $z = (p-1)(q-1)$.
-  3. Choose $e < n$ such that $e$ and $z$ are relatively prime (no common factors except 1).
-  4. Find $d$ such that $ed - 1$ is exactly divisible by $z$ (i.e., $ed \bmod z = 1$.
-  5. The public key is $(n, e)$ and the private key is $(n, d)$.
-  6. **Encryption:**
+  1. Choose two large prime numbers, $p$ and $q$.
+
+  2. Compute $n = pq$ and $z = (p-1)(q-1)$.
+
+  3. Choose $e < n$ such that $e$ and $z$ are relatively prime (no common factors except 1).
+
+  4. Find $d$ such that $ed - 1$ is exactly divisible by $z$ (i.e., $ed \bmod z = 1$.
+
+  5. The public key is $(n, e)$ and the private key is $(n, d)$.
+
+  6. **Encryption:**
 
 $$
+
 c = m^e \bmod n
+
+
 $$
 
 7. **Decryption:**
 
 $$
+
 m = c^d \bmod n
+
+
 $$
 
 8. _Why it works:_ Mathematical number theory dictates that
 
 $$
+
 (m^e \bmod n)^d \bmod n
+
 =
+
 m^{ed} \bmod n
+
 =
+
 m
+
+
 $$
 
 - **Session Keys:** Public key operations are computationally expensive. In practice, RSA is used to encrypt and distribute a symmetric **session key** $K_S$. All subsequent bulk data transfer is encrypted using the faster symmetric cipher (e.g., AES) initialized with $K_S$.
 
 - **Diffie-Hellman Key Agreement:** Allows two parties to compute a shared secret key without ever transmitting it over the network:
 
-  1. Agree publicly on a large prime \(p\) and base \(g\).
-  2. Alice chooses private $S_A$, Bob chooses private $S_B$.
-  3. Alice computes public $K^+_A = g^{S_A} \bmod p$; Bob computes public $K^+_B = g^{S_B} \bmod p$.
-  4. Alice computes shared key:
+  1. Agree publicly on a large prime \(p\) and base \(g\).
+
+  2. Alice chooses private $S_A$, Bob chooses private $S_B$.
+
+  3. Alice computes public $K^+_A = g^{S_A} \bmod p$; Bob computes public $K^+_B = g^{S_B} \bmod p$.
+
+  4. Alice computes shared key:
 
 $$
+
 (K^+_B)^{S_A} \bmod p
+
 =
+
 g^{S_B S_A} \bmod p
+
+
 $$
 
 5. Bob computes shared key:
 
 $$
+
 (K^+_A)^{S_B} \bmod p
+
 =
+
 g^{S_A S_B} \bmod p
+
+
 $$
 
 Both values are mathematically identical.
 
-# Message Integrity and Digital Signatures
+## Message Integrity and Digital Signatures
 
 To authenticate a message, Bob must verify that it originated from Alice and has not been tampered with in transit.
 
 - **Cryptographic Hash Functions:** Takes an input message $m$ and computes a fixed-size hash $H(m)$. It must be computationally infeasible to find any two different messages $x$ and $y$ such that $H(x) = H(y)$ (collision-resistance). Modern standards include MD5 (128-bit) and SHA-1 (160-bit).
 
 - **Message Authentication Code (MAC):**
-  1. Alice appends a shared secret authentication key $s$ to message $m$: $m + s$.
-  2. She computes the hash $H(m + s)$ to create the **MAC**.
-  3. She appends the MAC to the cleartext message $m$ and sends $(m, H(m + s))$.
-  4. Bob, knowing $s$, computes his own MAC over the received $m$ and compares it. No encryption algorithms are required for this integrity check. Popular standard: **HMAC**.
+
+  1. Alice appends a shared secret authentication key $s$ to message $m$: $m + s$.
+
+  2. She computes the hash $H(m + s)$ to create the **MAC**.
+
+  3. She appends the MAC to the cleartext message $m$ and sends $(m, H(m + s))$.
+
+  4. Bob, knowing $s$, computes his own MAC over the received $m$ and compares it. No encryption algorithms are required for this integrity check. Popular standard: **HMAC**.
 
 - **Digital Signatures:** A cryptographic way to bind an owner to a document in a verifiable, nonforgeable manner.
-  - Bob signs a message by encrypting its hash with his private key:
+
+  - Bob signs a message by encrypting its hash with his private key:
 
 $$
+
 (H(m))_{K^-_B}
+
+
 $$
 
 - Alice verifies the signature by applying Bob's public key \(K^+\_B\) to the signature:
 
 $$
+
 ((H(m))_{K^-_B})_{K^+_B}
+
 =
+
 H(m)
+
+
 $$
 
 She compares this result with her own computed hash $H(m)$ of the message.
 
 - **Public Key Certification:** To prevent Trudy from masquerading as Bob by distributing her own public key as Bob's, **Certification Authorities (CAs)** validate identities. The CA binds a public key to an entity and digitally signs this binding, creating a public key **certificate** (specified by standards like X.509).
 
-# End-Point Authentication
+## End-Point Authentication
 
 Authenticating a live user over a network requires protocols that evolve to withstand sophisticated attacks:
 
 - **ap1.0 & ap2.0 (Identity Claims and IP Addresses):** Simply stating "I am Alice" fails immediately because Trudy can pretend to be Alice. Authenticating based on the IP source address fails due to **IP Spoofing**, where Trudy crafts raw packets with Alice's source IP.
-- **ap3.0 & ap3.1 (Passwords):** Sending a cleartext password is vulnerable to sniffing. Encrypting the password (ap3.1) with a symmetric key still fails because Trudy can record the encrypted block and play it back to the server. This is a **playback attack**.
-- **ap4.0 (Nonces & Challenge-Response):** To prove a user is live, protocols introduce a **nonce**—a number used only once in a lifetime.
-  1. Alice sends "I am Alice" to Bob.
-  2. Bob generates a random nonce $R$ and sends it to Alice.
-  3. Alice encrypts the nonce with their shared symmetric key $K_{AB}$ and sends back $K_{AB}(R)$.
-  4. Bob decrypts it. If the result is $R$, Alice is authenticated. Trudy cannot play back previous messages because each session uses a unique, unpredictable nonce $R$.
 
-# Securing E-Mail
+- **ap3.0 & ap3.1 (Passwords):** Sending a cleartext password is vulnerable to sniffing. Encrypting the password (ap3.1) with a symmetric key still fails because Trudy can record the encrypted block and play it back to the server. This is a **playback attack**.
+
+- **ap4.0 (Nonces & Challenge-Response):** To prove a user is live, protocols introduce a **nonce**—a number used only once in a lifetime.
+
+  1. Alice sends "I am Alice" to Bob.
+
+  2. Bob generates a random nonce $R$ and sends it to Alice.
+
+  3. Alice encrypts the nonce with their shared symmetric key $K_{AB}$ and sends back $K_{AB}(R)$.
+
+  4. Bob decrypts it. If the result is $R$, Alice is authenticated. Trudy cannot play back previous messages because each session uses a unique, unpredictable nonce $R$.
+
+## Securing E-Mail
 
 An email system must provide confidentiality, sender authentication, and message integrity. We achieve this by layering symmetric key cryptography, public-key cryptography, hashes, and digital signatures:
 
 1. **Confidentiality:** Alice generates a symmetric session key $K_S$ and encrypts the message $m$ to get $K_S(m)$. She encrypts $K_S$ using Bob's public key $K^+_B$ to get $K^+_B(K_S)$. She sends both pieces as a package.
+
 2. **Authentication and Integrity:** Alice hashes $m$ to get $H(m)$, encrypts it with her private key $K^-_A$ to get $(H(m))_{K^-_A}$ (the digital signature), appends it to $m$, and sends the package.
+
 3. **Comprehensive Secure Email (The complete package):** Alice first digitally signs her message to provide integrity, then packages the signed message, encrypts it with a symmetric session key $K_S$, and encrypts $K_S$ with Bob's public key.
 
 **Pretty Good Privacy (PGP):** A widely deployed secure email standard designed by Phil Zimmermann. It implements the exact tiered design shown above, utilizing MD5/SHA for hashing, CAST/3DES/IDEA for symmetric encryption, and RSA for public keys. Rather than traditional CAs, PGP keys are certified by a distributed, peer-to-peer **web of trust**.
 
-# Securing TCP and HTTP Connections: TLS
+## Securing TCP and HTTP Connections: TLS
 
 The **Transport Layer Security (TLS)** protocol secures transport-layer channels (historically over TCP, now also over UDP in QUIC).
 
 - **The Big Picture ("Almost-TLS"):**
-  - **Handshake:** The client (Bob) establishes a TCP connection, verifies the server's (Alice's) identity using her CA certificate, generates a Master Secret (MS), encrypts it with Alice's public key $K^+_A$, and sends it. Alice decrypts it with $K^-_A$.
-  - **Key Derivation:** Both parties use MS to derive four keys: encryption keys for client-to-server and server-to-client $(E_B, E_A)$ and integrity keys $(M_B, M_A)$.
-  - **Data Transfer:** Data is broken into **TLS records**. An HMAC is appended to the data, and the data+HMAC is encrypted. To prevent Trudy from reordering, deleting, or playing back records, TLS records include implicit **sequence numbers** inside the HMAC calculation.
+
+  - **Handshake:** The client (Bob) establishes a TCP connection, verifies the server's (Alice's) identity using her CA certificate, generates a Master Secret (MS), encrypts it with Alice's public key $K^+_A$, and sends it. Alice decrypts it with $K^-_A$.
+
+  - **Key Derivation:** Both parties use MS to derive four keys: encryption keys for client-to-server and server-to-client $(E_B, E_A)$ and integrity keys $(M_B, M_A)$.
+
+  - **Data Transfer:** Data is broken into **TLS records**. An HMAC is appended to the data, and the data+HMAC is encrypted. To prevent Trudy from reordering, deleting, or playing back records, TLS records include implicit **sequence numbers** inside the HMAC calculation.
 
 - **TLS 1.3 Handshake:** Minimizes round-trip times (RTT) to just 1 RTT:
-  1. **Client Hello:** Client sends TLS version, supported cipher suites, a cryptographic nonce, and public key parameters for Diffie-Hellman (DH).
-  2. **Server Hello, Finished:** Server selects the cipher suite, generates its own public DH parameters, and computes the shared Master Secret. It sends its public DH parameters, certificate, nonce, and an encrypted handshake hash to verify message integrity.
-  3. **Client Finished:** Client computes the Master Secret, verifies the server's handshake hash, and immediately begins sending encrypted application-layer data (e.g., HTTP requests).
+
+  1. **Client Hello:** Client sends TLS version, supported cipher suites, a cryptographic nonce, and public key parameters for Diffie-Hellman (DH).
+
+  2. **Server Hello, Finished:** Server selects the cipher suite, generates its own public DH parameters, and computes the shared Master Secret. It sends its public DH parameters, certificate, nonce, and an encrypted handshake hash to verify message integrity.
+
+  3. **Client Finished:** Client computes the Master Secret, verifies the server's handshake hash, and immediately begins sending encrypted application-layer data (e.g., HTTP requests).
 
 - **AEAD (Authenticated Encryption with Associated Data):** In TLS 1.3, explicit HMAC fields are removed. Instead, integrated AEAD algorithms (like AES-GCM or ChaCha20) provide both confidentiality and integrity simultaneously inside the record.
 
-# Network-Layer Security: IPsec and Virtual Private Networks
+## Network-Layer Security: IPsec and Virtual Private Networks
 
 The IP security protocol (**IPsec**) provides security at the network layer, offering "blanket coverage" by securing all datagrams moving between two entities (hosts or routers). Institutions use IPsec to build **Virtual Private Networks (VPNs)** over the public Internet.
 
@@ -221,51 +308,75 @@ The IP security protocol (**IPsec**) provides security at the network layer, off
 - **Security Associations (SAs):** Before sending IPsec datagrams, a simplex (unidirectional) logical connection must be established. Each SA is identified by a 32-bit **Security Parameter Index (SPI)**. SAs are stored in the kernel's **Security Association Database (SAD)**.
 
 - **IPsec Datagram (Tunnel Mode ESP):**
-  1. The gateway router takes the original IPv4 datagram and appends an ESP trailer.
-  2. It encrypts this package (original IP header + payload + ESP trailer).
-  3. It prepends an unencrypted ESP header containing the SPI and a Sequence Number.
-  4. It calculates an authentication MAC over the ESP header, original datagram, and ESP trailer, and appends it to the back.
-  5. It wraps this entire "enchilada" in a brand new outer IP header with a protocol field of 50 (denoting ESP) and router-to-router source/destination IP addresses.
+
+  1. The gateway router takes the original IPv4 datagram and appends an ESP trailer.
+
+  2. It encrypts this package (original IP header + payload + ESP trailer).
+
+  3. It prepends an unencrypted ESP header containing the SPI and a Sequence Number.
+
+  4. It calculates an authentication MAC over the ESP header, original datagram, and ESP trailer, and appends it to the back.
+
+  5. It wraps this entire "enchilada" in a brand new outer IP header with a protocol field of 50 (denoting ESP) and router-to-router source/destination IP addresses.
 
 - **Security Policy Database (SPD):** Tells a router _which_ packets should be processed by IPsec, bypassed, or dropped.
+
 - **IKE (Internet Key Exchange):** Automated key management protocol. Phase 1 establishes an encrypted bidirectional IKE SA. Phase 2 negotiates security parameters and derives session keys for the actual unidirectional IPsec SAs.
 
-# Securing Wireless LANs and 4G/5G Cellular Networks
+## Securing Wireless LANs and 4G/5G Cellular Networks
 
 Wireless links are vulnerable to sniffing because signals propagate omnidirectionally. Security standards must enforce mutual authentication and generate high-speed symmetric keys for encryption.
 
 - **802.11 WiFi Security (WPA3-Personal):** Uses the **Simultaneous Authentication of Equals (SAE)** protocol, which leverages the 4-step **Dragonfly Key Exchange** (zero-knowledge proof):
-  1. **Client Commit:** Client uses the WiFi password to generate a cryptographically secure `element1` and a random nonce, sending them to the AP.
-  2. **AP Commit:** AP validates `element1`, generates `element2` and its own nonce, and sends them to the client.
-  3. **Client Confirm:** Client verifies `element2` and sends a hash of the shared secret and nonces.
-  4. **AP Confirm:** AP checks the hash and sends its own confirmation hash. They derive a dynamic **Pairwise Master Key (PMK)**.
+
+  1. **Client Commit:** Client uses the WiFi password to generate a cryptographically secure `element1` and a random nonce, sending them to the AP.
+
+  2. **AP Commit:** AP validates `element1`, generates `element2` and its own nonce, and sends them to the client.
+
+  3. **Client Confirm:** Client verifies `element2` and sends a hash of the shared secret and nonces.
+
+  4. **AP Confirm:** AP checks the hash and sends its own confirmation hash. They derive a dynamic **Pairwise Master Key (PMK)**.
 
 - **802.11 WiFi Security (WPA3-Enterprise):** Implements **IEEE 802.1X**. The AP acts as a pass-through. Authentication happens directly between the client and a centralized **RADIUS** authentication server using **EAP-TTLS** (Extensible Authentication Protocol-Tunneled Transport Layer Security). It establishes a TLS tunnel first, inside which the client's identity and password hash are securely verified, then derives the PMK.
 
 - **5G Cellular Security:** Employs **EAP-AKA'** (Authentication and Key Agreement Prime):
-  1. User equipment (UE) sends a Registration Request to the visited network's AMF/SEAF.
-  2. The home network's **Unified Data Management (UDM)** constructs an **Authentication Vector (AV)** containing a random nonce, an authentication token, and an expected response (**XRES**).
-  3. The home Authentication Server (AUSF) sends the nonce and token to the UE.
-  4. The UE verifies the home network's token, computes its own response XRES_C, and sends it back. If \(XRES_C == XRES\), the device is authenticated and keys are derived.
 
-# Operational Security: Firewalls and Intrusion Detection Systems
+  1. User equipment (UE) sends a Registration Request to the visited network's AMF/SEAF.
+
+  2. The home network's **Unified Data Management (UDM)** constructs an **Authentication Vector (AV)** containing a random nonce, an authentication token, and an expected response (**XRES**).
+
+  3. The home Authentication Server (AUSF) sends the nonce and token to the UE.
+
+  4. The UE verifies the home network's token, computes its own response XRES_C, and sends it back. If \(XRES_C == XRES\), the device is authenticated and keys are derived.
+
+## Operational Security: Firewalls and Intrusion Detection Systems
 
 Firewalls and Intrusion Detection/Prevention Systems protect internal networks by filtering traffic and inspecting packet contents:
 
 - **Traditional Packet Filters:** A router-level filter that inspects fields in individual IP datagrams and TCP/UDP segments in isolation. Decisions are based on IP addresses, protocol type, ports, TCP flag bits (e.g., blocking incoming TCP connections by dropping packets with ACK=0), and ICMP message types.
-- **Stateful Packet Filters:** Tracks the state of active TCP connections in a connection table. If a packet (like a TCP ACK packet) arrives from the outside, the stateful filter only lets it pass if it matches an ongoing connection initiated from within the network.
-- **Application Gateways:** Runs application-specific server processes. All traffic must terminate at the gateway, which performs authentication and deep application-level filtering before relaying the data to the destination.
-- **Intrusion Detection Systems (IDS) & IPS:** Packet filters cannot see deep into application-layer payloads to find worms or exploits. IDSs/IPSs run deep packet inspection (DPI):
-  - **Signature-based IDS:** Compares passing packets with a database of known attack patterns (signatures). Snort is a popular open-source signature-based engine.
-  - **Anomaly-based IDS:** Builds a statistical profile of normal traffic and raises alerts on unusual deviations (e.g., sudden spikes in ICMP volume or rapid port sweeps).
-  - Sensors are often deployed in the internal network and in the **Demilitarized Zone (DMZ)**, which hosts public-facing servers.
 
-# Summary
+- **Stateful Packet Filters:** Tracks the state of active TCP connections in a connection table. If a packet (like a TCP ACK packet) arrives from the outside, the stateful filter only lets it pass if it matches an ongoing connection initiated from within the network.
+
+- **Application Gateways:** Runs application-specific server processes. All traffic must terminate at the gateway, which performs authentication and deep application-level filtering before relaying the data to the destination.
+
+- **Intrusion Detection Systems (IDS) & IPS:** Packet filters cannot see deep into application-layer payloads to find worms or exploits. IDSs/IPSs run deep packet inspection (DPI):
+
+  - **Signature-based IDS:** Compares passing packets with a database of known attack patterns (signatures). Snort is a popular open-source signature-based engine.
+
+  - **Anomaly-based IDS:** Builds a statistical profile of normal traffic and raises alerts on unusual deviations (e.g., sudden spikes in ICMP volume or rapid port sweeps).
+
+  - Sensors are often deployed in the internal network and in the **Demilitarized Zone (DMZ)**, which hosts public-facing servers.
+
+## Summary
 
 In this lesson, we explored the foundations and operational mechanisms of network security:
 
 - **Core Concepts:** Confidentiality, integrity, and end-point authentication are the bedrock of secure communications.
+
 - **Cryptography:** Symmetric ciphers (like AES with CBC) provide high-speed bulk encryption, while public-key systems (like RSA and Diffie-Hellman) secure key exchange and enable digital signatures.
+
 - **Integrity:** Cryptographic hash functions are combined with secret keys to form Message Authentication Codes (MACs/HMACs) and verified by CAs using X.509 certificates.
+
 - **Layered Protocols:** Security is applied across multiple layers: PGP at the Application Layer, TLS at the Transport Layer, IPsec at the Network Layer, and WPA3/5G at the Link/Physical layers.
+
 - **Defensive Infrastructure:** Firewalls (packet filters, stateful, application gateways) and IDS/IPS systems secure boundaries by managing connection states and performing deep packet inspection.

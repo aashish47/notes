@@ -15,28 +15,33 @@ export const metadata = {
 	],
 };
 
-# Introduction
+## Introduction
 
 Did you know that a single router malfunction can take down massive segments of the global Internet within hours? In 1997, a misconfigured router in a small ISP flooded major backbone routers with incorrect path information, routing huge chunks of global traffic into a dead end and knocking out connection for hours. This lesson explores the network control plane—the critical intelligence that prevents such disasters, orchestrating how billions of devices find paths and communicate seamlessly across the globe.
 
-# Learning Objectives
+### Learning Objectives
 
 - Compare the mechanics of per-router control and logically centralized (SDN) control planes.
+
 - Implement and evaluate classical routing algorithms: Dijkstra's Link-State and Bellman-Ford Distance-Vector.
+
 - Explain how OSPF and BGP allow the Internet to scale using intra-AS and inter-AS routing structures.
+
 - Deconstruct the architecture, protocols, and data models of modern SDN control planes.
+
 - Diagnostic and configure network environments using ICMP, SNMP, and NETCONF/YANG.
 
-# Network Control Plane Approaches
+## Network Control Plane Approaches
 
 The control plane controls how IP datagrams are routed along end-to-end paths from source to destination. It is also responsible for configuring and managing network-layer components. Traditionally, the control plane has been implemented monolithically alongside the data plane inside every single router. Today, software-defined networking (SDN) has split these responsibilities.
 
 There are two main approaches to control plane configuration:
 
 - **Per-router control:** A routing algorithm runs inside every individual router. Each router contains both forwarding (data-plane) and routing (control-plane) functions. Routers communicate directly with each other to compute their local forwarding tables.
+
 - **Logically centralized control:** A remote, centralized controller computes and distributes forwarding tables to every switch in the network. Each router has a lightweight Control Agent (CA) that communicates with the centralized controller using a standard protocol to install its flow tables. The CAs do not interact directly with each other.
 
-# Routing Algorithms and Graph Abstraction
+## Routing Algorithms and Graph Abstraction
 
 To solve routing problems mathematically, we model a network as a graph:
 
@@ -44,13 +49,17 @@ $$
 G = (N, E)
 $$
 
-- **Nodes (\(N\))**: Represent routers where packet-forwarding decisions are made.
-- **Edges (\(E\))**: Represent physical links between routers. Each edge has a cost \(c(x,y)\) representing values like physical link length, speed, or monetary cost.
+- **Nodes $(N)$**: Represent routers where packet-forwarding decisions are made.
+
+- **Edges $(E)$**: Represent physical links between routers. Each edge has a cost $c(x,y)$ representing values like physical link length, speed, or monetary cost.
 
 If node \(x\) and node \(y\) are not connected, we define:
 
 $$
+
 c(x,y) = \infty
+
+
 $$
 
 A path is a sequence of nodes leading from a source to a destination, and the cost of that path is the sum of all individual edge costs along it.
@@ -58,10 +67,12 @@ A path is a sequence of nodes leading from a source to a destination, and the co
 We can classify routing algorithms into three distinct categories:
 
 1. **Centralized vs. Decentralized:** Centralized algorithms compute least-cost paths using complete, global knowledge of the network topology and link costs (often called _link-state_ algorithms). Decentralized algorithms compute paths iteratively in a distributed fashion, where no single node has complete network-wide information (often called _distance-vector_ algorithms).
+
 2. **Static vs. Dynamic:** Static routes change slowly over time, usually via manual configuration. Dynamic routes change automatically in response to dynamic topology changes or traffic loads.
+
 3. **Load-Sensitive vs. Load-Insensitive:** Load-sensitive algorithms dynamically adjust edge costs based on current link congestion. Today's major Internet algorithms (like RIP, OSPF, and BGP) are load-insensitive, meaning link weights are configured statically and do not reflect real-time traffic changes.
 
-# The Link-State Routing Algorithm
+## The Link-State Routing Algorithm
 
 Link-state (LS) routing algorithms rely on global network state. In practice, this is achieved by having every node broadcast link-state packets to all other nodes in the network (often called a link-state broadcast). As a result, every node builds an identical, complete map of the network.
 
@@ -70,37 +81,54 @@ Link-state (LS) routing algorithms rely on global network state. In practice, th
 Let's define the variables:
 
 - $D(v)$ : The current cost of the least-cost path from source $u$ to destination $v$ .
+
 - $p(v)$ : The previous node neighbor of $v$ along the current least-cost path.
+
 - $N$ : The subset of nodes for which the least-cost path from the source is definitively known.
 
 ```text
+
 Initialization:
-  N' = {u}
-  For all nodes v:
-    If v is a neighbor of u:
-      D(v) = c(u,v)
-    Else:
-      D(v) = infinity
+
+  N' = {u}
+
+  For all nodes v:
+
+    If v is a neighbor of u:
+
+      D(v) = c(u,v)
+
+    Else:
+
+      D(v) = infinity
+
+
 
 Loop:
-  Find w not in N' such that D(w) is a minimum
-  Add w to N'
-  Update D(v) for each neighbor v of w that is not in N':
-    D(v) = min( D(v), D(w) + c(w,v) )
-  Until N' = N
+
+  Find w not in N' such that D(w) is a minimum
+
+  Add w to N'
+
+  Update D(v) for each neighbor v of w that is not in N':
+
+    D(v) = min( D(v), D(w) + c(w,v) )
+
+  Until N' = N
+
 ```
 
-# Complexity and Pathologies
+### Complexity and Pathologies
 
 In the worst case, checking all nodes requires $O(n2)O(n^2)$ operations, where $n$ is the number of nodes (excluding the source). Using a heap data structure can reduce this complexity to $O(nlog⁡n)O(n \log n)$ .
 
 One major risk of congestion-sensitive LS algorithms is **route oscillation**. If link costs are tied to dynamic traffic levels, nodes may simultaneously shift traffic to empty links. This makes the empty links congested and the previously congested links empty, leading to endless routing loops and oscillations.
 
-# The Distance-Vector Routing Algorithm
+## The Distance-Vector Routing Algorithm
 
 Distance-vector (DV) algorithms are iterative, asynchronous, and distributed. Nodes only know the costs of their own directly attached links and gradually learn about other destinations by exchanging routing tables with immediate neighbors.
 
-## The Bellman-Ford Equation
+### The Bellman-Ford Equation
 
 At the core of the DV algorithm is the Bellman-Ford equation:
 
@@ -108,7 +136,7 @@ $$d_x(y) = \min_v \left\{c(x,v) + d_v(y)\right\}$$
 
 Where the minimum is computed over all of $x's$ immediate neighbors $v$ .
 
-## Algorithm Execution
+### Algorithm Execution
 
 Each node $x$ maintains its own distance vector: $Dx=[Dx(y):y in N]D_x = [D_x(y) : y \text{ in } N]$. From time to time, each node sends its distance vector to its neighbors. When node $x$ receives a vector update from neighbor $w$ , it updates its own estimates:
 
@@ -116,197 +144,252 @@ $$D_x(y) = \min_v \left\{c(x,v) + D_v(y)\right\}$$
 
 If node $x's$ vector changes, it sends its updated vector to all of its neighbors. This process continues asynchronously until no further updates are sent.
 
-# Pathologies: Count-to-Infinity and Poisoned Reverse
+### Pathologies: Count-to-Infinity and Poisoned Reverse
 
 While good news (decreased link costs) travels fast in a DV network, bad news (increased link costs) travels slowly. If a link cost increases significantly, immediate neighbors can inadvertently form a **routing loop**, routing traffic back and forth to each other in a phenomenon known as the **count-to-infinity** problem.
 
 This looping behavior can be prevented in simple two-node loops using **poisoned reverse**:
 
 - If node $z$ routes through node $y$ to get to destination $x$ , then $z$ advertises to $y$ that its cost to $x$ is infinite $Dz(x)=∞$ .
+
 - This prevents $y$ from ever trying to route to $x$ via $z$ . However, poisoned reverse does not solve loops that involve three or more nodes.
 
-# Intra-AS Routing in the Internet: OSPF
+## Intra-AS Routing in the Internet: OSPF
 
 To prevent routing overhead from consuming all bandwidth, the global Internet is organized into **Autonomous Systems (ASs)**. Each AS consists of a group of routers managed by the same administrative entity (such as an ISP or a corporate campus).
 
 Routers running within the same AS use an **intra-AS routing protocol**:
 
 - **Open Shortest Path First (OSPF):** A link-state protocol widely used for intra-AS routing. It is defined publicly in RFC 2328.
+
 - Each OSPF router constructs a complete topological map of the entire AS and runs Dijkstra's algorithm locally to find the shortest path to all subnets.
+
 - Link weights are configured manually by network administrators. They can be set to 1 to achieve minimum-hop routing, or set inversely proportional to capacity to avoid low-bandwidth links.
 
-# Advanced Features of OSPF
+### Advanced Features of OSPF
 
 - **Security:** OSPF message exchanges can be authenticated using simple passwords or secure MD5 cryptographic hashes to prevent malicious routers from injecting false routes.
+
 - **Multiple Equal-Cost Paths:** When multiple paths to a destination have the exact same cost, OSPF can split traffic across them instead of forcing all traffic onto one path.
+
 - **Hierarchical Support:** An OSPF AS can be divided into **areas**. Each area runs its own local OSPF link-state algorithm. Special **area border routers** route packets outside local areas, passing traffic through a central **backbone area** to coordinate inter-area routing.
 
-# Routing Among the ISPs: BGP
+## Routing Among the ISPs: BGP
 
 Routing between autonomous systems requires an **inter-AS routing protocol**. In the global Internet, all ASs run the exact same inter-AS routing protocol: the **Border Gateway Protocol (BGP)**.
 
 BGP routes packets to CIDRized destination prefixes rather than specific IP addresses. It performs two key tasks:
 
 1. Obtains prefix reachability information from neighboring ASs.
+
 2. Determines the optimal routes to those prefixes.
 
-# BGP Connections and Advertising
+### BGP Connections and Advertising
 
 Pairs of BGP routers exchange routing information over semi-permanent TCP connections (port 179).
 
 - **External BGP (eBGP):** A BGP connection spanning two different ASs.
+
 - **Internal BGP (iBGP):** A BGP connection between routers within the same AS. iBGP connections do not necessarily correspond to physical links; they typically form an internal logical mesh.
 
-# Attributes and Route Information
+### Attributes and Route Information
 
 When a prefix is advertised, it includes several BGP attributes. A prefix paired with its attributes is called a **BGP route**. The two most important attributes are:
 
 - **AS-PATH:** A list of all ASs through which the advertisement has passed. BGP routers use this attribute to detect and prevent looping advertisements. If a router sees its own AS ID in the AS-PATH, it rejects the advertisement.
+
 - **NEXT-HOP:** The IP address of the gateway router interface that begins the AS-PATH. This provides the link between inter-AS and intra-AS routing protocols.
 
-# BGP Route Selection and Policy
+### BGP Route Selection and Policy
 
 When a router receives multiple route advertisements for the same prefix, it must decide which route is best.
 
-## Hot Potato Routing
+### Hot Potato Routing
 
 In **hot potato routing**, the router ignores external path costs and simply chooses the route with the lowest internal cost to the NEXT-HOP router. The goal is to get the packet out of its local AS as quickly as possible, regardless of the remaining path length outside the AS.
 
-## The BGP Route-Selection Algorithm
+### The BGP Route-Selection Algorithm
 
 In practice, BGP uses a strict route-selection elimination process:
 
 1. **Local Preference:** The route with the highest local preference (configured by the network administrator) is selected.
+
 2. **Shortest AS-PATH:** From the remaining routes, the one with the shortest AS-PATH is selected.
+
 3. **Hot Potato Routing:** From the remaining routes, the one with the closest NEXT-HOP router is selected.
+
 4. **BGP Identifier:** If multiple routes still remain, a tiebreaker is resolved using unique BGP identifiers.
 
-# Routing Policy
+### Routing Policy
 
 Commercial relationships dictate BGP routing policies. ASs are categorized as providers, customers, or peers.
 
 - **Stub/Access Networks:** Networks that must be the source or destination of all traffic. A stub network prevents transit traffic by only advertising paths to itself.
+
 - **Backbone Providers:** Providers refuse to route traffic between other competitors unless the source or destination is one of their paying customers. Policy considerations always trump shortest-path performance in inter-AS routing.
 
-# The SDN Control Plane Architecture
+## The SDN Control Plane Architecture
 
 Software-Defined Networking (SDN) architecture shifts network-wide logic from individual routers to a centralized software controller.
 
-## Four Key Characteristics of SDN
+### Four Key Characteristics of SDN
 
 1. **Flow-Based Forwarding:** Packet forwarding can be based on any combination of transport, network, or link-layer header fields (as opposed to destination IP address only).
+
 2. **Separation of Data and Control Planes:** Simple, fast switches execute forwarding rules, while separate control software manages flow tables.
+
 3. **External Control Functions:** Control plane software executes on dedicated servers separate and remote from the physical switches.
+
 4. **Programmable Network Control:** The control plane is programmable via high-level software applications running on top of an SDN controller.
 
-# Three-Layer Controller Architecture
+### Three-Layer Controller Architecture
 
 An SDN controller manages the network using three functional layers:
 
 - **Communication Layer (Southbound API):** Transfers state information and control commands between the controller and switches. The **OpenFlow** protocol is the primary standard here.
+
 - **Network-Wide State-Management Layer:** Maintains up-to-date state information about links, switches, host locations, and active flow tables.
+
 - **Application Interface Layer (Northbound API):** Exposes state information to external network-control applications (like routing, firewalling, or load balancing) via APIs (often using RESTful services).
 
-# OpenFlow and SDN Interaction
+## OpenFlow and SDN Interaction
 
 To understand how the data and control planes interact, let's look at the OpenFlow protocol and a typical link-state update sequence.
 
-## Important OpenFlow Messages
+### Important OpenFlow Messages
 
 - **Controller-to-Switch:**
-  - `Configuration`: Queries or sets a switch's configuration parameters.
-  - `Modify-State`: Adds, deletes, or modifies entries in a switch's flow table.
-  - `Read-State`: Collects statistics and counters from a switch.
-  - `Send-Packet`: Instructs a switch to send a specific packet out of a specified port.
-- **Switch-to-Controller:**
-  - `Flow-Removed`: Informs the controller that a flow entry has expired or been deleted.
-  - `Port-Status`: Notifies the controller of a link going up or down on a port.
-  - `Packet-In`: Sends a packet to the controller because it did not match any current flow table rules.
 
-## Step-by-Step SDN Link-State Update
+  - `Configuration`: Queries or sets a switch's configuration parameters.
+
+  - `Modify-State`: Adds, deletes, or modifies entries in a switch's flow table.
+
+  - `Read-State`: Collects statistics and counters from a switch.
+
+  - `Send-Packet`: Instructs a switch to send a specific packet out of a specified port.
+
+- **Switch-to-Controller:**
+
+  - `Flow-Removed`: Informs the controller that a flow entry has expired or been deleted.
+
+  - `Port-Status`: Notifies the controller of a link going up or down on a port.
+
+  - `Packet-In`: Sends a packet to the controller because it did not match any current flow table rules.
+
+### Step-by-Step SDN Link-State Update
 
 1. A link failure occurs between switches s1 and s2.
+
 2. Switch s1 detects the failure and sends an OpenFlow `Port-Status` message to the centralized controller.
+
 3. The controller's communication layer receives the message and notifies the internal link-state manager, which updates its topology database.
+
 4. An external Dijkstra routing application (registered to listen to topology updates) is notified of the change.
+
 5. The routing application queries the link-state database, computes new least-cost paths, and interacts with the flow table manager.
+
 6. The flow table manager uses OpenFlow `Modify-State` messages to update flow tables across all affected switches in the network.
 
-# ICMP: Internet Control Message Protocol
+## ICMP: Internet Control Message Protocol
 
 The **Internet Control Message Protocol (ICMP)** (defined in RFC 792) is used by hosts and routers to communicate network-layer control information, primarily for error reporting.
 
 Although architecturally situated directly on top of IP, ICMP messages are carried as payload inside standard IP datagrams. Every ICMP message contains:
 
 - A **Type** field.
+
 - A **Code** field.
+
 - The header and first 8 bytes of the IP datagram that triggered the error (allowing the sender to identify the problematic packet).
 
-# Well-Known ICMP Types and Codes
+### Well-Known ICMP Types and Codes
 
 - **Type 0, Code 0:** Echo Reply (used to respond to Ping requests).
+
 - **Type 3, Code 0:** Destination Network Unreachable.
+
 - **Type 3, Code 3:** Destination Port Unreachable.
+
 - **Type 8, Code 0:** Echo Request (used to initiate Ping requests).
+
 - **Type 11, Code 0:** TTL Expired (used to report that a packet's Time-to-Live dropped to zero).
 
-# Diagnostic Applications: Ping and Traceroute
+### Diagnostic Applications: Ping and Traceroute
 
 - **Ping:** Sends a Type 8 Code 0 Echo Request to a target host. The destination host automatically returns a Type 0 Code 0 Echo Reply.
-- **Traceroute:** Sends a sequence of UDP packets to unlikely destination ports. The first set of packets is sent with a TTL of 1, the second with a TTL of 2, and so on.
-  - As each router discards a packet whose TTL has expired, it sends back an ICMP Type 11 Code 0 (TTL Expired) message, revealing its IP address and round-trip time.
-  - The process stops when a packet reaches the destination host itself. Because the destination port is unlikely to be active, the host returns a Type 3 Code 3 (Port Unreachable) message, signaling the source to stop probing.
 
-# Network Management and SNMP
+- **Traceroute:** Sends a sequence of UDP packets to unlikely destination ports. The first set of packets is sent with a TTL of 1, the second with a TTL of 2, and so on.
+
+  - As each router discards a packet whose TTL has expired, it sends back an ICMP Type 11 Code 0 (TTL Expired) message, revealing its IP address and round-trip time.
+
+  - The process stops when a packet reaches the destination host itself. Because the destination port is unlikely to be active, the host returns a Type 3 Code 3 (Port Unreachable) message, signaling the source to stop probing.
+
+## Network Management and SNMP
 
 Network management involves deploying, integrating, and coordinating hardware, software, and human elements to monitor and control network resources.
 
-## The Network Management Framework
+### The Network Management Framework
 
 - **Managing Server:** An application running in a centralized Network Operations Center (NOC) that controls the collection and analysis of management data.
+
 - **Managed Device:** A piece of network equipment residing on a managed network containing manageable components.
+
 - **Data (State):** Categorized into **configuration data** (manually set), **operational data** (acquired during runtime), and **device statistics** (status indicators and counters).
+
 - **Agent:** A software process running on the managed device that executes commands from the managing server.
+
 - **Protocol:** The communications protocol used between the managing server and the agent.
 
-## Simple Network Management Protocol (SNMP)
+### Simple Network Management Protocol (SNMP)
 
 SNMPv3 is an application-layer protocol typically transported over UDP. It uses a **Management Information Base (MIB)** to organize managed objects into formal modules defined using the Structure of Management Information (SMI) syntax.
 
 SNMP relies on seven core Protocol Data Units (PDUs):
 
 - `GetRequest`, `GetNextRequest`, `GetBulkRequest`: Sent by the manager to query one or more MIB object values.
+
 - `SetRequest`: Sent by the manager to modify one or more MIB object values.
+
 - `InformRequest`: Used for manager-to-manager notifications of remote MIB data.
+
 - `Response`: Returned by the agent containing the requested MIB values.
+
 - `Trap`: An asynchronous, unsolicited notification sent from the agent to the manager to report exceptional events (like a link interface failure).
 
-# Modern Configuration Management: NETCONF and YANG
+## Modern Configuration Management: NETCONF and YANG
 
 While SNMP is highly effective for monitoring, it historically struggled with device configuration at scale. This led to the development of **NETCONF** and **YANG** (RFC 6241 and RFC 6020).
 
-## YANG Data Modeling
+### YANG Data Modeling
 
 YANG is a data modeling language used to precisely define the structure, syntax, and constraints of network configuration data. It allows administrators to write correctness rules that must be verified before a configuration is sent to a device.
 
-## NETCONF Protocol Operations
+### NETCONF Protocol Operations
 
 NETCONF operates over secure, connection-oriented sessions (such as TLS over TCP) and uses an XML-encoded Remote Procedure Call (RPC) model. NETCONF allows administrators to perform transaction-based configurations across multiple devices simultaneously (either all changes succeed, or they are rolled back entirely).
 
 Core NETCONF operations include:
 
 - `<get-config>`: Retrieves all or part of a specified configuration datastore (such as the active `running` configuration).
+
 - `<get>`: Retrieves both configuration and active operational state data.
+
 - `<edit-config>`: Modifies a configuration datastore at the managed device.
+
 - `<lock>` / `<unlock>`: Locks a device's configuration database to prevent conflicts with concurrent CLI, SNMP, or other NETCONF sessions.
+
 - `<createsubscription>`: Establishes an asynchronous notification subscription to receive event alerts via `<notification>` messages.
 
-# Summary
+## Summary
 
-## Key Takeaways
+### Key Takeaways
 
 - **Control Plane Splits:** Traditional control planes run routing algorithms in a decentralized, monolithic fashion within each router. Modern SDN control planes centralize routing logic in remote software controllers.
+
 - **Routing Mechanics:** Link-state algorithms (Dijkstra's) use global topology maps with O(n2)O(n^2) complexity. Distance-vector algorithms (Bellman-Ford) are distributed and asynchronous but vulnerable to anomalies like the count-to-infinity problem.
+
 - **AS Scaling:** Intra-AS routing (OSPF) focuses on performance within a single network, while inter-AS routing (BGP) acts as the glue of the Internet, driven heavily by commercial and administrative routing policies.
+
 - **SDN Control API Layers:** SDN controllers orchestrate switch flow tables via northbound APIs (REST/Intent) and southbound protocols (OpenFlow/SNMP).
+
 - **Diagnostics & Diagnostics Management:** ICMP manages basic error and route diagnostics (like Ping and Traceroute), SNMP monitors operational counters via MIBs, and NETCONF/YANG provides transaction-based configuration management over TCP.
