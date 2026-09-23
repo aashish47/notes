@@ -4,13 +4,11 @@ import GithubSlugger from "github-slugger";
 import { notFound } from "next/navigation";
 import fs from "node:fs";
 import path from "node:path";
+import remarkMath from "remark-math";
 import remarkMdx from "remark-mdx";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 import { visit } from "unist-util-visit";
-
-const remarkMdxPlugin = remarkMdx;
-const remarkParsePlugin = remarkParse;
 
 export type NoteMeta = {
 	title: string;
@@ -245,8 +243,9 @@ function hasCode(err: unknown): err is { code: string } {
 
 export const getToc = async (source: string): Promise<TocItem[]> => {
 	const tree = unified()
-		.use(remarkParsePlugin)
-		.use(remarkMdxPlugin)
+		.use(remarkParse)
+		.use(remarkMath)
+		.use(remarkMdx)
 		.parse(source);
 
 	const slugger = new GithubSlugger();
