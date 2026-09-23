@@ -1,0 +1,245 @@
+export const metadata = {
+	title: "The Network Layer",
+	description:
+		"An introduction to the network layer, covering router architecture, packet forwarding, queuing, IPv4 and IPv6 addressing, NAT, generalized forwarding, SDN, and Internet architectural principles.",
+	order: 4,
+	draft: false,
+	tags: [
+		"computer networks",
+		"network layer",
+		"IP",
+		"IPv4",
+		"IPv6",
+		"routing",
+		"SDN",
+		"NAT",
+	],
+};
+
+# Introduction
+
+Did you know that every single packet your device transmits across the globe undergoes a gauntlet of nanosecond-level hardware decisions? The network layer makes this happen by separating the raw physical routing power (the data plane) from the logic guiding the path (the control plane). In this lesson, we will explore the internal hardware mechanics of routers, dissect the structure of IP addressing (IPv4 and IPv6), and learn how modern software-defined networks program packet paths globally.
+
+By the end of this lesson, you will be able to:
+
+- Differentiate between data-plane forwarding and control-plane routing.
+- Analyze the hardware components inside a router, including input ports, switching fabrics, and output ports.
+- Evaluate queue management policies, buffer calculations, and packet scheduling algorithms (FIFO, Priority, RR, and WFQ).
+- Explain IPv4 and IPv6 datagram formats, subnets, CIDR, DHCP, and Network Address Translation (NAT).
+- Apply the match-plus-action abstraction of generalized forwarding (SDN/OpenFlow) to execute network-wide policies.
+
+# Overview of the Network Layer
+
+The fundamental role of the network layer is simple: move packets from a sending host to a receiving host. To achieve this, the network layer can be decomposed into two distinct, interacting parts:
+
+- **The Data Plane**: Handles local, per-router functions. It determines how a packet arriving on a router's input link is forwarded to one of its output links. This action occurs on extremely short timescales (typically nanoseconds) and is almost always implemented directly in hardware.
+- **The Control Plane**: Handles network-wide logic. It coordinates how a packet is routed along an end-to-end path from the source host to the destination host. This action occurs on longer timescales (seconds) and is implemented in software.
+
+Two primary approaches govern control-plane implementation:
+
+1. **Traditional Approach**: A routing algorithm runs in each individual router. The routing components in different routers communicate via routing protocols to compute local forwarding tables.
+2. **Software-Defined Networking (SDN) Approach**: A physically separate, remote controller computes and distributes forwarding tables to every router. The physical devices perform forwarding only, while the control plane is centralized in software.
+
+At the boundary where transport layer segments meet the network layer, the network service model defines end-to-end packet delivery characteristics. While historical architectures like ATM offered guaranteed bandwidth and delay bounds, the Internet’s network layer provides a single service: **best-effort service**. Packets are not guaranteed to arrive in order, nor is their eventual delivery or delay guaranteed. Despite this simplicity, best-effort service combined with adequate bandwidth and adaptive application protocols (like DASH or Zoom) has proven more than sufficient for global communication.
+
+# Inside the Router: Ports and Destination-Based Forwarding
+
+A generic router architecture contains four primary hardware components: input ports, a switching fabric, output ports, and a routing processor.
+
+**Input Ports** perform physical-layer termination, link-layer processing, and, most crucially, the lookup function. When a packet arrives, the input port must consult a shadow copy of the forwarding table to determine the appropriate output port. Using shadow copies on line cards allows forwarding decisions to be made locally, avoiding a centralized processing bottleneck.
+
+In traditional **destination-based forwarding**, a router matches the packet’s 32-bit destination IP address with prefix entries in the forwarding table. Because mapping four billion addresses is impossible, the table uses ranges represented by prefixes. When a destination IP matches multiple prefix entries, the router applies the **longest prefix matching rule**—it routes the packet to the interface associated with the longest matching prefix.
+
+To perform this lookup at gigabit speeds, routers utilize specialized hardware known as **Ternary Content Addressable Memory (TCAM)**. A TCAM can present a 32-bit address to associative memory and return the matching forwarding table entry in a single clock cycle. It supports binary states (0, 1) and a ternary third state: `*` (don't care), which is ideal for prefix matching.
+
+**Output Ports** store packets received from the switching fabric and transmit them over the outgoing link. They perform the necessary link-layer and physical-layer transmission functions to send the frames onto the medium.
+
+# Inside the Router: Switching Fabrics
+
+The switching fabric is the core of the router, connecting input ports to output ports. There are three primary types of switching fabrics:
+
+- **Switching via Memory**: The earliest, simplest routers functioned as traditional computers. Input and output ports operated as I/O devices under the direct control of the CPU. Packets were copied from the input port into processor memory, and then copied to the output port's buffers. Because only one memory read/write can occur at a time over the shared system bus, the overall forwarding throughput is limited by memory bandwidth, and parallel transfers are impossible.
+- **Switching via a Bus**: Input ports transfer packets directly to output ports over a shared bus without CPU intervention. The input port prepends a switch-internal label to the packet indicating the local output port. All output ports receive the packet, but only the matching port keeps it. Since only one packet can cross the shared bus at a time, throughput is limited by the bus speed.
+- **Switching via an Interconnection Network**: To overcome single-bus limitations, routers use multi-bus networks such as a **crossbar switch**. A crossbar switch consists of an N-by-N grid of buses. The switch fabric controller can dynamically open or close crosspoints. If two packets from different input ports are destined for different output ports, they can be forwarded in parallel. This makes crossbar switches non-blocking.
+
+# Queuing, Buffer Management, and Scheduling
+
+Packet queues form at both input and output ports when traffic loads exceed hardware transmission capacities. If these queues grow too large, the router runs out of memory, resulting in packet drop and loss.
+
+**Input Queuing** occurs if the switching fabric is not fast enough to transfer arriving packets without delay. This leads to **Head-of-the-Line (HOL) blocking**, where a queued packet at the front of an input queue is blocked because its destination output port is busy. Consequently, packets queued behind it must also wait, even if their own destination output ports are completely free.
+
+**Output Queuing** occurs when the switching fabric delivers packets to an output port faster than the outgoing line rate can transmit them. When the buffer is full, the router must choose a discard policy:
+
+- **Drop-tail**: Drops the arriving packet immediately.
+- **Active Queue Management (AQM)**: Proactively drops or marks packets before buffers fill to signal congestion. Common algorithms include Random Early Detection (RED), PIE, and CoDel.
+
+**How much buffering is enough?** Historically, the rule of thumb for buffer capacity (B) was based on round-trip time (RTT) and link capacity (C):
+
+$$
+B = RTT \times C
+$$
+
+However, modern analysis shows that when a large number of independent TCP flows (N) pass through a link, the required buffering scales down:
+
+$$
+B = \frac{RTT \times C}{\sqrt{N}}
+$$
+
+Excessive buffering leads to **bufferbloat**, where persistent queues at the network edge introduce long, constant delays for interactive applications.
+
+Once packets are buffered, a **packet scheduler** determines the transmission order over the outgoing link:
+
+- **First-In-First-Out (FIFO)**: Transmits packets in the exact order they arrive.
+- **Priority Queuing**: Classifies packets into priority classes. The scheduler always transmits from the highest-priority non-empty queue. This is typically non-preemptive; an ongoing transmission is never interrupted.
+- **Round Robin**: Cycles through classes, transmitting one packet from each class in turn. It is work-conserving: if a class queue is empty, the scheduler immediately skips to the next class.
+- **Weighted Fair Queuing (WFQ)**: A generalized round-robin scheduling scheme. Each class (i) is assigned a weight (\(w_i\)). During any period with queued traffic, class i is guaranteed to receive a fraction of link bandwidth equal to:
+
+$$
+\frac{w_i}{\sum w_j}
+$$
+
+# The Internet Protocol (IPv4) and Addressing
+
+The Internet Protocol (IP) binds the network and transport layers. An IPv4 datagram consists of a 20-byte fixed header (assuming no options) containing key fields:
+
+- **Version**: 4 bits (value of 4 for IPv4).
+- **Header Length**: 4 bits specifying where the data begins.
+- **Type of Service (TOS)**: 8 bits to distinguish classes of traffic; contains 2 bits for Explicit Congestion Notification (ECN).
+- **Datagram Length**: 16 bits; the total length (header + payload) in bytes (theoretical max is 65,535 bytes).
+- **Identifier, Flags, Fragment Offset**: Used for IP fragmentation (not supported in IPv6).
+- **Time-to-Live (TTL)**: Decremented by 1 at each router; the packet is dropped if TTL reaches 0 to prevent routing loops.
+- **Protocol**: Indicates the transport-layer protocol destination (6 for TCP, 17 for UDP).
+- **Header Checksum**: Computes 1s complement sum of header fields to detect bit errors; recomputed at every hop as TTL changes.
+- **Source and Destination IP Addresses**: 32-bit terminal addresses.
+- **Options**: Variable-length extensions (rarely used, dropped in IPv6 to maintain fixed-length processing).
+- **Data (Payload)**: Typically carries a TCP or UDP segment.
+
+## IP Addressing & Subnets
+
+An IP address is associated with a physical **interface**—the boundary between a host/router and its physical link. IPv4 addresses are 32 bits long, written in dotted-decimal notation (e.g., `193.32.216.9`).
+
+Under **Classless Interdomain Routing (CIDR)**, IP addresses are split into a prefix and a host portion, denoted as `a.b.c.d/x`, where `x` is the prefix length. The leftmost `x` bits constitute the network prefix. Devices sharing this prefix form a **subnet** (an isolated island of interfaces connected without intervening routers).
+
+CIDR enables **route aggregation** (or route summarization), allowing an ISP to advertise a single summary prefix (e.g., `/20`) to the global Internet on behalf of multiple customer networks (e.g., `/23` blocks). The global authority for IP allocation is the Internet Corporation for Assigned Names and Numbers (ICANN).
+
+## Dynamic Host Configuration Protocol (DHCP)
+
+DHCP dynamically allocates temporary or permanent IP addresses to hosts. Often referred to as a plug-and-play protocol, it operates via a client-server transaction on UDP ports 67 (server) and 68 (client). The transaction consists of four steps:
+
+1. **DHCP Server Discovery**: The client broadcasts a `DHCP discover` message to destination `255.255.255.255` with source `0.0.0.0`.
+2. **DHCP Server Offer**: Available servers respond with a broadcast `DHCP offer` containing proposed IP, subnet mask, and a lease time.
+3. **DHCP Request**: The client selects an offer and echoes the chosen parameters in a broadcast `DHCP request`.
+4. **DHCP ACK**: The server confirms the allocation with a `DHCP ACK` message.
+
+# Network Address Translation and Middleboxes
+
+To mitigate IPv4 address exhaustion, homes and enterprises utilize **Network Address Translation (NAT)**. NAT-enabled routers represent an entire local network to the global Internet as a single device with a single public IP address.
+
+Within the home network, devices use **private IP addresses** reserved under RFC 1918:
+
+- `10.0.0.0/8`
+- `172.16.0.0/12`
+- `192.168.0.0/16`
+- `100.64.0.0/10` (Reserved for Carrier-Grade NAT, used by ISPs to avoid overlaps)
+
+Because private IPs are non-routable in the public Internet, the NAT router uses a **NAT translation table** to rewrite packet headers. When a host (e.g., `10.0.0.1:3345`) sends a packet to a public server:
+
+1. The NAT router intercepts the packet.
+2. It rewrites the source IP to its public WAN IP (e.g., `138.76.29.7`) and maps the source port to a new unused port (e.g., `5001`).
+3. It records the mapping (`10.0.0.1:3345` ↔ `138.76.29.7:5001`) in the translation table.
+4. Incoming reply packets destined for `138.76.29.7:5001` are intercepted, translated back to `10.0.0.1:3345`, and forwarded internally.
+
+While NAT is popular, it violates the architectural end-to-end principle, as routers are meant to process only up to Layer 3. Devices behind NATs require traversal techniques (like STUN) to accept unsolicited incoming connections.
+
+NAT is a prominent example of a **middlebox**—any device on the data path between source and destination that performs functions other than standard IP routing. Other middleboxes include:
+
+- **Firewalls**: Filter packets based on header fields to block unauthorized access.
+- **Intrusion Detection Systems (IDS)** and **Intrusion Prevention Systems (IPS)**: Perform deep packet inspection (DPI) of packet payloads to match signatures of known attacks.
+- **Application-level filters**: Block spam or malware.
+- **Load Balancers**: Distribute client requests across server clusters.
+
+To simplify middlebox management, operators increasingly use **Network Function Virtualization (NFV)** to run specialized middlebox software on commodity hardware.
+
+# IPv6 Protocol and Transition Tunneling
+
+IPv6 was developed to replace IPv4, resolving the 32-bit address depletion issue by implementing **128-bit addresses**. It also streamlines processing through a simplified **40-byte fixed-length header**:
+
+- **Version**: 4 bits (value of 6).
+- **Traffic Class**: 8 bits (equivalent to IPv4 Type of Service).
+- **Flow Label**: 20 bits to identify packets belonging to a specific real-time flow.
+- **Payload Length**: 16 bits; the size of the payload following the 40-byte header.
+- **Next Header**: Identifies the protocol payload (equivalent to IPv4 Protocol) or points to an optional extension header.
+- **Hop Limit**: Decremented by 1 at each router; packet is dropped if it reaches 0 (equivalent to IPv4 TTL).
+- **Source and Destination Addresses**: 128 bits each.
+
+To optimize routing performance, the designers of IPv6 dropped several key IPv4 fields:
+
+- **Fragmentation and Reassembly**: Removed from intermediate routers. If an IPv6 packet is too large for a link, the router drops it and sends a "Packet Too Big" ICMPv6 message back to the source host to adjust packet size. This offloads resource-intensive processing to the end systems.
+- **Header Checksum**: Removed entirely, relying on Layer 2 (Ethernet) and Layer 4 (TCP/UDP) checksums. This avoids recomputing the checksum at every hop as the Hop Limit decrements.
+- **Options**: Removed from the fixed header. Options are now handled via the Next Header chain.
+
+In addition to unicast and multicast addresses, IPv6 introduces **anycast addresses**, which deliver a datagram to the geographically nearest node within a group.
+
+## Transitioning from IPv4 to IPv6
+
+Because a global "flag day" to upgrade billions of devices is impossible, the transition relies on **tunneling**. When two IPv6-capable routers must communicate across an intervening IPv4 network, they establish an IPv4 tunnel:
+
+1. The sending IPv6 router encapsulates the entire IPv6 datagram inside the payload field of an IPv4 datagram.
+2. The source and destination fields of the IPv4 packet are set to the public IPv4 addresses of the tunnel endpoints.
+3. The intervening IPv4 routers forward the packet normally, unaware that the payload contains an IPv6 packet.
+4. The receiving IPv6 router extracts the IPv6 packet (identifying it via IPv4 Protocol ID 41) and routes it internally.
+
+# Generalized Forwarding and Software-Defined Networking
+
+In **generalized forwarding**, the traditional lookup of a destination IP address is replaced by a highly flexible **match-plus-action** paradigm. Devices are referred to as _packet switches_ rather than routers or switches, as they can operate across multiple protocol layers.
+
+Under OpenFlow (a leading SDN standard), each packet switch contains a **flow table** computed and distributed by a centralized remote controller. Each entry in the flow table includes:
+
+- **A set of header match fields**: OpenFlow 1.0 allows matching on 12 fields across Layer 2 (MAC addresses, Ethernet Type, VLAN ID), Layer 3 (IP source/destination, Protocol, TOS), Layer 4 (TCP/UDP source/destination ports), and the physical incoming ingress port.
+- **A set of counters**: Track matched packet counts, byte counts, and table update times.
+- **A set of actions**: Executed in order when a match occurs.
+
+If a packet matches multiple flow table entries, the entry with the highest priority is selected. If no match is found, the packet is either dropped or sent to the remote controller for further processing.
+
+## OpenFlow Actions
+
+- **Forwarding**: Sends the packet to a physical output port, broadcasts it over all ports, or multicasts it.
+- **Dropping**: Discards the packet (implementing a firewall).
+- **Modify-field**: Rewrites values in Layer 2, 3, or 4 headers (implementing NAT or load balancing).
+
+## Match-plus-Action Examples
+
+Consider a packet switch connected to hosts and other switches:
+
+- **Simple Routing**: Match on `IP Dst = 10.2.*.*` → Action: `Forward(Port 3)`.
+- **Load Balancing**: Match on `IP Src = 10.1.*.*` and `IP Dst = 10.2.*.*` → Action: Route over Path A; match on other sources to the same destination → Action: Route over Path B.
+- **Firewalling**: Match on `IP Src = 10.3.*.*` and `Transport Protocol = UDP` → Action: Drop packet.
+
+To program behavior beyond standard flow tables, the programming language **P4** (Programming Protocol-independent Packet Processors) is increasingly used to customize datagram processing directly in hardware at line rate.
+
+# Architectural Principles of the Internet
+
+The incredible scalability of the Internet is guided by two fundamental design principles:
+
+## The IP Hourglass (The Narrow Waist)
+
+The layered Internet architecture contains hundreds of protocols in the application, transport, link, and physical layers. However, there is only one protocol at the network layer: IP. This is the "narrow waist" of the IP hourglass. Because IP serves as a universal spanning layer, any application running over TCP/UDP can operate over any underlying physical medium (Ethernet, fiber, Wi-Fi, cellular) as long as the medium can transport IP packets.
+
+## The End-to-End Argument
+
+This principle states that functions of the communication system can only be completely and correctly implemented with the knowledge and help of the applications at the endpoints. Therefore, placing complex functions within the network core itself is discouraged.
+
+For example, reliable data transfer must be implemented end-to-end (at the transport layer via TCP) because packets can be lost due to router crashes or link failures anywhere along the path. While local link-layer reliability can improve performance, it is insufficient on its own.
+
+This principle led to a design with "smart" endpoints (programmable computers) and a "dumb, simple" network core (routers focused solely on forwarding IP packets). However, the rise of middleboxes (NATs, firewalls, and deep packet inspectors) has introduced stateful processing into the core, slightly widening the narrow waist of the architecture.
+
+# Summary
+
+Here is a summary of the key takeaways from this lesson:
+
+- **Data Plane vs. Control Plane**: The data plane handles fast, local hardware forwarding; the control plane manages network-wide software routing (historically distributed, now increasingly centralized via SDN controllers).
+- **Router Architecture**: High-speed routers use input port line cards with local shadow copies of the forwarding table, TCAM for single-clock lookups, non-blocking crossbar fabrics, and scheduling algorithms (FIFO, Priority, RR, WFQ) to manage queue delays.
+- **Queuing Dynamics**: Output queue overflows trigger drops (Drop-tail or AQM). Insufficient buffering causes packet drops, while excessive buffering leads to bufferbloat. Buffering needs scale down with more independent flows $\sqrt{N}$.
+- **Addressing and Protocol Headers**: IPv4 utilizes CIDR prefixes to allow route aggregation, DHCP to dynamically assign network parameters, and NAT to map private address realms (10.0.0.0/8, etc.) to a single public IP. IPv6 introduces 128-bit addresses and a streamlined 40-byte fixed header by removing options, checksums, and fragmentation at intermediate routers.
+- **Generalized Forwarding**: OpenFlow SDN architectures use match-plus-action flow tables across Layers 2, 3, and 4, enabling switches to act as routers, switches, firewalls, and load balancers.
+- **Architectural Principles**: The Internet relies on the "narrow waist" IP hourglass for interoperability, and the "end-to-end argument" to keep the network core simple while placing complex functionality at the endpoints.

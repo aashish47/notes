@@ -1,0 +1,412 @@
+export const metadata = {
+	title: "The Application Layer",
+	description:
+		"An introduction to network applications, covering client-server and P2P architectures, HTTP, SMTP, DNS, video streaming, CDNs, and socket programming with UDP, TCP, and QUIC.",
+	order: 2,
+	draft: false,
+	tags: [
+		"computer networks",
+		"application layer",
+		"HTTP",
+		"DNS",
+		"SMTP",
+		"CDN",
+		"socket programming",
+		"QUIC",
+	],
+};
+
+## **Introduction**
+
+Did you know that the core routers of the global Internet have absolutely no idea what a Web page, an email message, or a streaming video is? The core of the network functions strictly at the network layer and below, routing packets. The entire magic of the Internet—from Zoom to TikTok—happens exclusively on the end systems at the Application Layer. This lesson will show you exactly how programs on different devices communicate across the globe.
+
+### **Learning Objectives**
+
+By completing this lesson, you will be able to:
+
+- Explain the core architectural design of client-server and peer-to-peer (P2P) network applications.
+- Deconstruct the packet exchanges, header syntaxes, and connection state management of HTTP, SMTP, and DNS.
+- Analyze how transport enhancements like HTTP/2 framing and HTTP/3 over QUIC resolve Head-of-Line (HOL) blocking.
+- Compare the socket API abstractions of TCP and UDP, and write functional client-server programs in Python.
+
+## **Principles of Network Applications**
+
+To write a network application, you create software that runs on multiple end systems (such as desktops, laptops, or smartphones). Because network-core devices (routers and link-layer switches) function at the network layer and below, you do not write software for them. Confining application software to end systems has enabled the rapid deployment of a massive array of network applications.
+
+### **Network Application Architectures**
+
+Before writing code, you must choose an application architecture, which is distinct from the fixed network layer architecture. Applications rely on one of two predominant paradigms:
+
+- **Client-Server Architecture:** An always-on host (the server) with a fixed, well-known IP address services requests from many intermittently connected hosts (clients). Clients do not communicate directly with each other. In high-traffic scenarios, a single-server host is replaced by a massive data center containing hundreds of thousands of servers to create a powerful virtual server.
+- **Peer-to-Peer (P2P) Architecture:** There is minimal or no reliance on dedicated servers. Instead, pairs of intermittently connected hosts (peers) communicate directly. A compelling feature of P2P is its _self-scalability_: each peer requesting a file also adds service capacity by distributing files to other peers. However, security, reliability, and performance challenges make client-server the dominant modern architecture.
+
+### **Processes Communicating**
+
+In operating systems, it is not programs but **processes** that communicate. Processes on the same host communicate using interprocess communication rules governed by the host OS. Processes on different hosts communicate by exchanging **messages** across the network.
+
+- **Client vs. Server Process:** In any communication session, the process that initiates contact is the **client**, while the process that waits to be contacted is the **server**.
+- **The Socket Interface:** A process sends and receives messages from the network through a software interface called a **socket**. Think of a process as a house and its socket as its door. The application developer controls everything on the application-layer side of the socket, but has little control of the transport-layer side (except choosing the protocol and adjusting a few buffer/segment parameters).
+- **Addressing Processes:** To deliver a message, the sending process must specify the destination **IP address** (a 32-bit identifier for the host) and the **port number** (which identifies the specific destination socket on that host). For example, a Web server uses well-known port 80; an SMTP mail server uses port 25.
+
+### **Transport Services Available to Applications**
+
+An application developer chooses a transport protocol by matching its services with the application's requirements across four dimensions:
+
+- **Reliable Data Transfer:** Guarantees that data sent by one end is delivered correctly and completely to the other. Loss-tolerant applications (like conversational audio/video) can tolerate some packet loss, but elastic applications (like file transfer or email) require complete reliability.
+- **Throughput:** Some applications are _bandwidth-sensitive_ and require a guaranteed rate (e.g., a specific voice encoding bit rate). _Elastic_ applications make use of whatever throughput happens to be available.
+- **Timing:** Interactive real-time applications (games, video conferencing) require low delay bounds (e.g., under 100 milliseconds) to remain effective.
+- **Security:** Transport protocols can encrypt data at the source, decrypt it at the destination, and provide integrity and authentication.
+
+### **Transport Services Provided by the Internet**
+
+The Internet offers two primary transport-layer protocols:
+
+- **TCP (Transmission Control Protocol):** Connection-oriented (requires handshaking before data flows), provides reliable data transfer (no missing/duplicate bytes), and employs congestion control to throttle the sender when the network is congested. Traditional TCP does _not_ provide timing or throughput guarantees.
+- **UDP (User Datagram Protocol):** A lightweight, connectionless, no-frills protocol. It is unreliable (no guarantee of delivery or ordering) and does not include congestion control, allowing the sender to pump data at any rate it wants.
+- **Securing TCP (TLS):** Neither TCP nor UDP provides encryption by default. To secure communication, developers enhance TCP with **Transport Layer Security (TLS)**. TLS is implemented at the application layer, providing encryption, integrity, and endpoint authentication via a dedicated socket API.
+
+### **Application-Layer Protocols**
+
+An application-layer protocol defines how an application's processes on different end systems pass messages to each other. It defines: (1) message types (requests vs. responses), (2) message syntax (field delineations), (3) semantics of those fields, and (4) rules for when and how to send messages. It is important to distinguish between the application-layer protocol (like HTTP) and the network application itself (the Web, which also encompasses document formats like HTML, browsers, and servers).
+
+## **The Web and HTTP**
+
+The Web's application-layer protocol, the **HyperText Transfer Protocol (HTTP)**, defines how Web clients (browsers) request Web pages from Web servers, and how servers transfer those pages back.
+
+### **Web Terminology**
+
+A Web page consists of **objects** (such as an HTML file, a JPEG image, or a video clip) addressable by a single **Uniform Resource Locator (URL)**. A URL has two components: the hostname and the object's path name. For example, in `http://www.someSchool.edu/someDepartment/picture.gif`, the hostname is `www.someSchool.edu` and the path is `/someDepartment/picture.gif`.
+
+HTTP is a **stateless protocol**. The server sends requested files to clients without storing any state information about them. If a client requests the same object twice in a few seconds, the server simply resends it, having completely forgotten the previous transaction.
+
+### **Connection Types: Non-Persistent vs. Persistent**
+
+- **Non-Persistent Connections:** Each TCP connection is closed after the server sends exactly one requested object. To download a page with a base HTML file and 10 images, 11 separate TCP connections must be generated.
+- **Round-Trip Time (RTT)** is the time it takes for a small packet to travel from client to server and back. Non-persistent connections require a **three-way handshake** (1 RTT) plus the request/response transaction (1 RTT). Thus, the total delay to retrieve an object is **2 RTT + transmission time**.
+- **Persistent Connections:** The server leaves the TCP connection open after sending a response. Subsequent requests and responses between the same client/server can be sent over this single connection. Objects can be requested back-to-back (pipelining) without waiting for replies, eliminating the connection establishment delay (saving 1 RTT per subsequent object).
+
+### **HTTP Message Format**
+
+HTTP messages are written in ordinary, human-readable ASCII text. There are two types of messages:
+
+- **HTTP Request Message:**
+
+```
+GET /somedir/page.html HTTP/1.1
+Host: www.someschool.edu
+Connection: close
+User-agent: Mozilla/5.0
+Accept-language: fr
+
+```
+
+The first line is the **request line** (fields: method, URL, HTTP version). Subsequent lines are **header lines**. The `Host` header is required by Web proxy caches. `Connection: close` tells the server to close the TCP connection after sending the object. `User-agent` specifies the browser type, and `Accept-language` indicates language preference.
+
+- **Methods:** `GET` (requests an object), `POST` (submits form data inside the _entity body_), `HEAD` (requests only the headers of the response for debugging), `PUT` (uploads files to specific paths), and `DELETE` (removes files).
+- You can view real HTTP requests and responses from your terminal using `curl -v http://gaia.cs.umass.edu/kurose_ross/index.php`.
+- **HTTP Response Message:**
+
+```
+HTTP/1.1 200 OK
+Connection: close
+Date: Mon, 21 Oct 2024 18:58:21 GMT
+Server: Apache/2.2.3 (CentOS)
+Last-Modified: Sun, 20 Oct 2024 13:20:46 GMT
+Content-Length: 6821
+Content-Type: text/html
+
+(data data data data data ...)
+
+```
+
+The first line is the **status line** (version, status code, status message). Subsequent lines are headers, followed by a blank line and the **entity body** (the requested object).
+
+- **Status Codes:** `200 OK` (success), `301 Moved Permanently` (new URL in `Location:` header), `400 Bad Request` (generic client error), `404 Not Found` (document missing), and `505 HTTP Version Not Supported`.
+
+### **User-Server Interaction: Cookies**
+
+Because HTTP is stateless, sites use **cookies** to track user sessions. Cookie technology contains four components:
+
+1. A cookie header line in the HTTP response (`Set-cookie: 1678`)
+2. A cookie header line in the subsequent HTTP request (`Cookie: 1678`)
+3. A cookie file kept on the user's end system and managed by their browser
+4. A back-end database at the Web site mapping the ID to user activity This allows e-commerce sites to implement shopping carts, remember logins, and recommend products, though it also raises privacy concerns.
+
+### **Browser Caching and Conditional GET**
+
+To reduce latency and network traffic, browsers cache recently retrieved objects locally. The server can manage this via the `Cache-Control` header (e.g., `Cache-Control: max-age=3600` tells the browser it can cache the object for 3600 seconds; `no-store` forbids caching).
+
+If the browser has an object in its cache but wants to verify its freshness, it performs a **conditional GET**:
+
+```
+GET /fruit/kiwi.jpg HTTP/1.1
+Host: www.exotiquecuisine.com
+If-modified-since: Fri, 13 Sep 2024 09:23:24
+
+```
+
+If the object has _not_ changed since that timestamp, the server responds with **304 Not Modified** and an empty entity body, saving bandwidth and rendering time.
+
+### **HTTP/2: Frame-Level Multiplexing**
+
+HTTP/1.1 suffers from a **Head-of-Line (HOL) blocking problem**: over a single TCP connection, if a large object (like a video) is at the front of the queue, all subsequent smaller objects must wait behind it. Browsers worked around this by opening up to 6 parallel TCP connections, which placed heavy loads on servers and allowed browsers to "cheat" TCP congestion control to grab extra bandwidth.
+
+HTTP/2 (standardized in 2015) solves HOL blocking over a single TCP connection by breaking each HTTP message into small **frames** and **multiplexing** (interleaving) them. A single video file and eight small images can have their frames interleaved so that the smaller images arrive and render quickly. HTTP/2 also introduces **message prioritization** (assigning weights 1-256) and **server push** (the server sends resources it knows the page will need before the client explicitly requests them).
+
+### **HTTP/3 and QUIC**
+
+Even with HTTP/2's frame multiplexing, HOL blocking still occurs at the **TCP layer**: if a single TCP packet containing frames of one resource is lost, TCP pauses delivery of _all_ packets in its buffer until the lost packet is retransmitted.
+
+HTTP/3 (standardized in 2022) solves this by running over **QUIC (Quick UDP Internet Connections)**. QUIC is a sub-layer in the application layer that uses **UDP** as its underlying transport:
+
+- **Independent Streams:** QUIC manages multiple streams independently within a single connection. If a packet in Stream 1 is lost, only Stream 1 stalls; Streams 2 and 3 continue to deliver data unimpeded.
+- **Combined Handshake:** QUIC integrates TLS 1.3 directly, combining connection setup and encryption setup into a single 1-RTT handshake (and supports 0-RTT reconnection using saved session parameters).
+- **Connection Migration:** QUIC connections are identified by a Connection ID, not the client's IP address. This allows a mobile user to switch seamlessly from Wi-Fi to cellular without dropping the active connection.
+
+## **Electronic Mail in the Internet**
+
+The Internet mail system is composed of three major components: **user agents** (email clients like Outlook, or webmail like Gmail), **mail servers**, and the **Simple Mail Transfer Protocol (SMTP)**.
+
+### **Simple Mail Transfer Protocol (SMTP)**
+
+SMTP (defined in RFC 5321) transfers email messages from a sender's mail server to a recipient's mail server. It is a **push protocol** that runs over a reliable TCP connection on port 25.
+
+- **The ASCII Restriction:** SMTP is a legacy protocol that restricts the body of all messages to simple **7-bit ASCII**. This requires binary multimedia attachments (images, audio, video) to be encoded to ASCII before transmission, and decoded back to binary upon receipt.
+- **Direct Transfer:** SMTP does not use intermediate mail servers. The sending server establishes a direct TCP connection to the receiving server. If the recipient's server is down, the message stays in the sender's mail server queue and is reattempted periodically (e.g., every 30 minutes).
+- **Protocol Interaction:** Once the TCP connection is established, the client and server perform handshaking, exchange mail directions, transmit the ASCII data, and terminate.
+
+A typical SMTP client (C) and server (S) transcript:
+
+```
+S: 220 hamburger.edu
+C: HELO crepes.fr
+S: 250 Hello crepes.fr, pleased to meet you
+C: MAIL FROM:
+```
+
+To declare the end of the message body, the SMTP client sends a single, isolated period on a line by itself: `<CR><LF>.<CR><LF>`
+
+### **Mail Message Formats**
+
+The message transmitted over SMTP must conform to the format specified in RFC 5322. The message consists of **header lines** followed by a blank line and the message body.
+
+- **Header Format:** Each header contains readable text formatted as `Keyword: Value`. Required headers include `From:` and `To:`, and an optional header is `Subject:`.
+- **Crucial Distinction:** The RFC 5322 headers (e.g., `From: alice@crepes.fr`) are part of the mail message itself and are rendered by user agents. The SMTP commands (e.g., `MAIL FROM: <alice@crepes.fr>` are part of the transmission handshake and are handled by the mail transfer agents.
+
+### **Mail Access Protocols**
+
+Because SMTP is a push protocol, a recipient cannot use it to fetch emails. Obtaining emails from a shared mail server is a **pull operation**:
+
+- **IMAP (Internet Mail Access Protocol):** Defined in RFC 3501, IMAP operates on TCP port 143. It allows users to query, download, and organize messages into folders maintained directly on the mail server.
+- **HTTP:** Web-based email clients use HTTP to pull emails from the server to the browser, while the mail servers continue to exchange mail backend using SMTP.
+
+## **DNS—The Internet’s Directory Service**
+
+While humans prefer mnemonic **hostnames** (e.g., `www.google.com`), network routers prefer fixed-length, hierarchical **IP addresses** (e.g., `121.7.106.83`). The **Domain Name System (DNS)** is a core Internet directory service that translates hostnames to IP addresses. DNS consists of (1) a distributed database implemented in a hierarchy of DNS servers, and (2) an application-layer protocol running over **UDP on port 53**.
+
+### **Services Provided by DNS**
+
+- **Hostname-to-IP Translation:** Translates user-supplied hostnames to their underlying IP addresses for HTTP, SMTP, and other protocols.
+- **Host Aliasing:** Maps mnemonic alias hostnames (like `www.enterprise.com`) to a single, more complex **canonical hostname** (like `relay1.west-coast.enterprise.com`).
+- **Mail Server Aliasing:** Maps standard domain names in email addresses to the canonical hostname of the mail server via **MX records**.
+- **Load Distribution:** Maps a single hostname to a set of replicated IP addresses. When a DNS query is made, the DNS server responds with the entire set of IP addresses but rotates their order, distributing client requests across servers.
+
+### **Hierarchical and Distributed Database**
+
+No single DNS server contains all mappings. Instead, the database is distributed across three primary classes of DNS servers, organized hierarchically:
+
+- **Root DNS Servers:** Over 2,000 root server instances (copies of 13 primary servers) are distributed globally. They provide the IP addresses of the Top-Level Domain (TLD) servers.
+- **Top-Level Domain (TLD) Servers:** Responsible for top-level domains (like `.com`, `.org`, `.net`, `.edu`) and country domains (like `.uk`, `.fr`). They provide the IP address of the Authoritative DNS server for a specific domain.
+- **Authoritative DNS Servers:** Maintained by organizations or service providers, these servers house the actual records that map hostnames to IP addresses for public hosts.
+- **Local DNS Server (Default Name Server):** Each ISP or organization has a local DNS server. When a host makes a DNS query, the query goes to its local DNS server, which acts as a proxy to query the DNS hierarchy on behalf of the host.
+
+### **Query Resolution: Recursive vs. Iterative**
+
+- **Recursive Query:** The querying host asks a DNS server (typically the local DNS server) to perform the entire name resolution on its behalf.
+- **Iterative Query:** The queried server replies directly to the requester with the IP address of the next DNS server in the chain (e.g., "I don't know this name, but here is the IP of the TLD server"), and the requester contacts that next server.
+
+In typical operations, the query from the host to the local DNS server is recursive, and all subsequent queries through the hierarchy are iterative.
+
+### **DNS Caching**
+
+To drastically reduce query latency and network traffic, DNS servers utilize **DNS caching**. When a local DNS server receives a mapping from the hierarchy, it stores it in its local memory for a specific duration (determined by the record's TTL). If another query for that hostname arrives, the local DNS server immediately returns the cached IP, completely bypassing root and TLD servers.
+
+### **DNS Resource Records (RRs)**
+
+DNS database entries are called **Resource Records (RRs)**, stored as a 4-tuple: `(Name, Value, Type, TTL)`. The meanings of `Name` and `Value` depend on the `Type`:
+
+- **Type A:** `Name` is a hostname, `Value` is the IP address (e.g., `(relay1.bar.foo.com, 145.37.93.126, A)`).
+- **Type NS:** `Name` is a domain, `Value` is the hostname of an authoritative DNS server for that domain (e.g., `(foo.com, dns.foo.com, NS)`).
+- **Type CNAME:** `Name` is an alias hostname, `Value` is the canonical hostname (e.g., `(foo.com, relay1.bar.foo.com, CNAME)`).
+- **Type MX:** `Name` is an alias hostname, `Value` is the canonical name of the mail server (e.g., `(foo.com, mail.bar.foo.com, MX)`).
+
+### **DNS Message Format**
+
+Both queries and replies use the same 12-byte header format:
+
+- **Identification:** A 16-bit number that identifies the query and is copied into the reply.
+- **Flags:** Indicate query vs. reply (1 bit), authoritative status (1 bit), recursion desired (1 bit), and recursion available (1 bit).
+- **Four Section Count Fields:** Specify the number of questions, answer RRs, authority RRs, and additional RRs that follow.
+- **Body Sections:** Questions (query details), Answers (resolved RRs), Authority (other authoritative servers), and Additional Information (e.g., IP addresses of mail servers in an MX query).
+
+### **DNS Security Vulnerabilities**
+
+- **DDoS Bandwidth-Flooding:** Attacking root or TLD servers with a deluge of queries. Root servers mitigate this using ICMP packet filtering and local caching of TLD IPs, though TLD service providers remain highly sensitive targets.
+- **Man-in-the-Middle Attacks:** Intercepting DNS queries to return bogus IPs.
+- **DNS Poisoning:** Sending bogus replies to a DNS server to trick it into caching false records.
+- **Mitigation:** **DNSSEC (DNS Security Extensions)** provides cryptographic signatures for DNS records, guaranteeing record authenticity and integrity.
+
+## **Video Streaming and Content Distribution Networks**
+
+Streaming video accounts for the vast majority of global Internet traffic. Achieving smooth playback over highly variable network links requires robust application-layer mechanisms and distributed infrastructure.
+
+### **HTTP Streaming and DASH**
+
+In basic HTTP streaming, a video is stored as a static file on an HTTP server. When a client requests the URL, the server sends the file as fast as TCP allows, and the client buffers and plays it. This has a major drawback: all clients receive the same encoding regardless of bandwidth variations.
+
+To solve this, **Dynamic Adaptive Streaming over HTTP (DASH)** is used:
+
+- The video is encoded into several versions with different bitrates and quality levels.
+- The HTTP server stores a **manifest file** containing a map of these versions, their bitrates, and their respective URLs.
+- The client first requests the manifest file, then dynamically requests video segments (chunks of about 4 seconds) using HTTP `GET` requests with byte ranges.
+- Based on measured throughput and current client buffer levels, a **rate determination algorithm** switches quality levels automatically—requesting high-rate chunks when bandwidth is plentiful and low-rate chunks when it drops.
+
+### **Content Distribution Networks (CDNs)**
+
+Streaming all global requests from a single massive central data center leads to severe bottleneck throughput, waste of network bandwidth, and a single point of failure. Instead, companies use **Content Distribution Networks (CDNs)**, which manage servers in multiple geographically distributed locations.
+
+- **Enter Deep:** Deployment of server clusters inside thousands of access ISPs globally (Akamai's philosophy). This places content close to the end user, reducing delay and maximizing throughput, but increases management complexity.
+- **Bring Home:** Building large clusters at a smaller number of sites, typically located inside Internet Exchange Points (IXPs) (Limelight's philosophy). This simplifies maintenance at the cost of higher user latency.
+
+### **CDN DNS Redirect Mechanics**
+
+CDNs take advantage of DNS to intercept and redirect requests to the best available server:
+
+1. A user clicks a link: `http://video.netcinema.com/6Y7B23V`.
+2. The host queries the Local DNS Server (LDNS) for `video.netcinema.com`.
+3. NetCinema's authoritative DNS server observes the "video" string and, instead of an IP address, returns a canonical alias in the CDN's domain: `a1105.kingcdn.com`.
+4. The client's LDNS queries KingCDN's private DNS system, which dynamically determines the best CDN server cluster (using geo-location databases or active probing) and returns its IP address.
+5. The LDNS forwards this IP to the client host.
+6. The client establishes a direct TCP connection with the designated KingCDN server and pulls the video.
+
+### **CDN Caching Strategies**
+
+- **Push Strategy:** The CDN forecasts which videos will be popular and preemptively pushes them to its local cache servers during off-peak hours.
+- **Pull Strategy:** If a client requests a video from a local cache server and it is not there (cache miss), the cache pulls the video from a central server, stores it locally, and streams it to the user in parallel.
+
+### **Case Study: Netflix vs. YouTube**
+
+- **Netflix Architecture:** Relies on the **Amazon Cloud** for static content ingestion, transcoding into DASH formats, recommendation systems, billing, and generating manifest files. For actual video delivery, Netflix built its own private CDN, **Open Connect**, installing server racks directly in IXPs and residential ISPs. Netflix uses **push caching** at off-peak hours instead of dynamic pull caching and maps clients to servers directly through Amazon cloud software rather than DNS redirection.
+- **YouTube Architecture:** Uses **Google's massive private global network and data centers** for transcoding and content hosting. Google deploys a private CDN with dynamic **pull caching** and uses **DNS redirection** to assign users to the closest cluster (lowest RTT) while dynamically balancing server load.
+
+## **Socket Programming: Creating Network Applications**
+
+To write a network application, you create a client program and a server program that communicate using socket APIs. This can be built using open protocols (RFC compliant, like HTTP) or proprietary protocols.
+
+We will write a simple application in Python 3 where:
+
+1. The client reads a line of characters from the keyboard and sends it to the server.
+2. The server receives the characters, capitalizes them, and sends them back.
+3. The client prints the capitalized characters.
+
+### **Socket Programming with UDP**
+
+In UDP, there is no initial connection setup. The sender must explicitly attach a destination IP address and port number to _every_ packet. The operating system automatically appends the source IP and source port.
+
+**UDPClient.py**
+
+```
+from socket import *
+serverName = 'hostname' # Target server IP or hostname
+serverPort = 12000 # Server port
+# Create client UDP socket (AF_INET = IPv4, SOCK_DGRAM = UDP)
+clientSocket = socket(AF_INET, SOCK_DGRAM)
+message = input('Input lowercase sentence:')
+# Encode string to bytes and send
+clientSocket.sendto(message.encode(), (serverName, serverPort))
+# Buffer size of 2048 bytes; receives reply and server's source address
+modifiedMessage, serverAddress = clientSocket.recvfrom(2048)
+print(modifiedMessage.decode())
+clientSocket.close()
+
+```
+
+**UDPServer.py**
+
+```
+from socket import *
+serverPort = 12000
+# Create server UDP socket
+serverSocket = socket(AF_INET, SOCK_DGRAM)
+# Explicitly bind the socket to port 12000
+serverSocket.bind(('', serverPort))
+print("The server is ready to receive")
+while True:
+    # Read packet and capture client's return address
+    message, clientAddress = serverSocket.recvfrom(2048)
+    modifiedMessage = message.decode().upper()
+    # Send capitalized bytes back to client's address
+    serverSocket.sendto(modifiedMessage.encode(), clientAddress)
+
+```
+
+### **Socket Programming with TCP**
+
+TCP is connection-oriented. The client must first initiate contact with the server. The server must be running and have a **welcoming socket** (e.g., `serverSocket`) listening on a designated port. When the client knocks, the server creates a _new_ dedicated socket (**connectionSocket**) exclusively for that client.
+
+**TCPClient.py**
+
+```
+from socket import *
+serverName = 'servername'
+serverPort = 12000
+# Create TCP client socket (SOCK_STREAM = TCP)
+clientSocket = socket(AF_INET, SOCK_STREAM)
+# Establish TCP connection (performs 3-way handshake)
+clientSocket.connect((serverName, serverPort))
+sentence = input('Input lowercase sentence:')
+# Send raw bytes into established connection (no destination address needed)
+clientSocket.send(sentence.encode())
+modifiedSentence = clientSocket.recv(1024)
+print('From Server: ', modifiedSentence.decode())
+clientSocket.close()
+
+```
+
+**TCPServer.py**
+
+```
+from socket import *
+serverPort = 12000
+# Create welcoming TCP socket
+serverSocket = socket(AF_INET, SOCK_STREAM)
+serverSocket.bind(('', serverPort))
+# Listen for incoming connection requests (param specifies max queued connections)
+serverSocket.listen(1)
+print('The server is ready to receive')
+while True:
+    # Blocks until client connects; returns a dedicated connection socket
+    connectionSocket, addr = serverSocket.accept()
+    sentence = connectionSocket.recv(1024).decode()
+    capitalizedSentence = sentence.upper()
+    connectionSocket.send(capitalizedSentence.encode())
+    # Close connection socket for this client; welcoming socket remains open
+    connectionSocket.close()
+
+```
+
+### **Socket Programming with QUIC**
+
+HTTP/3 does not interact with the underlying UDP socket API directly. Instead, the application developer writes code using a **QUIC API**. Under the hood, QUIC manages connection IDs, encrypts frames using TLS 1.3, handles stream prioritization, and performs stream-level multiplexing over UDP. The developer simply creates independent streams with unique stream IDs (e.g., Stream 1 for HTML, Stream 2 for images) and pushes bytes into the QUIC connection.
+
+## **Summary**
+
+### **Key Takeaways**
+
+- **Edge Confined:** Network applications run strictly on end systems. Routers and switches operate at the network layer and below, facilitating rapid deployment at the application layer.
+- **Architectures:** Modern applications use client-server (always-on, centralized server or data center) or P2P (direct peer communication, self-scaling, security challenges) paradigms.
+- **Evolution of HTTP:** HTTP is stateless. Over time, it evolved from HTTP/1.1 (where head-of-line blocking stalled objects) to HTTP/2 (introducing frame-level multiplexing and prioritization over single TCP connections) to HTTP/3 (utilizing UDP-based QUIC to solve TCP-level head-of-line blocking, integrate TLS 1.3, and support connection migration).
+- **SMTP and Mail Access:** SMTP is a legacy TCP push protocol restricted to 7-bit ASCII. Fetching email requires pull protocols like IMAP or HTTP.
+- **DNS Hierarchy:** DNS is a distributed database that translates hostnames to IP addresses using recursive and iterative queries through Root, TLD, and Authoritative servers, heavily utilizing local caching.
+- **DASH and CDNs:** Streaming video relies on DASH (adaptive chunks requested dynamically by client rate algorithms) and CDNs (Enter Deep vs. Bring Home placement topologies) using DNS-based redirection to locate nearby caches.
+- **Socket APIs:** UDP uses simple sendto/recvfrom calls with destination addresses attached, while TCP utilizes a distinct welcoming socket to establish connections, spawning dedicated sockets for stream communication.
