@@ -54,10 +54,7 @@ Cryptography allows a sender to disguise data so that an intruder gains no infor
 - **Decryption Algorithm:** A standardized public function that takes ciphertext and a decryption key $(K_B)$ as inputs to output plaintext:
 
 $$
-
 m = ((m)_{K_A})_{K_B}
-
-
 $$
 
 _Did you know?_ In modern cryptography, the encryption and decryption algorithms are publicly known and standardized. The security relies entirely on keeping the keys secret!
@@ -97,19 +94,13 @@ In symmetric key systems, the sender and receiver share the exact same secret ke
   - For the first block:
 
 $$
-
 c_1 = K_S(m_1 \oplus c_0)
-
-
 $$
 
 - For subsequent blocks:
 
 $$
-
 c_i = K_S(m_i \oplus c_{i-1})
-
-
 $$
 
 This chain ensures identical blocks encrypt to entirely different ciphertexts.
@@ -133,36 +124,19 @@ Public key cryptography utilizes a pair of keys: a **public key** $(K^+)$ availa
   6. **Encryption:**
 
 $$
-
 c = m^e \bmod n
-
-
 $$
 
 7. **Decryption:**
 
 $$
-
 m = c^d \bmod n
-
-
 $$
 
 8. _Why it works:_ Mathematical number theory dictates that
 
 $$
-
-(m^e \bmod n)^d \bmod n
-
-=
-
-m^{ed} \bmod n
-
-=
-
-m
-
-
+(m^e \bmod n)^d \bmod n = m^{ed} \bmod n = m
 $$
 
 - **Session Keys:** Public key operations are computationally expensive. In practice, RSA is used to encrypt and distribute a symmetric **session key** $K_S$. All subsequent bulk data transfer is encrypted using the faster symmetric cipher (e.g., AES) initialized with $K_S$.
@@ -178,27 +152,13 @@ $$
   4. Alice computes shared key:
 
 $$
-
-(K^+_B)^{S_A} \bmod p
-
-=
-
-g^{S_B S_A} \bmod p
-
-
+(K^+_B)^{S_A} \bmod p = g^{S_B S_A} \bmod p
 $$
 
 5. Bob computes shared key:
 
 $$
-
-(K^+_A)^{S_B} \bmod p
-
-=
-
-g^{S_A S_B} \bmod p
-
-
+(K^+_A)^{S_B} \bmod p = g^{S_A S_B} \bmod p
 $$
 
 Both values are mathematically identical.
@@ -224,23 +184,13 @@ To authenticate a message, Bob must verify that it originated from Alice and has
   - Bob signs a message by encrypting its hash with his private key:
 
 $$
-
 (H(m))_{K^-_B}
-
-
 $$
 
 - Alice verifies the signature by applying Bob's public key \(K^+\_B\) to the signature:
 
 $$
-
-((H(m))_{K^-_B})_{K^+_B}
-
-=
-
-H(m)
-
-
+((H(m))_{K^-_B})_{K^+_B} = H(m)
 $$
 
 She compares this result with her own computed hash $H(m)$ of the message.

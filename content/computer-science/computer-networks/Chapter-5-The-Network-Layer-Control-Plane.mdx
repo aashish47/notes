@@ -56,10 +56,7 @@ $$
 If node \(x\) and node \(y\) are not connected, we define:
 
 $$
-
 c(x,y) = \infty
-
-
 $$
 
 A path is a sequence of nodes leading from a source to a destination, and the cost of that path is the sum of all individual edge costs along it.
@@ -132,7 +129,9 @@ Distance-vector (DV) algorithms are iterative, asynchronous, and distributed. No
 
 At the core of the DV algorithm is the Bellman-Ford equation:
 
-$$d_x(y) = \min_v \left\{c(x,v) + d_v(y)\right\}$$
+$$
+d_x(y) = \min_v \left\{c(x,v) + d_v(y)\right\}
+$$
 
 Where the minimum is computed over all of $x's$ immediate neighbors $v$ .
 
@@ -140,7 +139,9 @@ Where the minimum is computed over all of $x's$ immediate neighbors $v$ .
 
 Each node $x$ maintains its own distance vector: $Dx=[Dx(y):y in N]D_x = [D_x(y) : y \text{ in } N]$. From time to time, each node sends its distance vector to its neighbors. When node $x$ receives a vector update from neighbor $w$ , it updates its own estimates:
 
-$$D_x(y) = \min_v \left\{c(x,v) + D_v(y)\right\}$$
+$$
+D_x(y) = \min_v \left\{c(x,v) + D_v(y)\right\}
+$$
 
 If node $x's$ vector changes, it sends its updated vector to all of its neighbors. This process continues asynchronously until no further updates are sent.
 

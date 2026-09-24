@@ -127,7 +127,9 @@ clientSocket.bind(('', 19157))
 
 A UDP socket is fully identified by a **two-tuple**:
 
-$$\text{UDP Socket ID} = (\text{Destination IP Address}, \text{Destination Port Number})$$
+$$
+\text{UDP Socket ID} = (\text{Destination IP Address}, \text{Destination Port Number})
+$$
 
 ### Key Consequence of the UDP Two-Tuple
 
@@ -139,7 +141,9 @@ If two UDP segments have different source IP addresses and/or different source p
 
 A crucial difference between a TCP socket and a UDP socket is that a TCP socket is identified by a **four-tuple**:
 
-$$TCP Socket ID=(Source IP Address,Source Port Number,Destination IP Address,Destination Port Number)$$
+$$
+TCP Socket ID=(Source IP Address,Source Port Number,Destination IP Address,Destination Port Number)
+$$
 
 When a TCP segment arrives from the network, the host's operating system uses **all four values** to direct (demultiplex) the segment to the appropriate socket.
 
@@ -317,11 +321,15 @@ While functionally correct, `rdt3.0` is a stop-and-wait protocol with **dismal p
 
 Consider a 1 Gbps link with a 30 millisecond Round-Trip Time (RTT), transmitting 1,000-byte (8,000-bit) packets:
 
-$$\text{Transmission Delay } (d_{\text{trans}}) = \frac{L}{R} = \frac{8,000 \text{ bits}}{10^9 \text{ bits/sec}} = 8 \text{ microseconds}$$
+$$
+\text{Transmission Delay } (d_{\text{trans}}) = \frac{L}{R} = \frac{8,000 \text{ bits}}{10^9 \text{ bits/sec}} = 8 \text{ microseconds}
+$$
 
 With stop-and-wait, the sender must wait for the RTT to complete before sending the next packet:
 
-$$\text{Sender Utilization } (U_{\text{sender}}) = \frac{d_{\text{trans}}}{\text{RTT} + d_{\text{trans}}} = \frac{0.008 \text{ msec}}{30 \text{ msec} + 0.008 \text{ msec}} = 0.00027 \text{ (or 0.027\%)}$$
+$$
+\text{Sender Utilization } (U_{\text{sender}}) = \frac{d_{\text{trans}}}{\text{RTT} + d_{\text{trans}}} = \frac{0.008 \text{ msec}}{30 \text{ msec} + 0.008 \text{ msec}} = 0.00027 \text{ (or 0.027\%)}
+$$
 
 The sender is only busy sending bits into the channel $0.027\%$ of the time, resulting in an effective throughput of only **267 kbps** on a **1 Gbps** link!
 
@@ -383,7 +391,9 @@ The Go-Back-N protocol suffers from performance issues when link error rates are
 
 For any Selective Repeat protocol, the sequence number space must be at least **twice the window size** to prevent ambiguity at the receiver:
 
-$$2⋅Window Size (N)≤Sequence Number Space2 \cdot \text{Window Size } (N) \le \text{Sequence Number Space}$$
+$$
+2⋅Window Size (N)≤Sequence Number Space2 \cdot \text{Window Size } (N) \le \text{Sequence Number Space}
+$$
 
 If the sequence space is too small relative to the window size, a receiver cannot distinguish whether an arriving packet is a retransmission of an old packet (whose ACK was lost) or a brand-new packet utilizing a wrapped-around sequence number.
 
@@ -413,7 +423,9 @@ The maximum amount of application-layer data that can be placed in a single segm
 
 - **The Math:** To ensure a TCP segment wrapped in an IP datagram fits into a single link-layer frame without IP fragmentation, the MSS is set as:
 
-$$\text{MSS} = \text{MTU} - 40 \text{ bytes of TCP/IP headers}$$
+$$
+\text{MSS} = \text{MTU} - 40 \text{ bytes of TCP/IP headers}
+$$
 
 - Thus, for standard Ethernet, a typical MSS value is **1460 bytes**.
 
@@ -499,7 +511,9 @@ The `SampleRTT` is measured for only one unacknowledged segment at a time, appro
 
 Because `SampleRTT` fluctuates, TCP calculates a smoothed average called `EstimatedRTT` using an **Exponential Weighted Moving Average (EWMA)**:
 
-$$\text{EstimatedRTT} = (1 - \alpha) \cdot \text{EstimatedRTT} + \alpha \cdot \text{SampleRTT}$$
+$$
+\text{EstimatedRTT} = (1 - \alpha) \cdot \text{EstimatedRTT} + \alpha \cdot \text{SampleRTT}
+$$
 
 - The recommended value of $\alpha$ is **0.125** ($1/8$), placing more weight on recent measurements.
 
@@ -507,7 +521,9 @@ $$\text{EstimatedRTT} = (1 - \alpha) \cdot \text{EstimatedRTT} + \alpha \cdot \t
 
 TCP estimates how much `SampleRTT` typically deviates from `EstimatedRTT`:
 
-$$\text{DevRTT} = (1 - \beta) \cdot \text{DevRTT} + \beta \cdot \left| \text{SampleRTT} - \text{EstimatedRTT} \right|$$
+$$
+\text{DevRTT} = (1 - \beta) \cdot \text{DevRTT} + \beta \cdot \left| \text{SampleRTT} - \text{EstimatedRTT} \right|
+$$
 
 - The recommended value of $\beta$ is **0.25**.
 
@@ -515,7 +531,9 @@ $$\text{DevRTT} = (1 - \beta) \cdot \text{DevRTT} + \beta \cdot \left| \text{Sam
 
 The retransmission timeout (`TimeoutInterval`) is set with a safety margin derived from the deviation:
 
-$$TimeoutInterval=EstimatedRTT+4⋅DevRTT$$
+$$
+TimeoutInterval=EstimatedRTT+4⋅DevRTT
+$$
 
 If a timeout occurs, TCP doubles the `TimeoutInterval` for the subsequent retransmission to avoid overwhelming a congested network.
 
@@ -557,7 +575,9 @@ Host B allocates a receive buffer of size `RcvBuffer` for the connection. Host B
 
 To prevent buffer overflow, the buffer state must satisfy:
 
-$$LastByteRcvd−LastByteRead≤RcvBuffer$$
+$$
+LastByteRcvd−LastByteRead≤RcvBuffer
+$$
 
 ### Advertising and Enforcing rwnd
 
@@ -565,7 +585,9 @@ $$LastByteRcvd−LastByteRead≤RcvBuffer$$
 
 - Host A limits its unacknowledged sent bytes to remain below `rwnd`:
 
-$$\text{LastByteSent} - \text{LastByteAcked} \le \text{rwnd}$$
+$$
+\text{LastByteSent} - \text{LastByteAcked} \le \text{rwnd}
+$$
 
 - **The Zero Window Corner Case:** If Host B advertises `rwnd = 0`, Host A is blocked. To prevent deadlock, Host A continues sending segments with **one data byte** when `rwnd = 0`. This forces Host B to reply with ACKs, eventually notifying Host A when buffer space opens up (`rwnd > 0`).
 
@@ -669,7 +691,9 @@ Historically, architectures are categorized by whether the network layer provide
 
 The TCP sender limits the rate at which it sends traffic into its connection by maintaining an internal state variable: the **congestion window (`cwnd`)**.
 
-$$\text{Allowed Unacknowledged Bytes} \le \min(\text{cwnd}, \text{rwnd})$$
+$$
+\text{Allowed Unacknowledged Bytes} \le \min(\text{cwnd}, \text{rwnd})
+$$
 
 By adjusting the value of `cwnd`, the sender dynamically modulates its transmission rate.
 

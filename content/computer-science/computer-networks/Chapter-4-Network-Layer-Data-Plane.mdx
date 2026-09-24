@@ -85,19 +85,13 @@ Packet queues form at both input and output ports when traffic loads exceed hard
 **How much buffering is enough?** Historically, the rule of thumb for buffer capacity (B) was based on round-trip time (RTT) and link capacity (C):
 
 $$
-
 B = RTT \times C
-
-
 $$
 
 However, modern analysis shows that when a large number of independent TCP flows (N) pass through a link, the required buffering scales down:
 
 $$
-
 B = \frac{RTT \times C}{\sqrt{N}}
-
-
 $$
 
 Excessive buffering leads to **bufferbloat**, where persistent queues at the network edge introduce long, constant delays for interactive applications.
@@ -113,10 +107,7 @@ Once packets are buffered, a **packet scheduler** determines the transmission or
 - **Weighted Fair Queuing (WFQ)**: A generalized round-robin scheduling scheme. Each class (i) is assigned a weight (\(w_i\)). During any period with queued traffic, class i is guaranteed to receive a fraction of link bandwidth equal to:
 
 $$
-
 \frac{w_i}{\sum w_j}
-
-
 $$
 
 ## The Internet Protocol (IPv4) and Addressing

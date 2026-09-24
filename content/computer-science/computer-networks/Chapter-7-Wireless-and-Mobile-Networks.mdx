@@ -74,11 +74,15 @@ Radio signals suffer from thermal noise, electronic imperfections, and interfere
 
 The **Signal-to-Noise Ratio (SNR)** compares received signal power to noise power:
 
-$$\text{SNR (dB)} = 10 \log_{10} \left( \frac{\text{received signal power}} {\text{noise power}} \right)$$
+$$
+\text{SNR (dB)} = 10 \log_{10} \left( \frac{\text{received signal power}} {\text{noise power}} \right)
+$$
 
 **Shannon's Capacity Theorem** defines the theoretical maximum error-free transmission rate ($C$) of a channel:
 
-$$C = B \log_2 \left( 1 + \frac{\text{received signal power}} {\text{noise power}} \right)$$
+$$
+C = B \log_2 \left( 1 + \frac{\text{received signal power}} {\text{noise power}} \right)
+$$
 
 This theorem shows that capacity scales linearly with bandwidth ($B$) but sublinearly (logarithmically) with SNR.
 
@@ -88,7 +92,10 @@ As radio waves propagate, they experience several degradations:
 
 - **Path Loss (Attenuation):** The reduction in signal strength over distance. In free space, received power ($P_{\text{received}}$) decreases quadratically with distance ($d$) and frequency ($f$):
 
-$${P_\text{received}} \propto \frac{P_{\text{transmitted}}} {f^2 d^2}$$
+$$
+{P_\text{received}} \propto \frac{P_{\text{transmitted}}} {f^2 d^2}
+$$
+
 In urban environments or buildings, the path loss exponent can rise to 3, 4, or higher.
 
 - **Hidden Terminal Problem:** Due to path loss or physical obstructions, two nodes (A and C) may be unable to hear each other, yet both can communicate with a central node (B). If A and C transmit simultaneously, their signals collide and interfere at B.

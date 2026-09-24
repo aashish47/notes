@@ -136,11 +136,15 @@ Most packet switches use store-and-forward transmission at their link inputs. Th
 
 If a source transmits a single packet of length $L$ bits over a path consisting of $N$ links, each of rate $R$ bps (meaning there are $N-1$ packet switches/routers), the total end-to-end transmission delay is:
 
-$$d_{\text{end-to-end}} = N \frac{L}{R}$$
+$$
+d_{\text{end-to-end}} = N \frac{L}{R}
+$$
 
 If the source sends $P$ packets back-to-back over these $N$ links, the total transmission delay is:
 
-$$d_{\text{total}} = (N + P - 1) \frac{L}{R}$$
+$$
+d_{\text{total}} = (N + P - 1) \frac{L}{R}
+$$
 
 #### 2. Queuing Delays and Packet Loss
 
@@ -206,7 +210,9 @@ Computer networks inevitably constrain throughput, introduce delays, and lose pa
 
 As a packet travels from one node (host or router) to the next, it experiences four distinct types of delay at each node. Together, they constitute the total nodal delay ($d_{\text{nodal}}$):
 
-$$d_{\text{nodal}} = d_{\text{proc}} + d_{\text{queue}} + d_{\text{trans}} + d_{\text{prop}}$$
+$$
+d_{\text{nodal}} = d_{\text{proc}} + d_{\text{queue}} + d_{\text{trans}} + d_{\text{prop}}
+$$
 
 - **Processing Delay ($d_{\text{proc}}$):** The time required to examine the packet's header, check for bit-level errors, and determine the outbound link. In high-speed routers, this is typically on the order of microseconds or less.
 
@@ -214,17 +220,23 @@ $$d_{\text{nodal}} = d_{\text{proc}} + d_{\text{queue}} + d_{\text{trans}} + d_{
 
 - **Transmission Delay ($d_{\text{trans}}$):** The time required to push all the packet's bits into the link. It is a function of the packet length ($L$ bits) and the transmission rate ($R$ bps) of the link:
 
-$$d_{\text{trans}} = \frac{L}{R}$$
+$$
+d_{\text{trans}} = \frac{L}{R}
+$$
 
 - **Propagation Delay ($d_{\text{prop}}$):** The time required for a bit to travel from the beginning of the link to the next router. It is a function of the physical distance ($d$) and the propagation speed of the physical medium ($s$, roughly $2 \times 10^8\text{ m/s}$ to $3 \times 10^8\text{ m/s}$):
 
-$$d_{\text{prop}} = \frac{d}{s}$$
+$$
+d_{\text{prop}} = \frac{d}{s}
+$$
 
 ### Queuing Delay and Packet Loss
 
 To estimate the extent of queuing delay, traffic engineers look at traffic intensity, defined as:
 
-$$\text{Traffic Intensity} = \frac{L a}{R}$$
+$$
+\text{Traffic Intensity} = \frac{L a}{R}
+$$
 
 Where $a$ is the average rate at which packets arrive at the queue (packets/sec).
 
@@ -238,7 +250,9 @@ Where $a$ is the average rate at which packets arrive at the queue (packets/sec)
 
 For $N-1$ routers between a source and destination, the total simplified end-to-end delay (assuming identical links and negligible queuing) is:
 
-$$d_{\text{end-to-end}} = N(d_{\text{proc}} + d_{\text{trans}} + d_{\text{prop}})$$
+$$
+d_{\text{end-to-end}} = N(d_{\text{proc}} + d_{\text{trans}} + d_{\text{prop}})
+$$
 
 To measure this in real-world environments, the **Traceroute** program sends a sequence of special packets marked with increasing values (1, 2, 3...) to a destination. Each intervening router decrements the packet's lifespan indicator. When it hits zero, the router drops the packet and sends an ICMP message back to the source. This allows the source to reconstruct the route and measure the round-trip times to each router.
 
@@ -252,7 +266,9 @@ Throughput is the rate (in bits/sec) at which data is transferred between a send
 
 - **Bottleneck Link:** For a path of $N$ links, the end-to-end throughput is constrained by the link with the lowest transmission rate:
 
-$$\text{Throughput} = \min\{R_1, R_2, \dots, R_N\}$$
+$$
+\text{Throughput} = \min\{R_1, R_2, \dots, R_N\}
+$$
 
 In today's Internet, the core is over-provisioned with high-speed links, making the access network the primary bottleneck.
 
