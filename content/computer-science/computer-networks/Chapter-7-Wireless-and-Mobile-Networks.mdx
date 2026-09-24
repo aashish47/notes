@@ -1,0 +1,477 @@
+export const metadata = {
+	title: "Wireless and Mobile Networks",
+	description:
+		"An introduction to wireless networking, covering radio channels, MIMO, modulation, WiFi, 5G RAN and core networks, mobility, handovers, and specialized wireless technologies.",
+	order: 7,
+	draft: false,
+	tags: [
+		"computer networks",
+		"wireless networks",
+		"WiFi",
+		"5G",
+		"mobile networks",
+		"MIMO",
+		"OFDMA",
+	],
+};
+
+## Introduction
+
+Did you know that there are now five times as many Internet-connected wireless subscribers as wired subscribers, with over 60 percent of website traffic directed to mobile devices? Wireless networking has fundamentally transformed how we interact with the digital world, shifting the internet from a static, desktop-bound utility to an omnipresent, cyber-physical environment.
+
+This lesson explores the underlying radio channel physics, link-layer protocol operations, access networks, mobile core architectures, and specialized wireless systems that power our global, untethered connectivity.
+
+### Learning Objectives
+
+- Understand the physical properties of wireless channels, including path loss, multipath, and MIMO antenna operations.
+- Explain coding, modulation (QPSK, QAM), and adaptive modulation principles based on signal-to-noise ratio (SNR).
+- Compare multiple access techniques such as CSMA/CA, OFDM, and OFDMA used in modern WiFi and cellular RANs.
+- Analyze the architectural components of 5G networks, including disaggregated RANs, Service-Based Core Functions, and mobility handovers.
+
+---
+
+## Elements of a Wireless Network
+
+A wireless network, regardless of its specific technology (WiFi, 5G, or Bluetooth), consists of several fundamental components:
+
+- **Wireless Access Networks:** Located at the outermost edge of the network. In cellular networks, this is known as the **Radio Access Network (RAN)**; in WiFi networks, it is called a **Wireless Local Area Network (WLAN)**. It provides link-layer services within a limited geographic scope.
+- **Wireless Core Network:** The backend infrastructure of servers, storage, routers, and wired links. In cellular networks, the core network implements control-plane services (mobility, authentication) and user-plane services. WiFi networks lack a dedicated wireless core, instead relying on standard enterprise wired LAN infrastructure.
+- **Wireless Devices:** End systems (smartphones, tablets, IoT sensors) running network applications. They attach to the access network via wireless links and may or may not be mobile.
+- **Base Stations:** The central relays responsible for transmitting and receiving packets to/from associated devices. In 5G networks, they are called **gNodeB (gNB)**; in 4G, **eNodeB (eNB)**; and in WiFi, **Access Points (AP)**. Downstream (downlink) refers to transmissions from the base station to devices, while upstream (uplink) refers to device-to-base-station transmissions.
+- **Infrastructure vs. Ad Hoc Mode:** In **infrastructure mode**, devices connect to the broader network via a base station. In **ad hoc mode**, devices self-organize without pre-existing infrastructure to route and translate traffic among themselves (e.g., Bluetooth).
+
+---
+
+## Physical Layer: Characteristics of Wireless Channels
+
+To understand wireless networks, we must first master the physical channel over which electromagnetic waves propagate.
+
+### Radio Waves: Amplitude, Frequency, and Phase
+
+An electromagnetic wave is characterized by:
+
+- **Amplitude ($A$):** The peak height of the wave.
+
+- **Wavelength ($\lambda$):** The spatial distance between successive wave peaks.
+
+- **Frequency ($f$):** The number of wave cycles passing a point per second $f = \frac{1}{\text{cycle time}}$, measured in Hertz (Hz).
+
+- **Phase:** The fraction of a wave cycle completed relative to a reference time, typically expressed in degrees ($0^\circ$ to $360^\circ$).
+
+Waves propagate at the speed of light $\approx 3 \times 10^8 \text{ m/sec}$ related by: $c = f\lambda$
+
+### Power and Bandwidth
+
+**Power** (measured in milliwatts, mW, or decibel milliwatts, dBm) is the rate of energy emitted by a transmitter.
+
+In practice, a signal's power is spread across a range of frequencies, described by a **power spectral density function** centered on a **carrier frequency**.
+
+The **bandwidth ($B$)** of a radio signal is the width (in Hz) of this frequency range. This physical bandwidth in Hz dictates the maximum rate at which bits can be transmitted across the channel, measured in bits per second (bps).
+
+### Noise, SNR, and Shannon's Capacity Theorem
+
+Radio signals suffer from thermal noise, electronic imperfections, and interference from other transmitters or EM radiators (such as microwaves).
+
+The **Signal-to-Noise Ratio (SNR)** compares received signal power to noise power:
+
+$$\text{SNR (dB)} = 10 \log_{10} \left( \frac{\text{received signal power}} {\text{noise power}} \right)$$
+
+**Shannon's Capacity Theorem** defines the theoretical maximum error-free transmission rate ($C$) of a channel:
+
+$$C = B \log_2 \left( 1 + \frac{\text{received signal power}} {\text{noise power}} \right)$$
+
+This theorem shows that capacity scales linearly with bandwidth ($B$) but sublinearly (logarithmically) with SNR.
+
+### Propagation Phenomenon: Path Loss, Multipath, and Hidden Terminals
+
+As radio waves propagate, they experience several degradations:
+
+- **Path Loss (Attenuation):** The reduction in signal strength over distance. In free space, received power ($P_{\text{received}}$) decreases quadratically with distance ($d$) and frequency ($f$):
+
+$${P_\text{received}} \propto \frac{P_{\text{transmitted}}} {f^2 d^2}$$
+In urban environments or buildings, the path loss exponent can rise to 3, 4, or higher.
+
+- **Hidden Terminal Problem:** Due to path loss or physical obstructions, two nodes (A and C) may be unable to hear each other, yet both can communicate with a central node (B). If A and C transmit simultaneously, their signals collide and interfere at B.
+
+- **Multipath Signals:** Radio waves reflect off buildings and obstructions, arriving at the receiver along different paths at slightly different times. This distorts the signal and determines the receiver's **coherence time**—the minimum time required between signal changes to avoid inter-symbol interference.
+
+### Modern Antennas: MIMO and Beamforming
+
+To overcome these physical limitations, modern systems use advanced antenna technologies:
+
+- **MIMO (Multiple-Input Multiple-Output):** Uses multiple antennas at both transmitter and receiver.
+- **MIMO Spatial Diversity:** Sends redundant streams over different paths to combat multipath fading and maximize signal strength.
+- **MIMO Spatial Multiplexing:** Sends different streams of parallel data along different paths to multiply throughput.
+
+- **Beamforming:** Adjusts the phase and amplitude of signals across an array of antennas to create constructive interference in a target direction, forming a directed beam of radio waves, and destructive interference in others. This increases signal range, reduces interference, and increases spectral efficiency.
+
+- **Multi-user MIMO (MU-MIMO):** Allows a base station (using massive antenna arrays) to transmit distinct beamformed streams to multiple devices simultaneously.
+
+### Radio Spectrum
+
+Use of the radio spectrum ($3\text{ Hz}$ to $3\text{ THz}$) is divided into:
+
+- **Licensed Spectrum:** Frequency bands leased exclusively to commercial operators (e.g., cellular carriers) via government auctions.
+
+- **Unlicensed Spectrum:** Bands open to any device conforming to power and interference rules (e.g., $2.4\text{ GHz}$, $5\text{ GHz}$, and $6\text{ GHz}$ bands used by WiFi and Bluetooth).
+
+---
+
+## Coding and Modulation: From Bits to Waveforms
+
+Before transmission, link-layer bits must be processed by physical-layer coding and modulation pipelines.
+
+### Physical-Layer Coding
+
+Data bits from the link layer are expanded by adding redundant parity bits (separate from link-layer CRC checksums) and shuffled (interleaved).
+
+This protects against burst errors, allowing the receiver to reconstruct corrupted or lost bits.
+
+### Modulation Techniques
+
+Modulation encodes coded digital bits into an analog carrier wave by altering one of its three characteristics:
+
+- **Amplitude Shift Keying (ASK):** Changes the wave's amplitude.
+
+- **Frequency Shift Keying (FSK):** Changes the wave's frequency.
+
+- **Phase Shift Keying (PSK):** Changes the wave's phase.
+
+### Multi-bit Symbols and Constellation Diagrams
+
+Modern networks group bits together into **symbols** to increase transmission rates.
+
+For example, **Quadrature Phase Shift Keying (QPSK)** groups bits pairwise into four symbols ($00$, $01$, $10$, $11$), representing them with four phase offsets ($45^\circ$, $135^\circ$, $225^\circ$, $315^\circ$) at a constant amplitude.
+
+A **constellation diagram** graphically displays these symbols, mapping each symbol's phase (angular position) and amplitude (distance from the origin).
+
+**Quadrature Amplitude Modulation (QAM)** modulates both phase and amplitude to squeeze more bits per symbol:
+
+- **4-QAM (QPSK):** 2 bits per symbol
+
+- **16-QAM:** 4 bits per symbol
+
+- **64-QAM:** 6 bits per symbol
+
+- **1024-QAM / 4096-QAM:** Used in WiFi 6 and WiFi 7 for extremely high throughput under ideal conditions.
+
+### Adaptive Modulation
+
+In dense constellations, symbols are packed closer together, making them highly sensitive to noise.
+
+If the SNR is low, a high-order QAM will yield a high Bit Error Rate (BER). Wireless systems use **adaptive modulation**, dynamically switching schemes based on channel quality:
+
+- Use high-order QAM (like 64-QAM) when SNR is high.
+
+- Fall back to robust schemes (like QPSK) when SNR drops.
+
+---
+
+## Sharing the Wireless Channel
+
+Because the physical medium is shared, wireless networks must implement mechanisms to prevent collisions and partition resources.
+
+### FDM, OFDM, and OFDMA
+
+- **Frequency Division Multiplexing (FDM):** Divides a frequency band into multiple distinct narrowband channels separated by unused **guard bands** to prevent adjacent channel interference.
+
+- **Orthogonal Frequency Division Multiplexing (OFDM):** Modulates overlapping subcarrier signals such that they are mathematically orthogonal. Because overlapping signals do not interfere, OFDM eliminates guard bands, achieving significantly higher spectral efficiency.
+
+- **Orthogonal Frequency Division Multiple Access (OFDMA):** Combines OFDM with time-division multiplexing. It divides frequency subcarriers into **time minislots**. The smallest unit of resource is the **Resource Element (RE)**, representing a single frequency subcarrier over a single time minislot. Multiple REs are grouped into **Resource Blocks (RBs)** in cellular networks, or **Resource Units (RUs)** in WiFi. The base station dynamically schedules these blocks among different users.
+
+### Random Access: CSMA/CA
+
+Unlike wired Ethernet (which uses CSMA/CD to detect and abort colliding transmissions), wireless stations cannot reliably perform collision detection because their own transmit signal overpowers any incoming collision signals.
+
+Therefore, WiFi uses **Carrier Sense Multiple Access with Collision Avoidance (CSMA/CA)**.
+
+1. **Link-Layer ACKs:** Because collisions cannot be detected during transmission, the receiver must return an explicit Acknowledgement (ACK) frame after waiting for a brief **Short Inter-frame Spacing (SIFS)** interval. If the sender does not receive an ACK, it assumes a collision occurred and schedules a retransmission.
+
+2. **Protocol Steps:**
+
+- A station with a frame to send senses the channel. If the channel is idle, it waits for a **Distributed Inter-Frame Space (DIFS)** interval and transmits.
+- If the channel is busy, the station chooses a random backoff value using binary exponential backoff. It counts down this timer only when the channel is idle, freezing the countdown when the channel becomes busy.
+- When the backoff timer reaches zero, the station transmits the entire frame.
+
+### RTS and CTS Reservation
+
+To mitigate the hidden terminal problem, CSMA/CA defines an optional channel reservation handshake:
+
+1. Before transmitting a long data frame, a sender broadcasts a short **Request to Send (RTS)** frame containing the requested transmission duration.
+
+2. The destination responds with a **Clear to Send (CTS)** frame.
+
+3. The CTS frame alerts all stations within range of the destination to defer their transmissions, effectively reserving the channel for the subsequent data frame and ACK.
+
+---
+
+## WiFi: The 802.11 Wireless LAN
+
+The IEEE 802.11 standard (WiFi) is the dominant wireless local area network technology.
+
+### Architecture of an 802.11 LAN
+
+The fundamental block of an 802.11 LAN is the **Basic Service Set (BSS)**, containing wireless stations and a central **Access Point (AP)**.
+
+Direct device-to-device communication is not permitted; all traffic must pass through the AP.
+
+### WiFi Channel Structures and Bonding
+
+- **2.4 GHz Band:** Divided into 11 channels in the US. Each channel is $20\text{ MHz}$ wide, but they overlap. Only channels **1, 6, and 11** are mutually non-overlapping.
+
+- **5 GHz and 6 GHz Bands:** Offer many more non-overlapping channels. Modern standards support **channel bonding**, grouping adjacent $20\text{ MHz}$ channels into $40\text{ MHz}$, $80\text{ MHz}$, $160\text{ MHz}$, or even $320\text{ MHz}$ superchannels to dramatically boost throughput.
+
+### Coexistence of CSMA/CA, OFDM, and OFDMA
+
+Starting with WiFi 6 (802.11ax), APs support both CSMA/CA and OFDMA.
+
+To orchestrate this, WiFi 6 introduces **Multi-User RTS (MU-RTS)**. The AP contends for the channel using CSMA/CA. Once it wins, it transmits an MU-RTS frame over OFDM.
+
+This frame defines specific Resource Unit (RU) allocations for multiple OFDMA-capable devices. The designated stations respond with parallel CTS frames, enabling the AP to initiate multi-user OFDMA transmissions.
+
+### 802.11 MAC Frame and Addressing
+
+The 802.11 MAC frame has a unique addressing scheme containing up to four address fields:
+
+- **Address 1:** The MAC address of the wireless receiver of this frame (e.g., the receiving AP or destination device).
+
+- **Address 2:** The MAC address of the wireless transmitter of this frame (e.g., the sending device or transmitting AP).
+
+- **Address 3:** Used for routing between the wireless and wired domains. When a frame moves from an AP to a wired Ethernet router, Address 3 contains the MAC address of the destination router interface, allowing seamless layer-2 translation.
+
+---
+
+## The 5G Radio Access Network
+
+Cellular networks partition services into the **Radio Access Network (RAN)** at the edge and the **5G Core (5GC)** at the backend.
+
+### 5G RAN Physical Radio Channel
+
+5G RAN utilizes OFDMA on its air interface, known as **New Radio (NR)**.
+
+Unlike 4G LTE, which has a fixed subcarrier spacing of $15\text{ kHz}$ and a $66.6\ \mu\text{s}$ symbol duration, 5G supports flexible subcarrier spacing ($15$, $30$, $60$, $120$, $240$, $480$, $960\text{ kHz}$) with proportionally shorter slot lengths.
+
+- **Resource Block (RB):** Smallest unit of channel allocation. In 4G, an RB bundles 84 resource elements ($12 \text{ subcarriers} \times 7 \text{ minislots}$). 5G supports multiple RB configurations.
+
+- **Bands and Duplexing:** Channels are grouped into Frequency Bands. Downlink and uplink directions can be separated via **Time Division Duplexing (TDD)** (sharing the same frequency but alternating time slots) or **Frequency Division Duplexing (FDD)** (allocating distinct uplink and downlink frequencies).
+
+### Downlink and Uplink Physical Channels
+
+At the physical layer, RBs are partitioned into dedicated physical channels:
+
+- **Physical Downlink Shared Channel (PDSCH):** Carries downlink user data and control plane messages.
+
+- **Physical Downlink Control Channel (PDCCH):** Informs user equipment (UE) which RBs contain their downlink data and which RBs are allocated for their uplink transmissions.
+
+- **Physical Broadcast Channel (PBCH):** Broadcasts system details needed for discovery and initial attachment.
+
+---
+
+## 5G RAN Link-Layer Protocol Stack
+
+The 5G link layer is divided into several specialized sublayers:
+
+- **Radio Resource Control (RRC):** A control-plane sublayer responsible for connection state management, channel configuration, and mobility measurements.
+
+- **Service Data Adaptation Protocol (SDAP):** Maps IP-level QoS flows onto physical radio channel resources.
+
+- **Packet Data Convergence Protocol (PDCP):** Handles IP header compression, encryption, and cryptographic integrity protection.
+
+- **Radio Link Control (RLC):** Performs segmentation, reassembly, and reliable frame transfer via an ARQ protocol.
+
+- **Medium Access Control (MAC):** Schedules frame transmissions onto OFDMA Resource Blocks.
+
+### Disaggregation and SD-RAN
+
+Modern 5G base stations (gNBs) are disaggregated into three functional units:
+
+1. **Radio Unit (RU):** Handles low-level physical layer RF conversions.
+
+2. **Distributed Unit (DU):** Executes MAC, RLC, and high-level physical layer operations.
+
+3. **Central Unit (CU):** Executes PDCP, SDAP, and RRC protocols.
+
+Under **Software-Defined RAN (SD-RAN)** (such as OpenRAN), the monolithic RRC control plane is refactored into a **Real-Time Intelligent Controller (RIC)**.
+
+The RIC manages a global **RAN Node Information Base (R-NIB)** and executes open-source control algorithms called **xApps** to handle load balancing, handovers, and QoS optimization dynamically.
+
+---
+
+## Discovery, Scheduling, and Energy in the Access Network
+
+To communicate, devices must discover the network, secure transmission time, and manage power.
+
+### Network Discovery and Association
+
+Base stations periodically broadcast **beacon** messages to advertise network identifiers, supported rates, and channel parameters.
+
+- **Passive Scanning:** Devices scan various channels, listening for beacon broadcasts.
+
+- **Active Scanning:** Devices broadcast probe request frames and wait for probe responses from active APs.
+
+- To attach to WiFi, the device sends an _Association Request_ and receives an _Association Response_.
+
+- To attach to 5G, the device locates the **System Signal Block (SSB)**, containing the **Primary Synchronization Signal (PSS)**, **Secondary Synchronization Signal (SSS)**, and **Master Information Block (MIB)**. The device then decodes the **System Information Blocks (SIBs)** to learn network carrier codes and cell configurations.
+
+### MAC Scheduling Algorithms
+
+The base station's MAC scheduler decides which devices receive RBs at each scheduling interval.
+
+Four representative algorithms are:
+
+- **Round Robin (RR):** Allocates resources sequentially, ignoring channel quality.
+
+- **Maximum Throughput (MT):** Allocates all RBs to the device with the highest estimated channel quality (CQI). This maximizes aggregate cell throughput but starves distant users.
+
+- **Blind Equal Throughput (BET):** Equalizes throughput across all users by prioritizing users with historically low data rates.
+
+- **Proportional Fairness (PF):** Balances cell throughput and user fairness by prioritizing users whose current channel quality is high relative to their own historical average throughput.
+
+### Energy Conservation: Wake/Sleep Cycles
+
+To prevent battery exhaustion, devices alternate between active and sleep states.
+
+- In WiFi, the AP buffers frames for sleeping devices and notifies them via a **Traffic Indication Map (TIM)** embedded in beacon frames. Sleeping devices wake to receive the beacon and request buffered data using a **PS-Poll** frame.
+
+- In 5G, the device uses **Discontinuous Reception (DRX)** in the Connected State. The device stays active during its activity timer. If no data is sent or received, it enters a short DRX cycle (sleeping and waking periodically to check the PDCCH). If inactivity continues, it transitions into a deeper, long DRX cycle to maximize energy savings.
+
+---
+
+## The Wireless Core Network
+
+The 5G Core (5GC) leverages a cloud-native, **Service-Based Architecture (SBA)**.
+
+Core capabilities are decoupled into modular **Network Functions (NFs)** that communicate via standard IP APIs.
+
+### Key 5G Core Network Functions
+
+- **User Plane Function (UPF):** The data-plane anchor. It performs packet routing, forwarding, and tunneling between the RAN and the external Internet. All user IP traffic passes through the UPF.
+
+- **Access and Mobility Management Function (AMF):** The control-plane coordinator. It handles connection, reachability, and mobility management, interacting directly with the device (via the N1 interface) and the gNB (via the N2 interface).
+
+- **Session Management Function (SMF):** Allocates IP addresses and establishes the data-plane tunnels through the UPF.
+
+- **Authentication Server Function (AUSF):** Coordinates mutual authentication between the device and the network.
+
+- **Unified Data Management (UDM):** Manages user profiles, access credentials, and subscriptions, storing state in the **Unified Data Repository (UDR)**.
+
+- **Policy Control Function (PCF):** Provides unified policy rules for billing, QoS, and mobility.
+
+- **Network Exposure Function (NEF) & Application Function (AF):** Expose select network APIs to third-party applications to enable features like **local breakout** (routing application traffic directly at the edge instead of hauling it to a central data center).
+
+- **Network Repository Function (NRF):** A central directory where NFs register themselves and discover peer services.
+
+- **Network Slice Selection Function (NSSF):** Directs devices to virtualized network slices tailored for specific use cases.
+
+### Data Plane Tunneling (GTP-U)
+
+To support seamless mobility, the User Plane uses encapsulation.
+
+External IP datagrams destined for a user device are encapsulated by the UPF inside a **GPRS Tunneling Protocol User Plane (GTP-U)** header, wrapped in a UDP/IP packet, and sent through a tunnel to the device's current gNB.
+
+This allows the device to retain a stable IP address even as its physical point of attachment changes.
+
+### User Identity and Joining
+
+Every cellular device contains a **Subscriber Identity Module (SIM)** card, which stores a unique global identifier (IMSI or SUPI), cryptographic keys for authentication, and local identity details.
+
+When a device powers on, it completes a two-stage process:
+
+1. **Registration:** The device authenticates itself with the AMF and AUSF, and its connection data is updated in the UDM.
+
+2. **Session Establishment:** The device requests a **Protocol Data Unit (PDU) Session**. The SMF allocates an IP address, establishes a GTP-U tunnel between the UPF and gNB, and configures the RAN data plane.
+
+---
+
+## Mobility Principles and WiFi Mobility
+
+Mobility is the ability of a device to maintain ongoing connections without interruption as it moves across access points or networks.
+
+### Mobility Scenarios
+
+- **Within a Single Access Network:** The device only maintains connectivity within range of one base station. If it moves away, it must disconnect and re-authenticate with a new base station.
+
+- **Among Access Networks within a Single Provider Network:** The device moves between access points owned by the same provider. This requires **handover (handoff)**—transferring forwarding state and path definitions from one base station to another without dropping packets.
+
+- **Among Multiple Network Providers:** Roaming across different carrier networks, requiring billing and authentication coordination.
+
+### WiFi Link-Layer Mobility
+
+WiFi networks implement a link-layer-only approach to mobility.
+
+In an enterprise environment, multiple Basic Service Sets (BSSs) are connected to form an **Extended Service Set (ESS)** sharing a single Service Set Identifier (SSID).
+
+Because all APs in an ESS are wired to the same local IP subnet, a device moving from $\text{AP}_2$ to $\text{AP}_3$ never changes its IP address. It remains within the same IP subnet, meaning layer-3 routing is unaffected.
+
+To speed up handoffs, the 802.11 standard defines **Fast BSS Transition (FT)**, which pre-authenticates devices with adjacent APs before they disconnect from their current AP.
+
+---
+
+## 5G Handover and Internet Mobility
+
+Unlike WiFi's link-layer approach, 5G mobility is a network-wide operation involving both the RAN and Core planes.
+
+### The 5G Handover Process
+
+When an active user device moves between a source gNB and a target gNB, the system executes three handover phases:
+
+1. **Handover Decision:** The device continuously measures the radio signal quality of nearby cell towers and reports them to the source gNB. When the source gNB decides a handover is required, it sends a Handover Request directly to the target gNB over a dedicated inter-gNB interface (the Xn interface).
+
+2. **Handover Execution (Transfer):** The target gNB admits the user, prepares its radio resources, and acknowledges the request. The source gNB then commands the device to reconfigure its connection. Simultaneously, the source gNB begins forwarding any in-flight user packets to the target gNB to prevent data loss.
+
+3. **Path Switch (Core Update):** The target gNB notifies the AMF and SMF that the device has moved. The SMF instructs the UPF to modify the GTP-U tunnel endpoint, directing all future downstream IP packets directly to the target gNB instead of the source gNB. The source gNB is then instructed to release the device's old radio resources.
+
+### Internet-Wide Mobility (Mobile IP)
+
+To support mobility across different IP subnets in non-cellular networks, the IETF developed **Mobile IP (RFC 5944)**.
+
+This architecture uses home agents and foreign agents to redirect traffic via tunnels. However, due to administrative boundaries and security concerns, Mobile IP was never widely deployed. Instead, the industry relies on cellular networks for wide-area mobility and WiFi for localized subnets.
+
+---
+
+## Bluetooth, Satellite, and IoT Wireless Networks
+
+Several specialized wireless technologies operate alongside WiFi and cellular systems.
+
+### Bluetooth Networks
+
+Designed for short-range, low-power, and low-cost cable replacement, Bluetooth networks are classified as **Wireless Personal Area Networks (WPANs)** or **piconets**.
+
+- Bluetooth uses frequency-hopping spread spectrum (FHSS), changing its carrier frequency 1,600 times per second across 79 channels to combat interference in the unlicensed $2.4\text{ GHz}$ band.
+
+- The **Logical Link Control and Adaptation Protocol (L2CAP)** layer segmentizes large packets, manages QoS, and multiplexes traffic for different applications.
+
+### Satellite Networks
+
+- **GEO (Geostationary Earth Orbit):** Satellites orbit $36,000\text{ km}$ above the equator, appearing stationary relative to Earth. They suffer from high propagation delays of approximately $250\text{ ms}$ round-trip.
+
+- **LEO (Low Earth Orbit):** Satellites orbit much closer to Earth at $500$–$1500\text{ km}$, lowering round-trip latency to $20$–$40\text{ ms}$. Because LEO satellites move rapidly across the sky, ground stations must perform constant handovers.
+- **Bent Pipe Architecture:** The satellite acts as a simple transponder, bouncing signals down to a visible ground station.
+
+- **Inter-Satellite Links (ISL):** Satellites route packets directly to one another in the sky, bypassing ground routing.
+
+### IoT Wireless Networks
+
+Internet of Things (IoT) applications balance range, data rate, and energy constraints:
+
+- **LoRaWAN:** Operates in sub-GHz unlicensed bands. It uses star-of-stars topologies to provide wide coverage at very low data rates ($0.3$–$50\text{ kbps}$) and minimal power, allowing sensors to run for years on a single battery.
+
+- **Narrowband IoT (NB-IoT):** A 3GPP cellular standard using a $200\text{ kHz}$ channel bandwidth. It offers cellular-grade security and wide range but limits data rates to $250\text{ kbps}$.
+
+- **LTE-M (LTE for Machines):** A higher-bandwidth cellular IoT standard that supports device mobility and higher data rates than NB-IoT.
+
+---
+
+## Summary
+
+### Key Takeaways
+
+- **Physical Channel Dynamics:** Radio transmissions suffer from path loss, multipath fading, and hidden terminals. MIMO spatial diversity/multiplexing and beamforming help overcome these limitations.
+
+- **Modulation & Adaptivity:** Modulation schemes (QPSK, QAM) pack multiple bits per symbol. Transmitters dynamically adjust modulation orders based on the received SNR.
+
+- **Access Mechanisms:** Modern networks use OFDM and OFDMA to divide channels into orthogonal resource blocks. WiFi also uses CSMA/CA with explicit link-layer ACKs and RTS/CTS handshakes to prevent collisions.
+
+- **Cloud-Native 5G Core:** The 5G Core uses a Service-Based Architecture. Control plane (AMF, SMF) and user plane (UPF) functions are decoupled to allow dynamic scaling and SDN-like programmability.
+
+- **Seamless Mobility:** Handover in 5G is a multi-phase process (Decision, Transfer, Path Switch) that dynamically reroutes GTP-U tunnels to ensure uninterrupted data delivery, whereas WiFi handles mobility purely at the link layer within a single IP subnet.
