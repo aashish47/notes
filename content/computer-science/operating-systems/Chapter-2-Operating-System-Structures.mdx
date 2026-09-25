@@ -1,0 +1,349 @@
+export const metadata = {
+	title: "Operating-System Services, Architecture, and Implementation",
+	description:
+		"An in-depth introduction to operating-system services, system calls and APIs, program linking and loading, kernel architectures, boot processes, and debugging and performance-tuning tools such as /proc, strace, and eBPF.",
+	order: 2,
+	draft: false,
+	tags: [
+		"computer science",
+		"operating systems",
+		"system calls",
+		"kernel architecture",
+		"debugging",
+		"eBPF",
+	],
+};
+
+## **Introduction**
+
+Did you know that when you execute a simple file-copy command on your computer, your system might run thousands of low-level kernel routines per second? An operating system is a complex, deeply engineered environment that coordinates hardware and applications while shielding developers and users from raw, physical complexity.
+
+By completing this lesson, you will achieve the following objectives:
+
+- **Identify** the primary services provided by operating systems to users, programs, and the system itself.
+- **Examine** how application programming interfaces (APIs) and system calls bridge the boundary between user space and kernel space.
+- **Contrast** operating system architectures, including monolithic, layered, microkernel, modular, and hybrid designs.
+- **Map** the journey of code from a source file, through linking, loading, system boot, and runtime execution.
+- **Utilize** failure analysis and performance-tuning tools like `/proc`, tracing utilities, and the BCC/eBPF framework.
+
+## **Operating-System Services**
+
+An operating system provides an environment where programs can be executed, offering a specific set of services designed to make programming easier and computing highly efficient. These services can be split into two fundamental classes:
+
+### **Services That Help the User**
+
+- **User Interface (UI):** Gives users a way to interact with the system. This can be a Command-Line Interface (CLI), a Graphical User Interface (GUI), or a Touch-Screen Interface.
+- **Program Execution:** Loads programs into memory, executes them, and handles their termination (normally or abnormally).
+- **I/O Operations:** Coordinates read/write requests to files or physical devices, as user programs cannot directly control hardware for security and efficiency reasons.
+- **File-System Manipulation:** Manages files and directories. This includes creating, deleting, searching, and managing permissions to allow or deny access based on ownership.
+- **Communications:** Allows processes to exchange data. This is achieved via **shared memory** (processes write to a common pool of memory) or **message passing** (packets of formatted information are moved between processes by the operating system).
+- **Error Detection:** Constantly monitors the system for faults in the CPU, memory, I/O devices, or user programs, taking appropriate action to keep computing consistent.
+
+### **Services for System Efficiency**
+
+- **Resource Allocation:** Manages and schedules multiple hardware resources (CPU cycles, main memory, and file storage) when multiple processes run concurrently.
+- **Logging:** Tracks which programs use how much and what kinds of resources, aiding in user billing or compiling usage statistics to optimize systems.
+- **Protection and Security:** Controls access to system resources among concurrent, separate processes and defends the system from external intrusions (requiring authentication like passwords and protecting peripheral network cards).
+
+## **User and Operating-System Interface**
+
+There are three primary interfaces that allow users to communicate with the operating system:
+
+### **Command Interpreters (CLI)**
+
+Most operating systems run a command interpreter (often called a **shell**) when a user logs on. Common shells on UNIX and Linux systems include the _C shell_, _Bourne-Again shell (bash)_, and _Korn shell_.
+
+The shell's main task is to fetch and run the next user command. These commands are implemented in two ways:
+
+1. **Internal Code:** The command interpreter itself contains the execution code for the command.
+2. **System Programs:** The shell doesn't understand the command directly. Instead, it looks for an executable file of that name in the file system, loads it into memory, and runs it with specified parameters (for example, the UNIX `rm file.txt` command loads and runs the `/bin/rm` file).
+
+### **Graphical User Interfaces (GUI)**
+
+Instead of typing commands, users interact with a desktop metaphor, positioning a mouse pointer on graphical **icons** representing folders, files, or applications.
+
+- **History:** Developed first at the Xerox PARC research facility in the early 1970s, GUIs became widespread with the Apple Macintosh in the 1980s. Microsoft Windows added a GUI layer to the MS-DOS command-line environment in Version 1.0, and macOS later introduced the _Aqua_ interface.
+- **UNIX/Linux:** Historically command-line heavy, modern UNIX and Linux systems offer sophisticated, open-source GUI desktops like the _K Desktop Environment (KDE)_ and _GNOME_.
+
+### **Touch-Screen Interfaces**
+
+Mobile devices like tablets and smartphones require touch screens. Users interact via **gestures** (swipes, taps, pinches) on virtual keyboards. Apple iOS and iPadOS devices use the **Springboard** touch-screen interface.
+
+### **Interface Choice and Shell Scripting**
+
+While general users prefer GUIs, system administrators and power users rely heavily on CLIs for speed and repetitive-task automation. Steps can be recorded into files to create **shell scripts**. These scripts are interpreted dynamically by the CLI shell rather than compiled into executable code.
+
+## **System Calls and APIs**
+
+**System calls** act as the programming interface to the services provided by the operating system. They are typically written in C and C++, though some low-level hardware manipulations are written in assembly.
+
+### **System Call Sequence: Copying a File**
+
+Consider writing a simple utility to copy a file. To run, this program must execute a long sequence of hidden system calls:
+
+1. **Acquire file names:** Prompts the user on the screen (I/O write system calls) and accepts key inputs (I/O read system calls).
+2. **Open the source file:** Verifies the file exists and is readable (system call). If not, aborts (system call) and writes an error message.
+3. **Create the output file:** Verifies permission and checks if the file already exists (system call).
+4. **Read/Write Loop:** Reads a chunk of data from the source file and writes it to the output file (recurring system calls). If a disk is full or a read fails, it handles the error code.
+5. **Clean up:** Closes both files, writes a final success message, and terminates normally (system calls).
+
+### **Application Programming Interfaces (APIs)**
+
+Most application developers do not write raw system calls. Instead, they program using an **Application Programming Interface (API)**.
+
+An API specifies a set of functions that are available to the programmer, including parameters and expected return values. Three main APIs dominate:
+
+- **Windows API** for Windows systems.
+- **POSIX API** for POSIX-based systems (UNIX, Linux, macOS).
+- **Java API** for programs running on the Java virtual machine.
+
+Programmers access APIs through libraries, such as **libc** (or the GNU C library, **glibc**) on UNIX/Linux systems.
+
+### **Why Use APIs Instead of System Calls?**
+
+- **Portability:** A program built using a standard API can be compiled and run on any machine supporting that same API.
+- **Ease of Use:** APIs are significantly less complex to code than low-level kernel system calls.
+
+Behind the scenes, API functions invoke system calls on behalf of the developer. For example, the Windows API function `CreateProcess()` actually calls the undocumented kernel-level `NTCreateProcess()` system call.
+
+### **The System-Call Interface and Parameter Passing**
+
+The **Run-Time Environment (RTE)** of a language provides a **system-call interface** that links API functions to the OS kernel. Each system call is assigned a unique number. The system-call interface intercepts the API call, reads its index from a system-call table, invokes the kernel routine, and returns results to user space.
+
+Three main methods are used to pass parameters from a program to the OS:
+
+1. **Registers:** Parameters are loaded into CPU registers. This is fast but has size limitations.
+2. **Memory Block/Table:** If there are more parameters than registers, they are stored in a memory block, and the memory address of that block is passed in a register.
+3. **Stack:** Parameters are pushed onto a run-time stack by the program and popped off by the operating system.
+
+## **Types of System Calls**
+
+System calls are broadly categorized into six primary groups:
+
+### **1. Process Control**
+
+Manages process execution: `end`, `abort`, `load`, `execute`, `create process`, `terminate process`, `wait event`, `signal event`, `allocate/free memory`.
+
+- **Single-tasking systems:** Arduino is a simple, single-tasking platform. It uploads a compiled program (called a **sketch**) into flash memory using a **boot loader**. Since only one sketch can run at a time, loading a new one completely overwrites the previous one.
+- **Multitasking systems:** FreeBSD (a UNIX derivative) can run multiple processes at once. To execute a command, the shell calls `fork()` to create a new process, then loads and executes the program using `exec()`. When finished, the process exits via `exit()`, returning an error or success status code to the parent process.
+
+### **2. File Management**
+
+Handles physical files on disk: `create file`, `delete file`, `open`, `close`, `read`, `write`, `reposition` (seek), and `get/set file attributes` (permissions, file type, ownership).
+
+### **3. Device Management**
+
+Manages physical or virtual devices: `request device`, `release device`, `read`, `write`, `reposition`, and `get/set device attributes`. Many operating systems (like UNIX) merge files and devices into a combined file-device system structure, allowing the same set of system calls to work on both.
+
+### **4. Information Maintenance**
+
+Transfers system statistics and metadata: `get/set time or date`, `get system data` (e.g., version number, disk space), and `get/set process, file, or device attributes`. Debuggers utilize specific CPU step-by-step traps to inspect memory state after every executed instruction.
+
+### **5. Communication**
+
+Supports interprocess communication (IPC) via two primary paradigms:
+
+- **Message-Passing Model:** Communicating processes exchange formatted packets via a common mailbox or network connection (using daemons and socket APIs). This is highly portable and easy to implement across networks, but carries runtime overhead.
+- **Shared-Memory Model:** Processes use system calls to map and access shared memory blocks. Because memory transfer speeds are used directly, this is extremely fast, though synchronization must be handled to prevent conflicts.
+
+### **6. Protection**
+
+Controls access to resources: `set/get permission` and `allow/deny user` blocks to secure computer assets.
+
+## **System Services**
+
+Also known as **system utilities**, system services provide a convenient environment for program development and execution. They occupy the layer between the operating system kernel and end-user application programs:
+
+- **File Management:** Programs to create, delete, copy, rename, and print files and directories.
+- **Status Information:** Utilities providing system date, time, available memory, or CPU usage statistics. Some systems use a **registry** to save and retrieve system-wide configuration parameters.
+- **File Modification:** Editors and tools to search text or translate files on storage devices.
+- **Programming-Language Support:** Compilers, assemblers, debuggers, and interpreters (like Python, Java, and C) packaged alongside the OS.
+- **Program Loading and Execution:** Compilers convert source code, but system absolute loaders, relocatable loaders, linkage editors, and overlay managers are required to place executables in memory.
+- **Communications:** Clients to browse pages, transfer files, send emails, or connect to remote shells.
+- **Background Services:** Crucial background processes started at boot time that run continuously until shutdown. These persistent processes are known as **daemons**, **services**, or **subsystems** (e.g., print servers, network listeners, and system error monitors).
+
+## **Linkers and Loaders**
+
+How does source code actually reach the CPU? A program stored on disk as a binary executable must pass through a strict processing chain before execution:
+
+1. **Compilation:** A compiler translates source files (e.g., `main.c`) into a **relocatable object file** (e.g., `main.o`). This format can be loaded into any physical memory location.
+2. **Linking:** A **linker** combines one or more relocatable object files and precompiled library files (like the math or standard C library) into a single binary **executable file** (e.g., `main` or `main.exe`).
+3. **Loading:** A **loader** reads the binary executable file from disk, places its instructions and variables into the address space of a newly created process in physical memory, and schedules it on an available CPU core.
+
+During this process, **relocation** takes place: final physical addresses are assigned to code instructions and variables so that executing functions can properly reference memory locations.
+
+### **Dynamic Linking**
+
+Linking all library routines directly into an executable produces large binaries. Instead, modern operating systems support **Dynamically Linked Libraries (DLLs)** or shared libraries.
+
+With dynamic linking, libraries are conditionally linked and loaded only if they are requested during program runtime. This saves massive amounts of disk and memory space, as multiple active processes can share a single copy of a dynamically linked library in physical memory.
+
+### **Executable Formats**
+
+Object and executable files have standardized layouts specifying where headers, instructions, variables, and symbol tables reside. Standard formats include:
+
+- **ELF (Executable and Linkable Format):** Used universally across UNIX and Linux systems.
+- **Portable Executable (PE):** Used by Windows systems.
+- **Mach-O:** Used by Apple macOS systems.
+
+## **Why Applications Are Operating-System Specific**
+
+By default, an application compiled on one operating system cannot execute on another. This limitation exists for several fundamental reasons:
+
+- **Unique System Calls:** System calls differ greatly between operating systems. Even if system call names were standardized, the parameter sizes, system call indices, and register mapping strategies vary.
+- **File Layout Standards:** Each OS dictates a specific executable binary layout (ELF vs. PE vs. Mach-O). An OS cannot parse and map a foreign binary format to the correct memory offset.
+- **CPU Architectures:** CPUs have varying instruction sets. An executable containing x86 instructions cannot run directly on an ARM-based processor without translation.
+
+### **Portability Frameworks**
+
+Developers make applications cross-platform through three primary methods:
+
+1. **Interpreted Languages:** Written in languages like Python or Ruby. A platform-specific interpreter reads the source code line-by-line and executes native commands. However, program execution speed is lower, and access to unique OS features is limited.
+2. **Virtual Machines & RTEs:** Applications run within a virtual environment. For example, Java compiles source code into platform-independent bytecode (contained in a `.class` or `.dex` file). The platform-specific Java Runtime Environment (RTE) executes the program inside a virtual machine.
+3. **Source-Code Porting:** Writing standard code (e.g., using the POSIX API) and compiling separate native binaries for each individual target operating system.
+
+### **Application Binary Interfaces (ABIs)**
+
+While an API manages standard functional calls at the application level, an **Application Binary Interface (ABI)** operates at the hardware architecture level.
+
+An ABI defines low-level binary layout rules for a given OS and processor architecture: address width, register parameters for system calls, runtime stack alignment, data type sizes, and library structures. A binary compiled and matched to a specific ABI can run without modification on any platform supporting that exact ABI.
+
+## **Operating-System Design and Implementation**
+
+Designing and building a fully realized operating system requires balancing diverse and often conflicting priorities.
+
+### **Design Goals**
+
+System requirements are split into two core buckets:
+
+- **User Goals:** Users want a system that is convenient to use, easy to learn, highly reliable, safe, and fast.
+- **System (Developer) Goals:** Developers want a system that is easy to design, implement, and maintain, while being flexible, reliable, error-free, and highly efficient.
+
+### **Separation of Mechanism and Policy**
+
+One of the most important principles in operating system design is the separation of **policy** from **mechanism**:
+
+- **Mechanisms** determine _how_ to do something.
+- **Policies** determine _what_ will be done.
+
+_Example:_ An internal timer is a **mechanism** that enforces CPU protection. Deciding how long the timer runs for a given user process is a **policy** decision.
+
+Keeping mechanisms separate from policies allows systems to be highly flexible. If policy requirements change, developers only need to update configuration parameters, not the underlying mechanical code of the kernel. Linux splits mechanism and policy: scheduling code is built in, but developers can write modules to swap scheduling policies. Conversely, Windows and macOS encode mechanism and policy tightly together to maintain a unified look, feel, and performance across all associated hardware devices.
+
+### **Implementation Languages**
+
+- **Historical Systems:** Early operating systems were coded entirely in assembly language.
+- **Modern Systems:** Most modern systems are written in high-level languages like C and C++, with only small, performance-critical code segments (interrupt handlers, device interfaces) written in assembly.
+- **Android Architecture:** Illustrates a hybrid implementation strategy: its base kernel is coded in C, system libraries in C and C++, and user application frameworks in Java.
+
+### **Advantages of High-Level Languages**
+
+Coding an operating system in a high-level language speeds up development, produces compact code that is easier to debug, and makes porting the OS to new hardware architectures far simpler. Modern optimizing compilers generate excellent machine code that matches or exceeds the execution speeds of manual assembly language.
+
+## **Operating-System Structure**
+
+Modern operating systems utilize several structural designs to organize their code:
+
+### **Monolithic Structure**
+
+Places all kernel functions into a single, static binary file running in a single address space.
+
+- **Examples:** Traditional UNIX and Linux.
+- **Pros & Cons:** Communication within the kernel is exceptionally fast, and system-call overhead is minimal. However, monolithic kernels are highly **tightly coupled**; a failure in any single driver can crash the entire system, and modifying code is exceptionally difficult.
+
+### **Layered Approach**
+
+The operating system is divided into sequential, hierarchical layers. Layer 0 represents the hardware, and Layer _N_ represents the user interface.
+
+- **Pros & Cons:** Simple design, implementation, and debugging. Layer _M_ only calls functions in layers below it. However, defining separate, non-overlapping functions for each layer is highly challenging, and performance is poor because applications must traverse multiple layers to execute a simple kernel request.
+
+### **Microkernels**
+
+This architecture moves all nonessential components from the kernel and implements them as user-level services residing in separate address spaces.
+
+- **Examples:** Mach, QNX Neutrino.
+- **Pros & Cons:** Extremely modular, secure, and easy to port. If a user-space driver or service crashes, the core kernel is unaffected. However, performance suffers significantly due to the CPU overhead of passing messages between isolated address spaces through the kernel via message-passing IPC.
+
+### **Loadable Kernel Modules (LKMs)**
+
+Most modern Unix-like kernels (Linux, macOS, Solaris) and Windows utilize Loadable Kernel Modules. Here, the kernel maintains core services (memory allocation, CPU scheduling) and links in additional modules (device drivers, file systems) dynamically at boot time or during runtime.
+
+- **Advantages:** This combines the modular flexibility of microkernels (drivers can be added/removed dynamically without rebooting) with the raw execution speeds of monolithic architectures (modules execute directly within kernel address space).
+
+### **Hybrid Systems**
+
+In practice, very few systems use a single architecture. Instead, they combine multiple structural concepts:
+
+- **macOS and iOS (Darwin):** Apple's kernel environment, Darwin, uses a hybrid structure. It merges the Mach microkernel and BSD UNIX into a single address space to bypass microkernel message-passing overhead. Applications sit above the Cocoa frameworks and the Aqua (macOS) or Springboard (iOS) user-experience layers.
+- **Android:** A layered software stack. It utilizes Google's customized **Bionic** C library (optimized for lower memory footprints and slower mobile CPUs) and abstracts physical hardware via a **Hardware Abstraction Layer (HAL)**. Java code is compiled into `.dex` files and executed on the **Android RunTime (ART)** virtual machine using **Ahead-of-Time (AOT)** compilation to native code upon installation. It sits on top of a modified Linux kernel featuring custom power management and **Binder IPC** mechanisms.
+- **Windows Subsystem for Linux (WSL):** Emulates Linux on Windows 10. Native Linux ELF binaries execute inside Windows **Pico** processes. System calls are translated dynamically to Windows equivalents using the user-mode LXSS/LXCore subsystems.
+
+## **Building and Booting an Operating System**
+
+How do we generate and start an operating system from scratch?
+
+### **Operating-System Generation (OS Gen)**
+
+An operating system is tailored to specific system hardware in three primary ways:
+
+1. **Full Compilation:** Configured via files, and the entire system is compiled (common in static embedded systems).
+2. **Precompiled Library Linking:** Prebuilt object modules are linked to form the operating system. This is faster but less customized.
+3. **Modular Execution:** Core systems load loadable kernel modules at run time based on dynamic hardware discovery.
+
+To build a custom Linux kernel, you follow these sequential commands:
+
+- Configure features (`make menuconfig`), generating a `.config` configuration file.
+- Compile the main kernel (`make`), which produces a compressed kernel image (`vmlinuz`).
+- Compile loadable modules (`make modules`).
+- Install modules to the kernel directory (`make modules_install`).
+- Install the completed kernel on the physical host (`make install`).
+
+### **The System Boot Process**
+
+When a computer is powered on, it must locate and load the kernel into memory. This is called **booting**:
+
+1. **Bootstrap Program:** A small boot loader residing in nonvolatile firmware (**BIOS** or modern **UEFI**) begins execution. UEFI has replaced BIOS, providing superior support for 64-bit systems, large disks, and rapid boot speeds.
+2. **Kernel Initialization:** The boot loader locates the kernel on disk, loads the compressed kernel image into RAM, extracts it, and transfers control to the kernel.
+3. **Hardware Assessment:** The kernel runs diagnostics and configures system registers, devices, and memory controllers.
+4. **Root Mounting:** The kernel mounts the root file system. Modern Linux systems load a temporary RAM file system called **initramfs** to fetch necessary storage drivers, mount the actual disk root, and transition from RAM to disk.
+5. **Spawning Init:** The OS creates the initial system process (such as `systemd` in Linux), loads background services, and presents the user with a login prompt.
+
+_Boot Loaders:_ **GRUB** (Grand Unified Bootloader) is the open-source boot manager for Linux and UNIX. Mobile systems like Android bypass GRUB, instead relying on vendors to provide custom boot loaders, such as **LK** ("little kernel").
+
+## **Operating-System Debugging and Performance Tuning**
+
+Debugging refers to finding and fixing system bugs and bottlenecks. This operates differently depending on the failure mode:
+
+### **Failure Analysis**
+
+- **User-Process Failure:** The OS writes error details to log files and takes a **core dump** (a capture of process memory at the time of failure) to be analyzed with a debugger.
+- **Kernel Failure (Crash):** Saving state is risky because a kernel crash could compromise file-system integrity. The OS writes the raw memory state directly to a pre-allocated raw disk partition. Upon reboot, a system process extracts this data and writes it to a **crash dump** file.
+
+### **Performance Monitoring: Counters vs. Tracing**
+
+To tune performance, administrators analyze metrics gathered via two approaches:
+
+- **Counters:** System-wide or per-process statistics compiled by the kernel.
+  - _Linux Tools:_ `ps` (process listings), `top` (live process load), `vmstat` (memory use), `netstat` (network statistics), and `iostat` (disk usage). Most Linux counters query the virtual `/proc` file system.
+  - _Windows Tools:_ **Windows Task Manager** provides real-time CPU, disk, memory, and networking stats.
+- **Tracing:** Follows the execution path of a single event step-by-step.
+  - _Linux Tools:_ `strace` (traces system calls run by a process), `gdb` (debugger), `perf` (performance tools), and `tcpdump` (captures network packets).
+
+### **The BCC and eBPF Toolkit**
+
+Traditionally, tracing kernel events carried massive system performance penalties. Today, developers use the **BCC (BPF Compiler Collection)** toolkit.
+
+- **eBPF (Extended Berkeley Packet Filter):** eBPF programs written in a safe subset of C are dynamically compiled and inserted into a running Linux kernel. To protect system security and speed, all instructions are validated by an internal **verifier** before insertion.
+- **BCC Front-End:** BCC provides a convenient Python interface to compile and control eBPF programs using kernel **probes** and **tracepoints**.
+- **Live Diagnostics:** Tools like `disksnoop.py` trace exact disk I/O times and latency on active production systems without risking crashes or degrading performance. The command `./opensnoop -p 1225` allows developers to trace system-wide open() calls issued specifically by process 1225.
+
+## **Summary**
+
+Here is a summary of the key takeaways from this lesson:
+
+- **Operating System Services:** The OS provides user-facing services (UI, execution, I/O, files, communications, error handling) and system services (resource allocation, logging, protection).
+- **API Boundary:** APIs (POSIX, Windows) provide clean interfaces that use language-level run-time environments to map to numeric index tables of raw system calls.
+- **Program Lifecycle:** Compilers produce relocatable object files. Linkers combine them with libraries into static executables. Loaders relocate and place these executables into active physical memory.
+- **Kernel Structures:** Modern designs rely on hybrid systems. Monolithic performance is combined with the modular flexibility of Loadable Kernel Modules (LKMs), while Darwin uses isolated microkernel elements within a single high-speed address space.
+- **Boot Process:** UEFI or BIOS initializes boot loaders (like GRUB or LK). These bootstrap programs locate and load compressed kernel images, mount temporary file systems (`initramfs`), and transition to the root disk.
+- **Debugging and Tracing:** Counters (in the `/proc` directory) track system stats, while tracing utilities (like `strace` or the verifier-checked eBPF framework of BCC) let admins debug live kernels safely.

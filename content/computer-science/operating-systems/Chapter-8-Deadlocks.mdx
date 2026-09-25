@@ -1,0 +1,261 @@
+export const metadata = {
+	title: "Deadlocks",
+	description:
+		"A rigorous introduction to deadlocks, covering deadlock conditions, resource-allocation graphs, prevention, avoidance with the Banker's algorithm, detection, and recovery through process termination and resource preemption.",
+	order: 8,
+	draft: false,
+	tags: [
+		"computer science",
+		"operating systems",
+		"deadlocks",
+		"Banker's algorithm",
+		"resource allocation",
+		"concurrency",
+	],
+};
+
+## Introduction
+
+Imagine two trains approaching each other at an intersection, coming to a full stop, and neither starting again because the law mandates that each must wait for the other to cross first. This absurd legislative deadlock from 20th-century Kansas is the perfect real-world analogy for system deadlocks. In modern computing, a deadlock occurs when every thread in a set is waiting for an event that can only be triggered by another waiting thread in that same set. This lesson provides a rigorous, technical exploration of why deadlocks occur, how to model them, and the algorithms used to prevent, avoid, detect, and recover from them.
+
+### Learning Objectives
+
+By the end of this lesson, you will be able to:
+
+- **Deconstruct** the four necessary conditions that characterize system deadlocks.
+- **Model and analyze** system states using resource-allocation and wait-for graphs.
+- **Apply** the Banker's algorithm to determine if resource allocation requests are safe.
+- **Evaluate** system recovery techniques, comparing process termination and resource preemption.
+
+## System Model and Multithreaded Deadlocks
+
+To systematically analyze deadlocks, we must first define the environment in which resources are requested and utilized.
+
+### The System Model
+
+A system consists of a finite number of resources distributed among multiple competing threads. These resources are partitioned into several classes or types, such as CPU cycles, files, I/O devices (e.g., network interfaces, disk drives), and synchronization primitives (mutex locks, semaphores). Each resource type contains one or more identical instances.
+
+Under normal operation, a thread must utilize a resource in a strict sequence:
+
+1. **Request:** If the request cannot be granted immediately (e.g., a mutex lock is held by another thread), the requesting thread must wait.
+2. **Use:** The thread operates on the resource (e.g., executing within its critical section protected by a lock).
+3. **Release:** The thread yields the resource back to the operating system.
+
+The kernel manages a system table recording whether each resource instance is free or allocated, and to which thread.
+
+### Deadlocks in Multithreaded Applications
+
+Deadlocks most commonly arise from the competitive locking of logical synchronization primitives. Consider two threads, `Thread 1` and `Thread 2`, with access to two mutexes, `first_mutex` and `second_mutex`:
+
+- `Thread 1` attempts to acquire the locks in the order: (1) `first_mutex`, (2) `second_mutex`.
+- `Thread 2` attempts to acquire them in the order: (1) `second_mutex`, (2) `first_mutex`.
+
+If `Thread 1` acquires `first_mutex` and is immediately preempted, and `Thread 2` runs and acquires `second_mutex`, both threads will block indefinitely when trying to acquire their respective second locks. This behavior is highly dependent on the CPU scheduler, making deadlocks notoriously difficult to test for and replicate.
+
+### Livelock
+
+Livelock is a related form of liveness failure. While a deadlocked thread is blocked waiting for an event that cannot occur, a livelocked thread is actively running but cannot make progress. Livelock occurs when threads continuously attempt an action that fails, such as when both threads use non-blocking lock acquisition (like `pthread_mutex_trylock()`), fail, release their held locks, and retry simultaneously. This can be mitigated by introducing random backoff times before retrying, mimicking Ethernet collision resolution.
+
+## Deadlock Characterization
+
+To address deadlocks, we must first understand the conditions under which they can occur and how they are formally modeled.
+
+The Four Necessary Conditions
+
+A deadlock state can arise if and only if the following four conditions hold simultaneously in a system:
+
+1. **Mutual Exclusion:** At least one resource must be held in a non-shareable mode. Only one thread at a time can use the resource.
+2. **Hold and Wait:** A thread must currently hold at least one resource while waiting to acquire additional resources held by other threads.
+3. **No Preemption:** Resources cannot be forcibly taken from a thread. They can only be released voluntarily by the thread holding them after task completion.
+4. **Circular Wait:** A closed chain of threads must exist, $\{T_0, T_1, \dots, T_n\}$, such that $T_0$ is waiting for a resource held by $T_1$, $T_1$ is waiting for $T_2$, and $T_n$ is waiting for $T_0$.
+
+_Note: The circular-wait condition implies the hold-and-wait condition, meaning these conditions are not completely independent._
+
+### System Resource-Allocation Graph
+
+Deadlocks can be precisely represented using a directed graph $G = (V, E)$.
+
+- **Vertices (**$V$**):** Partitioned into active threads $T = \{T_1, T_2, \dots, T_n\}$ (represented as circles) and resource types $R = \{R_1, R_2, \dots, R_m\}$ (represented as rectangles, with dots representing individual resource instances).
+- **Edges (**$E$**):**
+  - **Request Edge:** A directed edge $T_i \to R_j$ indicates that thread $T_i$ is waiting for an instance of resource type $R_j$.
+  - **Assignment Edge:** A directed edge $R_j \to T_i$ indicates that an instance of resource type $R_j$ has been allocated to thread $T_i$.
+
+### Graph Cycles and Deadlock
+
+The presence of a cycle in a resource-allocation graph yields different conclusions depending on resource instances:
+
+- **Single-Instance Resource Types:** A cycle is a **necessary and sufficient** condition for deadlock. If there is a cycle, a deadlock definitely exists.
+- **Multiple-Instance Resource Types:** A cycle is a **necessary but not sufficient** condition. A cycle may exist without a deadlock if an external thread can release an instance of the cycled resource type, thereby breaking the wait cycle.
+
+## Deadlock Prevention
+
+Deadlock prevention involves designing resource request policies that ensure at least one of the four necessary conditions cannot hold.
+
+Invalidation of Mutual Exclusion
+
+This is generally impractical. While read-only files (shareable) do not require exclusive access and cannot be deadlocked, many resources (such as mutexes) are intrinsically non-shareable and must remain mutually exclusive to prevent race conditions.
+
+Invalidation of Hold and Wait
+
+To prevent this, the system must guarantee that when a thread requests a resource, it holds no other resources:
+
+- **Protocol 1:** A thread must request and receive all required resources before starting execution. This suffers from low resource utilization.
+- **Protocol 2:** A thread can request resources only when it holds none. It must release all currently allocated resources before making a new request. This can lead to starvation if a thread constantly waits for multiple popular resources.
+
+Invalidation of No Preemption
+
+If a thread holding resources requests another resource that cannot be immediately allocated, the system can forcibly preempt its held resources:
+
+- The preempted resources are implicitly released and added to the list of resources for which the thread is waiting.
+- The thread only restarts when it can recover its original resources along with the newly requested ones.
+- This approach is useful for state-saveable resources (like CPU registers or database transactions) but cannot be easily applied to mutexes or semaphores.
+
+Invalidation of Circular Wait
+
+This is the most practical prevention method. We define a one-to-one ordering function $F: R \to \mathbb{N}$ that maps all resource types to the set of natural numbers. For example:
+
+$$
+F(\text{first\_mutex}) = 1, \quad F(\text{second\_mutex}) = 5
+$$
+
+Threads must request resources in a strictly increasing order of enumeration. A thread holding resource $R_i$ can request resource $R_j$ if and only if $F(R_j) > F(R_i)$. Alternatively, if it requires $R_j$ where $F(R_j) \le F(R_i)$, it must first release all resources $R_k$ where $F(R_k) \ge F(R_j)$.
+
+**Mathematical Proof (Contradiction):** Assume a circular wait $\{T_0, T_1, \dots, T_n\}$ exists where $T_i$ holds $R_i$ and waits for $R_{i+1}$ (with $T_n$ holding $R_n$ and waiting for $R_0$). Since resources must be acquired in increasing order, we must have $F(R_0) < F(R_1) < \dots < F(R_n) < F(R_0)$. By transitivity, $F(R_0) < F(R_0)$, which is impossible. Thus, no circular wait can occur.
+
+## Deadlock Avoidance and Safe States
+
+Deadlock avoidance requires the operating system to have access to _a priori_ information regarding which resources a thread will request and use during its lifetime. The simplest model requires each thread to declare the **maximum number** of resources of each type it may ever need.
+
+Safe vs. Unsafe States
+
+An operating system avoids deadlocks by ensuring the system remains in a **safe state** at all times.
+
+- **Safe State:** A state is safe if there exists a **safe sequence** of threads $\langle T_1, T_2, \dots, T_n \rangle$ such that, for each $T_i$, the resource requests $T_i$ can still make can be satisfied by the currently available resources plus the resources held by all preceding threads $T_j$ (where $j < i$).
+- **Unsafe State:** If no such sequence exists, the state is unsafe. An unsafe state is _not_ necessarily a deadlock, but it has the potential to lead to a deadlock depending on thread behavior.
+
+Resource-Allocation-Graph (RAG) Algorithm
+
+For systems with only **one instance** of each resource type, we can use an enhanced RAG for avoidance. We introduce a new edge:
+
+- **Claim Edge (**$T_i \to R_j$**):** Represented by a dashed directed line, indicating that thread $T_i$ may request resource $R_j$ in the future.
+- When $T_i$ requests $R_j$, the claim edge is converted to a request edge ($T_i \to R_j$).
+- When $R_j$ is released, the assignment edge ($R_j \to T_i$) is reconverted to a claim edge.
+
+**The Decision Rule:** A request from $T_i$ for resource $R_j$ can be granted only if converting the request edge $T_i \to R_j$ into an assignment edge $R_j \to T_i$ does not create a cycle in the graph. We check for cycles using a cycle-detection algorithm, which runs in $O(n^2)$ time where $n$ is the number of threads.
+
+## The Banker's Algorithm
+
+For systems with **multiple instances** of each resource type, the RAG cycle-detection algorithm is insufficient. We must use the **Banker's Algorithm**, which is less efficient but supports multi-instance resource systems.
+
+Vector and Matrix Data Structures
+
+Let $n$ be the number of threads and $m$ be the number of resource types:
+
+- `Available[m]`: A vector of length $m$. If `Available[j] = k`, there are $k$ instances of resource type $R_j$ currently free.
+- `Max[n][m]`: An $n \times m$ matrix defining the maximum demand of each thread. If `Max[i][j] = k`, then thread $T_i$ may request at most $k$ instances of $R_j$.
+- `Allocation[n][m]`: An $n \times m$ matrix defining the instances currently allocated to each thread.
+- `Need[n][m]`: An $n \times m$ matrix indicating the remaining resource need of each thread. Formally:
+  $$
+  \text{Need}[i][j] = \text{Max}[i][j] - \text{Allocation}[i][j]
+  $$
+
+1. Safety Algorithm
+
+This algorithm checks if a system state is safe in $O(m \times n^2)$ operations:
+
+1. Initialize vectors `Work = Available` (length $m$) and `Finish[i] = fa``lse` for $i = 0, 1, \dots, n - 1$ (length $n$).
+2. Find an index $i$ such that both:
+   - `Finish[i] == false`
+   - $\text{Need}_i \le \text{Work}$ If no such $i$ exists, go to Step 4.
+3. Update the work parameters and mark the thread as completed:
+
+$$
+\text{Work} = \text{Work} + \text{Allocation}_i$$ $$\text{Finish}[i] = \text{true}
+$$
+
+Go back to Step 2. 4. If `Finish[i] == true` for all $i$, then the system is in a safe state.
+
+5. Resource-Request Algorithm
+
+Let $\text{Request}_i$ be the request vector for thread $T_i$:
+
+1. If $\text{Request}_i \le \text{Need}_i$, proceed to Step 2. Otherwise, raise an error (the thread has exceeded its declared maximum claim).
+2. If $\text{Request}_i \le \text{Available}$, proceed to Step 3. Otherwise, $T_i$ must wait, as resources are not currently available.
+3. Pretend to allocate resources to $T_i$ by modifying the state:
+   $$
+   \text{Available} = \text{Available} - \text{Request}_i$$ $$\text{Allocation}_i = \text{Allocation}_i + \text{Request}_i$$ $$\text{Need}_i = \text{Need}_i - \text{Request}_i
+   $$
+4. Run the **Safety Algorithm** on this speculative state:
+   - If safe, the real allocation is completed.
+   - If unsafe, $T_i$ must wait, and the old state is restored.
+
+## Deadlock Detection
+
+If a system does not implement prevention or avoidance algorithms, deadlocks can occur. In this case, the system must provide detection and recovery mechanisms.
+
+Single Instance: Wait-For Graph
+
+For systems where all resource types have only a **single instance**, we simplify the resource-allocation graph into a **wait-for graph**:
+
+- We remove resource nodes and collapse the edges.
+- An edge $T_i \to T_j$ exists if $T_i$ is waiting for $T_j$ to release a resource.
+- The system periodically runs a cycle-detection algorithm on this graph, requiring $O(n^2)$ operations.
+
+### Multiple Instances: Detection Algorithm
+
+For multiple instances, we use an optimistic detection algorithm that is structurally similar to the Banker's safety algorithm:
+
+1. Initialize vectors `Work = Available` (length $m$). For $i = 0, 1, \dots, n-1$:
+   - If $\text{Allocation}_i \ne 0$, then `Finish[i] = false`.
+   - Otherwise, `Finish[i] = true`.
+2. Find an index $i$ such that:
+   - `Finish[i] == false`
+   - $\text{Request}_i \le \text{Work}$ If no such $i$ exists, go to Step 4.
+3. Assume $T_i$ completes and returns its resources:
+   $$
+   \text{Work} = \text{Work} + \text{Allocation}_i$$ $$\text{Finish}[i] = \text{true}
+   $$
+   Go back to Step 2.
+4. If `Finish[i] == false` for any $i$, then the system is deadlocked, and thread $T_i$ is one of the deadlocked threads.
+
+### Detection Frequency and Performance
+
+Invoking a detection algorithm on every blocked request allows us to identify the exact thread that caused the deadlock, but this incurs significant overhead. A cheaper alternative is to run the detection algorithm at scheduled intervals (e.g., hourly) or when CPU utilization drops below a specific threshold (such as 40%), which is a common symptom of thread blockage.
+
+## Recovery from Deadlock
+
+Once a detection algorithm identifies a deadlock, the system must recover from it, either manually or automatically, using one of two primary strategies: termination or preemption.
+
+### Process and Thread Termination
+
+Terminating processes breaks the dependency loop but introduces performance costs:
+
+- **Abort all deadlocked processes:** This immediately breaks the cycle, but all partial computations are lost, which can be highly expensive.
+- **Abort processes one at a time:** The system terminates one process and then runs the detection algorithm again to see if the cycle is broken. This incurs significant overhead because the detection algorithm must be re-run after every termination.
+
+Selecting which process to abort depends on economic factors (minimizing cost):
+
+1. The priority of the process.
+2. How long the process has computed and how much longer it needs to complete.
+3. How many and what types of resources the process holds.
+4. How many more resources the process requires.
+5. How many processes will need to be terminated.
+
+### Resource Preemption
+
+We can also recover from deadlocks by preempting resources from one process and giving them to another until the cycle is broken. This introduces three challenges:
+
+1. **Selecting a Victim:** Determining which resources to preempt from which processes to minimize cost (based on factors like resource hold duration and counts).
+2. **Rollback:** Once a resource is preempted, the victim thread cannot continue execution. The operating system must roll back the thread to a safe state and restart it. The simplest solution is a **total rollback** (aborting and restarting the process).
+3. **Starvation:** If victim selection is based strictly on cost, the same low-priority process may be repeatedly preempted, preventing it from ever completing. To prevent starvation, the system must limit the number of times a single process can be selected as a victim. This can be achieved by including the number of rollbacks in the cost calculation.
+
+## Summary
+
+### Key Takeaways
+
+- **Deadlock** occurs when a set of threads are permanently blocked, with each thread waiting for a resource held by another thread in the set.
+- **The Four Necessary Conditions** for a deadlock to occur are: Mutual Exclusion, Hold and Wait, No Preemption, and Circular Wait. All four must hold simultaneously.
+- **Deadlock Prevention** involves breaking one of the four necessary conditions. Eliminating the circular wait through total lock ordering is the most practical approach.
+- **Deadlock Avoidance** uses _a priori_ maximum demand information to dynamically verify that every resource allocation keeps the system in a safe state. The **Banker's Algorithm** is the primary multi-instance avoidance technique.
+- **Deadlock Detection** uses wait-for graphs (for single-instance systems) and matrix algorithms (for multi-instance systems) to identify deadlocks.
+- **Recovery** requires either aborting processes or preempting resources, both of which require strategies to manage overhead, state corruption, and thread starvation.

@@ -1,0 +1,244 @@
+export const metadata = {
+	title: "Multithreading",
+	description:
+		"An introduction to threads, concurrency, parallelism, multicore programming, threading models, thread libraries, implicit threading, threading issues, and thread implementations in Windows and Linux.",
+	order: 4,
+	draft: false,
+	tags: [
+		"computer science",
+		"operating systems",
+		"threads",
+		"multithreading",
+		"concurrency",
+		"parallelism",
+		"thread scheduling",
+	],
+};
+
+## Introduction
+
+Did you know that early web servers had to spawn a completely separate, resource-intensive _process_ for every single concurrent client request? This design rapidly brought computer systems to their knees under heavy loads. Modern operating systems solve this with **threads**—lightweight units of execution that allow a single process to split its work across multiple CPUs simultaneously. By mastering threads and concurrency, you will learn how to design highly responsive, ultra-scalable software that utilizes the full power of modern multicore architectures.
+
+### Learning Objectives:
+
+- **Deconstruct** the architecture of a thread and contrast it with a traditional process.
+- **Compare** the user-to-kernel relationship models: Many-to-One, One-to-One, and Many-to-Many.
+- **Evaluate** implicit threading paradigms including Thread Pools, Fork-Join, OpenMP, Grand Central Dispatch, and Intel TBB.
+- **Analyze** core multithreaded system issues, such as signal handling, thread cancellation, and scheduler activations.
+- **Differentiate** how Windows and Linux represent threads at the kernel level.
+
+## Overview and Motivation
+
+A **thread** is the basic unit of CPU utilization. It comprises a unique thread ID, a program counter (PC), a register set, and a stack. However, unlike isolated processes, threads belonging to the same process share their code section, data section, and operating-system resources (such as open files and signals).
+
+**The Motivation for Threads:**
+
+- **Application Efficiency:** Most modern software applications are multithreaded. For instance, a web browser might use one thread to display text and images while another retrieves data from the network. A word processor can use separate threads for displaying graphics, handling keystrokes, and running background spell-checkers.
+- **The Web Server Scenario:** Instead of the old, resource-intensive technique of spawning a new process for every client request, a multithreaded server uses a single process. A master thread listens for requests, and upon receiving one, spawns a lightweight thread to service it, immediately returning to listen for more. This avoids the massive time and memory overhead of process creation.
+- **Kernel Multithreading:** Operating system kernels are themselves multithreaded. During a Linux boot, multiple kernel threads are created to manage devices, memory, and interrupts. The parent of all these kernel threads is `kthreadd` (PID = 2), which can be observed using the `ps -ef` command.
+
+**The Four Core Benefits of Multithreading:**
+
+1. **Responsiveness:** If part of an interactive application is blocked or performing a lengthy operation, other threads keep the program running and responsive to the user.
+2. **Resource Sharing:** Threads share their process's memory space and resources by default, allowing multiple threads of activity within the same address space without explicit inter-process communication (IPC).
+3. **Economy:** Creating and context-switching threads is significantly cheaper and faster than process creation and context-switching.
+4. **Scalability:** Multiprocessor and multicore systems allow threads to run in parallel on different physical processing cores, boosting performance.
+
+## Multicore Programming and Amdahl's Law
+
+To write effective multithreaded software, you must understand the distinction between concurrency and parallelism:
+
+- **Concurrency** supports more than one task by allowing all tasks to make progress. On a single-core system, concurrency is achieved by interleaving execution over time via rapid context switching (providing the illusion of simultaneous execution).
+- **Parallelism** occurs when a system can perform multiple tasks simultaneously. This requires multiple computing cores, allowing separate threads to run on separate physical CPUs at the exact same instant.
+
+**Five Key Multicore Programming Challenges:**
+
+1. **Identifying tasks:** Finding portions of the application code that can be divided into independent, concurrent tasks.
+2. **Balance:** Ensuring that the parallel tasks perform equal work of equal value to maximize processor utilization.
+3. **Data splitting:** Dividing the data accessed and manipulated by the tasks so it can run on separate cores.
+4. **Data dependency:** Synchronizing tasks when one task relies on data produced by another.
+5. **Testing and debugging:** Managing the countless execution paths inherent in parallel execution, which makes tracking down bugs exceptionally difficult.
+
+**Amdahl's Law:** This fundamental formula determines the potential performance gains from adding processing cores to an application that has both serial (non-parallel) and parallel components. If $S$ is the portion of the application that must be performed serially, and $N$ is the number of processing cores, the speedup is bounded by:
+
+$$
+\text{speedup} \le \frac{1}{S + \frac{1-S}{N}}
+$$
+
+If 25% of an application is serial ($S = 0.25$) and 75% is parallel, running it on $N = 2$ cores yields a speedup of $1.6\times$. Adding more cores to reach $N = 4$ yields a speedup of $2.28\times$. Crucially, as $N$ approaches infinity, the maximum possible speedup converges to $1/S$. If 50% of your program is serial, you can never exceed a $2.0\times$ speedup, no matter how many hundreds of cores you add. This highlights how a small serial portion can have a disproportionate effect on performance.
+
+**Types of Parallelism:**
+
+- **Data Parallelism:** Focuses on distributing subsets of the same data across multiple cores and performing the _same_ operation on each core (e.g., summing a massive array by splitting it in half and assigning each half to a separate core).
+- **Task Parallelism:** Distributes independent _tasks_ (threads) across multiple cores. Each thread performs a unique operation, either on the same or different data (e.g., one thread performing statistical analysis while another generates a graph).
+
+## Multithreading Models
+
+Threads can exist at two levels: **User Threads** (managed above the kernel without kernel support) and **Kernel Threads** (supported and managed directly by the operating system). Ultimately, a relationship must be established between user threads and kernel threads. There are three primary models to establish this relationship:
+
+- **Many-to-One Model:** Maps many user-level threads to a single kernel thread. Thread management is highly efficient because it occurs entirely in user space. However, if a user thread makes a blocking system call, the entire process blocks. Furthermore, because only one thread can access the kernel at a time, multiple threads cannot run in parallel on multicore systems. An example of this was Java's early _Green Threads_ library, though it is obsolete today.
+- **One-to-One Model:** Maps each user thread to its own kernel thread. It provides much greater concurrency; if one thread blocks, other threads can still run. It also allows true parallel execution on multicore processors. Its primary drawback is that creating a user thread requires creating a corresponding kernel thread, and an excessive number of kernel threads can burden system performance. Windows and Linux implement the One-to-One model.
+- **Many-to-Many Model:** Multiplexes many user-level threads to a smaller or equal number of kernel threads. This allows developers to create as many user threads as they want while enabling those threads to run in parallel on multiprocessors. If a thread blocks, the kernel can schedule another kernel thread.
+- **Two-Level Model:** A variation on the Many-to-Many model that multiplexes many user-level threads to a smaller/equal number of kernel threads, but also allows a specific user-level thread to be bound to a dedicated kernel thread.
+
+While the Many-to-Many model is highly flexible, it is complex to implement. Because contemporary multicore systems are abundant in resources, restricting the kernel thread count is less critical today. Consequently, most modern operating systems have standardized on the simpler **One-to-One model**.
+
+## Thread Libraries
+
+A **thread library** provides developers with an API for creating and managing threads. Libraries are implemented either entirely in user space (where API calls are local function calls) or at the kernel level (where API calls result in system calls). The three dominant thread libraries are POSIX Pthreads, Windows, and Java.
+
+To understand thread interactions, we must distinguish between two creation strategies:
+
+- **Asynchronous Threading:** Once the parent thread creates a child thread, the parent resumes its execution. Parent and child execute concurrently and independently. There is typically minimal data sharing between them (e.g., responsive user interfaces, multithreaded servers).
+- **Synchronous Threading:** The parent thread creates one or more child threads and must explicitly wait for all of them to terminate before resuming (often called a create/join model). This strategy usually involves significant data sharing, as the parent thread may combine the results computed by its children.
+
+**1. POSIX Pthreads** Pthreads refers to the POSIX standard (IEEE 1003.1c) defining a _specifi\_\_cation_ for thread behavior, not a specific implementation. It is widely used in UNIX-type systems such as Linux and macOS. In Pthreads, global data is shared among all threads of the same process.
+
+Key Pthreads C API calls:
+
+- `pthread_t tid;` declares the thread identifier.
+- `pthread_attr_init(&attr);` initializes default thread attributes.
+- `pthread_create(&tid, &attr, runner, argv[1]);` spawns the thread, executing the `runner` function and passing arguments.
+- `pthread_join(tid, NULL);` blocks the parent thread until the target thread terminates.
+- `pthread_exit(0);` terminates the executing thread.
+
+**2. Windows Threads** Similar to Pthreads, the Windows thread library is a kernel-level library where global data is shared across threads. Programmers must include the `<windows.h>` header.
+
+Key Windows C API calls:
+
+- `CreateThread()` creates the thread, taking security attributes, stack size, the start function (e.g., `Summation`), parameters, and flags.
+- `WaitForSingleObject(hThread, INFINITE);` causes the parent thread to block until the child thread finishes.
+- `WaitForMultipleObjects(N, THandles, TRUE, INFINITE);` blocks the parent thread until all $N$ child threads in the `THandles` array have completed.
+
+**3. Java Threads** Java threads are the fundamental model of execution in Java programs. Since the JVM runs on top of a host OS, Java's thread API is implemented using the host's thread library (e.g., Windows API on Windows, Pthreads on Linux). Because Java is strictly object-oriented and lacks global data, data sharing must be explicitly arranged.
+
+There are two primary techniques for explicit thread creation in Java:
+
+- Implementing the `Runnable` interface and overriding its `run()` method.
+- Subclassing the `Thread` class and overriding its `run()` method.
+
+To run a thread, you instantiate it and invoke its `.start()` method, which allocates memory, initializes the thread, and calls `.run()` on your behalf. To wait for a thread's termination, you call `.join()`. Java 1.8 introduced **Lambda Expressions**, allowing a highly compact syntax:
+
+```
+Thread worker = new Thread(() -> {
+    // concurrent work here
+});
+worker.start();
+```
+
+**The Java Executor Framework:** Starting in Version 1.5, Java introduced the `java.util.concurrent` package, which abstracts thread creation. Instead of manually creating `Thread` objects, you use the `Executor` interface and its `execute()` method. It follows a producer-consumer model where tasks implementing `Runnable` are submitted to threads that execute them.
+
+To allow concurrent tasks to return results, Java provides the `Callable` interface (similar to `Runnable` but its `call()` method returns a value) and **Future** objects. When you submit a `Callable` task using `ExecutorService.submit()`, it returns a `Future` object. You retrieve the result using `Future.get()`, which blocks until the result is available.
+
+## Implicit Threading
+
+As applications scale to hundreds or thousands of threads, manual thread management becomes error-prone. **Implicit Threading** solves this by transferring the creation and management of threads from application developers to compilers and run-time libraries. Programmers identify **tasks** (usually written as functions), and the run-time framework automatically maps these tasks to kernel threads, typically using a Many-to-Many model.
+
+**1. Thread Pools** When a server spawns a thread for each request, it suffers from two major issues: the time overhead of creating/destroying threads, and the potential to exhaust system resources if the number of concurrent active threads is unbounded.
+
+A **Thread Pool** pre-creates a set number of threads at startup. When a task is submitted, it is assigned to an available thread in the pool. If no thread is free, the task waits in a queue. Once a thread completes its task, it returns to the pool.
+
+- _Windows API:_ Offers `QueueUserWorkItem(&PoolFunction, NULL, 0)` to execute a task using a pool thread.
+- _Java Executor Pools:_ Built-in factory methods in `Execut``ors` create diverse pool architectures:
+  - `newSingleThreadExecutor()`: Pool of size 1.
+  - `newFixedThreadPool(int size)`: Fixed-size thread pool.
+  - `newCachedThreadPool()`: Unbounded pool that dynamically creates and reuses threads.
+
+**2. Fork-Join Model** A synchronous implicit threading model designed for recursive divide-and-conquer algorithms (e.g., Quicksort and Mergesort). Separate tasks are _forked_ during the divide step and _joined_ to combine results. In Java, this is managed by the `ForkJoinPool` and tasks extending `ForkJoinTask` (specifically `RecursiveTask<V>` which returns a value, or `RecursiveAction` which does not).
+
+To optimize efficiency, Java's ForkJoinPool implements a **work-stealing algorithm**: each worker thread maintains its own queue of tasks. If a thread runs out of tasks, it steals a task from the tail of another thread's queue, balancing the workload across all CPU cores.
+
+**3. OpenMP** A set of compiler directives and an API for C, C++, and Fortran that supports parallel programming in shared-memory environments. Developers insert `#pragma` directives around **parallel regions**:
+
+```
+#pragma omp parallel
+{
+    printf("I am a parallel thread\n");
+}
+```
+
+When the compiler encounters this directive, it automatically spawns as many threads as there are processing cores in the system, distributes the work, and terminates the threads at the end of the region. It can easily parallelize loops using `#pragma omp parallel for`.
+
+**4. Grand Central Dispatch (GCD)** Developed by Apple for macOS and iOS, GCD combines a run-time library, API, and language extensions. Tasks are placed onto a **dispatch queue**, which GCD schedules onto an internal thread pool of POSIX threads.
+
+- _Serial Queues (Private Dispatch Queues):_ Tasks are removed FIFO. A task must complete before the next task is popped. Each process has a default _main queue_.
+- _Concurrent Queues (Global Dispatch Queues):_ Tasks are removed FIFO, but multiple tasks can be pulled at once to run in parallel. GCD categorizes these into four Quality-of-Service (QoS) classes:
+  - `QOS_CLASS_USER_INTERACTIVE`: High-priority tasks interacting with the user.
+  - `QOS_CLASS_USER_INITIATED`: Rapid tasks associated with responsive UI (e.g., opening a URL).
+  - `QOS_CLASS_UTILITY`: Longer-running tasks that do not demand immediate results (e.g., importing data).
+  - `QOS_CLASS_BACKGROUND`: Invisible, non-time-sensitive tasks (e.g., backups).
+
+Tasks are written as **blocks** in C/C++ (using the caret notation `^{ ... }`) or as **closures** in Swift.
+
+**5. Intel Threading Building Blocks (TBB)** A template library supporting parallel C++ application design without requiring special compiler support. It maps parallel loop templates (such as `parallel_for`) onto underlying threads, providing cache-aware load balancing (prioritizing tasks whose data is likely already in cache).
+
+## Threading Issues
+
+Designing robust multithreaded programs requires careful consideration of several subtle operating system and language issues:
+
+**1. Semantics of fork() and exec()** If one thread in a multithreaded process calls the `fork()` system call, does the new process duplicate _all_ threads, or is the new process single-threaded?
+
+- Some UNIX systems provide two versions of `fork()`.
+- If a thread calls `exec()` immediately after `fork()`, duplicating all threads is highly wasteful because the entire process (and all its threads) will be replaced by the program specified in `exec()`. In this scenario, duplicating only the calling thread is appropriate.
+- If the new process will not call `exec()`, then all threads should be duplicated.
+
+**2. Signal Handling** Signals notify a process in UNIX that a specific event has occurred. All signals follow a pattern: they are generated, delivered to a process, and handled (by a default or user-defined handler).
+
+- **Synchronous Signals:** Generated by internal process events (e.g., illegal memory access, division by zero). These must be delivered directly to the specific thread that caused the event.
+- **Asynchronous Signals:** Generated by external events (e.g., `<control><C>`, timer expiration). Delivering these is complex in multithreaded environments. Options include delivering the signal to the thread to which it applies, to all threads in the process, to select threads, or to a designated signal-receiving thread. UNIX provides `kill(pid, signal)` for processes and `pthread_kill(tid, signal)` for individual threads.
+- _Windows Alternative:_ Windows does not native support signals but emulates them using **Asynchronous Procedure Calls (APCs)**, which are delivered to specific threads rather than a process.
+
+**3. Thread Cancellation** Thread cancellation is the termination of a thread (the "target thread") before it completes.
+
+- **Asynchronous Cancellation:** One thread immediately terminates the target thread. This is highly dangerous; if the thread is holding system resources or in the middle of updating shared data, the operating system may fail to reclaim all resources, leading to resource leaks or corrupted state.
+- **Deferred Cancellation:** The target thread periodically checks a flag to see if it should terminate, allowing it to shut down in an orderly fashion. In Pthreads, this check occurs at **cancellation points** (such as blocking system calls like `read()`) or by explicitly calling `pthread_testcancel()`. Java implements a similar policy using the `interrupt()` and `isInterrupted()` methods.
+
+**4. Thread-Local Storage (TLS)** While sharing process data is a core benefit of threading, sometimes each thread needs its own unique copy of certain data across different function invocations (unlike local variables, which are only visible within a single function execution). This is called **Thread-Local Storage (TLS)**.
+
+- Pthreads utilizes `pthread_key_t` to associate thread-specific data.
+- Java provides the `ThreadLocal<T>` class.
+- The `gcc` compiler provides the keyword `__thread` (e.g., `static __thread int threadID;`).
+
+**5. Scheduler Activations** When implementing Many-to-Many or Two-Level models, communication between the user thread library and the kernel is vital. This is mediated by an intermediate data structure called a **Lightweight Process (LWP)**, which acts as a virtual processor for the user-thread library. Each LWP is bound to a single kernel thread.
+
+This communication is managed via **Scheduler Activations**:
+
+1. The kernel provides the application with a set of virtual processors (LWPs).
+2. If a user thread is about to block (e.g., on I/O), the kernel executes an **upcall** to inform the thread library's **upcall handler**.
+3. The kernel allocates a _new_ virtual processor to the application. The upcall handler saves the state of the blocking thread, relinquishes the blocked LWP, and schedules another runnable thread on the new virtual processor.
+4. When the blocked thread's event completes, the kernel issues another upcall, enabling the thread library to reschedule the unblocked thread.
+
+## Operating-System Examples
+
+Let's examine how Windows and Linux implement threads at the kernel level.
+
+**1. Windows Threads** Windows implements the One-to-One model. Each process contains one or more threads. The **context** of a Windows thread includes its register set, a program counter, a user stack (for user mode), a kernel stack (for kernel mode), and a private storage area for run-time libraries.
+
+Its key kernel data structures are:
+
+- `ETHREAD` (Executive Thread Block): Exists in kernel space. Contains pointers to the parent process, the thread's starting routine address, and a pointer to the corresponding KTHREAD.
+- `KTHREAD` (Kernel Thread Block): Exists in kernel space. Contains scheduling and synchronization information, the kernel stack, and a pointer to the TEB.
+- `TEB` (Thread Environment Block): Exists in user space. It is accessed when the thread runs in user mode. It contains the thread identifier, the user-mode stack, and an array for thread-local storage.
+
+**2. Linux Threads** Linux is unique because **it does not distinguish between processes and threads**. Instead, Linux uses the generalized term **task** to refer to any flow of control.
+
+Linux provides the `fork()` system call for standard process duplication, and the `clone()` system call to create new tasks. The key distinction lies in the flags passed to `clone()`, which dictate how much sharing occurs between the parent and child task:
+
+- `CLONE_FS`: Shares file-system information.
+- `CLONE_VM`: Shares the exact same virtual memory space.
+- `CLONE_SIGHAND`: Shares signal handlers.
+- `CLONE_FILES`: Shares the set of open files.
+
+If all these flags are set during a `clone()` invocation, the behavior is equivalent to creating a standard thread, since the new task shares almost all its resources with the parent. If no flags are set, no sharing occurs, producing a behavior equivalent to `fork()`.
+
+This high degree of flexibility is enabled by the kernel's representation of tasks. The kernel maintains a unique `struct task_struct` for every task. However, instead of storing task data directly, this structure contains _pointers_ to separate data structures where open files, signal handling, and memory information reside. If `clone()` is called with flags, the new task's pointers are set to point directly to the parent's data structures, rather than copying them.
+
+## Summary
+
+### Key Takeaways:
+
+- **Thread vs. Process:** A thread is a lightweight unit of CPU utilization. It shares code, data, and resources with other threads in the same process but maintains its own program counter, registers, and stack.
+- **Concurrency vs. Parallelism:** Concurrency means making progress on multiple tasks over time; parallelism means executing multiple tasks simultaneously. Parallelism requires multicore hardware.
+- **Threading Models:** The One-to-One model (used by Windows and Linux) maps each user thread to a kernel thread, providing high concurrency while avoiding the implementation complexity of the Many-to-Many model.
+- **Implicit Threading:** Rather than manually instantiating threads, modern developers define independent tasks and rely on compiler/run-time frameworks like Thread Pools, Fork-Join, OpenMP, GCD, and Intel TBB to handle scheduling.
+- **Operating System Representation:** Windows manages threads using a strict kernel block hierarchy (`ETHREAD`/`KTHREAD`/`TEB`), whereas Linux models both threads and processes uniformly as **tasks** using the highly customizable `clone()` system call.

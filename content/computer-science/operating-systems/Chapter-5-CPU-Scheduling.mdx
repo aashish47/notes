@@ -1,0 +1,247 @@
+export const metadata = {
+	title: "CPU Scheduling",
+	description:
+		"An introduction to CPU scheduling concepts, performance criteria, scheduling algorithms, thread and multiprocessor scheduling, real-time scheduling, and production schedulers in Linux, Windows, and Solaris.",
+	order: 5,
+	draft: false,
+	tags: [
+		"computer science",
+		"operating systems",
+		"CPU scheduling",
+		"scheduling algorithms",
+		"multicore systems",
+		"real-time systems",
+	],
+};
+
+## **Introduction**
+
+Did you know that modern operating systems execute hundreds of context switches every single second? Without highly optimized algorithms, your computer would waste immense processing power just trying to decide what to do next. CPU scheduling is the core choreographer of modern operating systems, allocating finite processor resources to threads to maximize system efficiency.
+
+By completing this lesson, you will achieve the following key objectives:
+
+- Understand the foundational cycle of CPU and I/O bursts and the critical role of the dispatcher.
+- Compare and evaluate core scheduling algorithms, including FCFS, SJF, Round-Robin, Priority, and Multilevel Feedback Queues.
+- Analyze the challenges of multicore, multiprocessor, and real-time scheduling.
+- Discover how modern systems like Linux, Windows, and Solaris apply these concepts in production.
+
+## **Basic Concepts of CPU Scheduling**
+
+In a system with a single CPU core, only one process can execute at a time; others must wait. Multiprogramming aims to have a process running at all times to maximize CPU utilization.
+
+**The CPU–I/O Burst Cycle** Process execution consists of a cycle of CPU execution (computation) and I/O wait. Processes alternate between these two states. Execution begins with a **CPU burst**, followed by an **I/O burst**, repeating until the final CPU burst ends with a system request to terminate execution.
+
+- **I/O-bound programs** typically feature many short CPU bursts.
+- **CPU-bound programs** tend to have a few long CPU bursts.
+
+**The CPU Scheduler** Whenever the CPU becomes idle, the operating system's CPU scheduler must select a process from the ready queue in memory to execute. While conceptually lined up, the ready queue is not necessarily a simple FIFO queue; it can be implemented as a priority queue, a tree, or an unordered linked list of Process Control Blocks (PCBs).
+
+**Preemptive and Nonpreemptive Scheduling** Scheduling decisions occur under four primary circumstances:
+
+1. When a process switches from the running state to the waiting state (e.g., I/O request).
+2. When a process switches from the running state to the ready state (e.g., interrupt).
+3. When a process switches from the waiting state to the ready state (e.g., I/O completion).
+4. When a process terminates.
+
+If scheduling occurs _only_ under circumstances 1 and 4, the scheduling scheme is **nonpreemptive** (or cooperative). Once a process gets the CPU, it keeps it until it blocks or terminates. Under **preemptive** scheduling (used by modern operating systems like Windows, macOS, and Linux), the OS can interrupt a running process to switch context to another.
+
+_Technical Challenge:_ Preemptive scheduling can introduce race conditions when data is shared concurrently among processes, necessitating robust synchronization tools.
+
+**The Dispatcher** While the scheduler _selects_ the process, the **dispatcher** is the module that actually gives control of the CPU core to that selected process. It is responsible for:
+
+- Switching context from one process to another.
+- Switching to user mode.
+- Jumping to the proper location in the user program to resume execution.
+
+The time taken by the dispatcher to stop one process and start another is called **dispatch latency**. Because the dispatcher is invoked during every context switch, it must be exceptionally fast.
+
+## **Scheduling Criteria**
+
+To compare and select CPU-scheduling algorithms, we rely on five distinct performance metrics:
+
+- **CPU Utilization:** The percentage of time that the CPU is actively executing tasks. Real-world systems target a range from 40% (lightly loaded) to 90% (heavily loaded).
+- **Throughput:** The number of processes completed per unit of time.
+- **Turnaround Time:** The total time elapsed from the submission of a process to its final completion. This includes ready queue wait time, execution time, and I/O time.
+- **Waiting Time:** The cumulative amount of time a process spends waiting in the ready queue. The scheduling algorithm directly impacts this metric.
+- **Response Time:** In interactive systems, the time elapsed from submission of a request until the _first_ response is produced (not the time it takes to output the response completely).
+
+In most general-purpose settings, the goal is to maximize CPU utilization and throughput, while minimizing turnaround, waiting, and response times. In interactive environments, minimizing the variance of response times is often prioritized over minimizing the average response time to ensure a predictable user experience.
+
+## **Scheduling Algorithms**
+
+Let's explore the core CPU-scheduling algorithms used to determine which process in the ready queue is allocated the CPU's processing core.
+
+**First-Come, First-Served (FCFS) Scheduling** FCFS is the simplest scheduling algorithm, managed with a standard FIFO queue. The process requesting the CPU first is allocated the CPU first.
+
+- **Drawback:** The average waiting time is often long.
+- **Convoy Effect:** If one long CPU-bound process executes first, all shorter, I/O-bound processes must wait in the ready queue, leaving I/O devices idle and degrading system performance.
+- FCFS is nonpreemptive, making it poorly suited for interactive systems.
+
+**Shortest-Job-First (SJF) Scheduling** SJF associates the length of the next CPU burst with each process. The CPU is allocated to the process with the shortest next burst.
+
+- **Pros:** Provably optimal, yielding the absolute minimum average waiting time for a given set of processes.
+- **Cons:** Cannot be implemented directly at the CPU-scheduling level because the length of the next CPU burst cannot be known in advance.
+- **Approximation:** Predicted using an exponential average of past burst lengths: `Predicted_next_burst = (alpha * actual_last_burst) + (1 - alpha) * previous_prediction` (where `alpha` controls the weight of recent history).
+- SJF can be preemptive (**Shortest-Remaining-Time-First**), preempting the current process if a newly arrived process has a shorter remaining burst time, or nonpreemptive.
+
+**Round-Robin (RR) Scheduling** Designed specifically for time-sharing systems, RR is a preemptive FCFS variant. The scheduler defines a small unit of time called a **time quantum** (or time slice, usually 10 to 100 milliseconds). The ready queue is treated as a circular queue. The CPU scheduler allocates the CPU to each process for up to one time quantum. If the process's burst exceeds the quantum, it is preempted, a context switch occurs, and the process is placed at the tail of the ready queue.
+
+- **Performance Tuning:** If the quantum is too large, RR degenerates to FCFS. If it is too small, context-switching overhead dominates, consuming valuable CPU cycles. A standard rule of thumb is that 80% of CPU bursts should be shorter than the time quantum.
+
+**Priority Scheduling** Each process is assigned an integer representing its priority. The CPU is allocated to the highest-priority process (with equal priorities resolved via FCFS).
+
+- **Starvation (Indefinite Blocking):** Low-priority processes may wait indefinitely in a heavily loaded system.
+- **Mitigation (Aging):** Gradually increasing the priority of processes that wait in the system for a long time. Over time, even the lowest-priority task will obtain a high enough priority to execute.
+- _Priority + RR:_ Systems can combine priority and RR, running the highest-priority processes first and using round-robin to schedule processes of equal priority.
+
+**Multilevel Queue Scheduling** Rather than keeping all processes in a single queue, processes are divided into distinct classes with separate queues (e.g., foreground interactive vs. background batch queues). Each queue can have its own scheduling algorithm (e.g., RR for foreground, FCFS for background). Scheduling _among_ the queues is typically handled as fixed-priority preemptive scheduling.
+
+**Multilevel Feedback Queue Scheduling** Unlike a standard multilevel queue, this algorithm allows processes to move between queues based on their execution characteristics.
+
+- If a process utilizes too much CPU time, it is demoted to a lower-priority queue.
+- If a process waits too long in a lower-priority queue, it is promoted to a higher-priority queue (aging, preventing starvation).
+- This is the most flexible and complex general-purpose scheduling algorithm, configurable to match specific system architectures.
+
+## **Thread Scheduling**
+
+On modern operating systems, the kernel schedules kernel-level threads, not processes. User-level threads are managed by a thread library and must ultimately map to a kernel-level thread to run.
+
+**Contention Scope**
+
+- **Process Contention Scope (PCS):** On systems implementing many-to-one or many-to-many thread models, the thread library schedules user-level threads onto an available Lightweight Process (LWP). Competition for the CPU takes place among threads belonging to the _same_ process.
+- **System Contention Scope (SCS):** The operating system kernel decides which kernel-level thread to schedule onto a physical CPU core. Competition for the CPU takes place among _all_ threads in the system. Systems utilizing a one-to-one mapping model (like Linux and Windows) schedule threads using only SCS.
+
+**Pthread Scheduling API** POSIX Pthreads provide support for specifying contention scope during thread creation:
+
+- `PTHREAD_SCOPE_PROCESS` schedules threads using PCS.
+- `PTHREAD_SCOPE_SYSTEM` schedules threads using SCS.
+
+Functions such as `pthread_attr_setscope()` allow the programmer to define this policy before thread creation. Some platforms, such as Linux and macOS, only support `PTHREAD_SCOPE_SYSTEM` at the kernel level.
+
+## **Multi-Processor Scheduling**
+
+Schedules must handle multi-processor systems, which introduce parallel execution complexity.
+
+**Approaches to Multiple-Processor Scheduling**
+
+- **Asymmetric Multiprocessing:** A single processor (the master server) handles all scheduling, I/O processing, and system activities, while the other cores execute only user code. Simple to design but creates a bottleneck.
+- **Symmetric Multiprocessing (SMP):** Each processor is self-scheduling. Processors can schedule threads from a single common ready queue, or from individual, private ready queues. Private queues are preferred because they avoid race conditions and lock-contention overhead on a shared queue.
+
+**Multicore Processors** Modern computer hardware places multiple computing cores on a single physical chip. This can result in a **memory stall**, where the processor spends up to 50% of its time idling, waiting for data to arrive from main memory (or during cache misses).
+
+To resolve this, chips employ **chip multithreading (CMT)** where multiple **hardware threads** (logical CPUs) are assigned to each physical core. If one hardware thread stalls, the core switches to another. This necessitates two levels of scheduling:
+
+1. _Operating System Level:_ The OS schedules software threads onto logical CPUs.
+2. _Hardware Level:_ The physical core decides which hardware thread to execute next (using simple round-robin or dynamic priority-urgency levels).
+
+**Load Balancing** On SMP systems with private run queues, workloads must be balanced to prevent some cores from sitting idle while others are overloaded.
+
+- **Push Migration:** A specific system task periodically checks core workloads and pushes threads from overloaded cores to less busy ones.
+- **Pull Migration:** An idle processor pulls waiting tasks from the run queue of a busy processor.
+
+**Processor Affinity** When a thread runs on a core, the cache memory for that core becomes populated with the thread's recently accessed data (a "warm cache"). Migrating the thread to another core requires invalidating the old cache and populating the new one, which is highly inefficient.
+
+- **Soft Affinity:** The OS attempts to keep a process on the same processor but may migrate it during load balancing.
+- **Hard Affinity:** A process uses system calls (like `sched_setaffinity()` in Linux) to restrict itself to running on a designated subset of processors.
+- **NUMA-Aware Scheduling:** On Non-Uniform Memory Access (NUMA) systems, processors access local memory faster than remote memory. Schedulers must coordinate with memory managers to assign threads to CPU cores closest to the memory allocated for them.
+
+_Note:_ There is a natural tension between load balancing and processor affinity; migrating a thread to achieve balance invalidates its warm cache.
+
+**Heterogeneous Multiprocessing (HMP)** Common in mobile architectures (like ARM's big.LITTLE), HMP combines cores that share the same instruction set but vary in clock speed and power consumption. Schedulers assign energy-intensive, interactive tasks to high-performance "big" cores, while routing long-running background tasks to energy-efficient "LITTLE" cores to preserve battery life.
+
+## **Real-Time CPU Scheduling**
+
+Real-time systems must execute tasks within strict constraints.
+
+- **Soft Real-Time Systems:** Provide no strict deadline guarantees, but ensure critical real-time processes are prioritized over noncritical ones.
+- **Hard Real-Time Systems:** Strict deadlines must be met; failing to complete a task before its deadline is a system failure.
+
+**Minimizing Latency** Real-time systems must minimize the time elapsed from an event occurring to its service completion (**event latency**). Two types of latency are crucial:
+
+1. **Interrupt Latency:** Time from an interrupt's arrival at the CPU to the start of the Interrupt Service Routine (ISR).
+2. **Dispatch Latency:** Time required for the scheduler to stop one process and start another. Real-time OSs minimize this by using preemptive kernels. The conflict phase of dispatch latency involves preempting kernel tasks and releasing low-priority resources for high-priority processes.
+
+**Periodic Tasks and Priority-Based Scheduling** Real-time tasks are typically **periodic**, requiring the CPU at regular intervals. A periodic task has a processing time `t`, a deadline `d` by which it must finish, and a period `p` (where `0 &lt;= t &lt;= d &lt;= p`). The execution rate is `1 / p`.
+
+**Rate-Monotonic Scheduling (RMS)** RMS is a static priority algorithm with preemption. Priorities are assigned inversely to a task's period: the shorter the period, the higher the priority. RMS is optimal among all static-priority real-time algorithms.
+
+- **Limitation:** CPU utilization is bounded. For `N` processes, the worst-case CPU utilization is `N * (2^(1/N` `) - 1)`. While 100% for one process, it falls to about 83% for two processes and approaches ~69% as the number of processes approaches infinity.
+
+**Earliest-Deadline-First (EDF) Scheduling** EDF dynamically assigns priorities according to deadline. The earlier the deadline, the higher the priority. When a process becomes runnable, it announces its deadline to the scheduler.
+
+- **Pros:** Unlike RMS, EDF is theoretically optimal, achieving up to 100% CPU utilization without missing deadlines.
+- **Cons:** Higher overhead due to dynamic priority recalculations.
+
+**Proportional Share Scheduling** Allocates a total of `T` shares among all applications. A process allocated `N` shares is guaranteed to receive `N / T` of total processor time. This operates alongside an admission-control policy that rejects new processes if sufficient shares are unavailable.
+
+**POSIX Real-Time Scheduling** POSIX.1b defines real-time extensions, including two scheduling classes:
+
+- `SCHED_FIFO` (preemptive first-in, first-out, without time-slicing among equal-priority threads).
+- `SCHED_RR` (round-robin with time-slicing for equal-priority threads).
+
+## **Operating-System Examples**
+
+Let's examine how three major operating systems implement CPU scheduling in production.
+
+**Linux Scheduling** Linux uses the **Completely Fair Scheduler (CFS)** as its default class.
+
+- **Nice Values:** CFS calculates CPU allocations using a task's nice value (ranging from -20 to +19, where lower numbers indicate higher priority).
+- **Targeted Latency:** An interval of time during which every runnable task must run at least once. CPU proportions are allocated from this value.
+- **Virtual Run Time (vruntime):** CFS tracks execution history in a per-task variable `vruntime`. Lower-priority tasks decay their `vruntime` faster. CFS always selects the task with the smallest `vruntime` to execute. Runnable tasks are kept in a balanced **red-black tree** for O(log N) insertions and deletions, and the leftmost node (highest priority) is cached for O(1) access.
+- **Real-Time Classes:** Linux supports POSIX real-time classes (`SCHED_FIFO` and `SCHED_RR`) which run at higher priorities than standard CFS tasks (priority range 0-99 vs. 100-139 for CFS).
+- **Scheduling Domains:** Linux structures cores into nested domains (e.g., sharing L1, L2, L3 caches) to ensure load balancing is NUMA-aware, preventing performance penalties by limiting thread migration across remote memory nodes.
+
+**Windows Scheduling** Windows uses a priority-based, preemptive dispatcher using a 32-level priority scheme.
+
+- **Classes:** Thread priorities are split into the variable class (levels 1-15) and the real-time class (16-31). Priority 0 is reserved for memory management.
+- **Priority Boosting:** Windows dynamically increases the priority of variable-class threads returning from wait operations (e.g., keyboard I/O gets a large boost, disk I/O a moderate one). It also boosts the quantum of the foreground window by a factor of 3 to improve interactive performance.
+- **User-Mode Scheduling (UMS):** Allows applications to create and schedule threads in user space without kernel intervention, utilizing libraries like Microsoft's Concurrency Runtime (ConcRT).
+- **SMT Sets and Ideal Processor:** Windows maps logical cores on hyperthreaded machines into SMT sets, attempting to schedule threads within the same SMT set to keep caches warm. Each process also assigns an incremented 'ideal processor' seed to distribute its threads evenly across distinct SMT sets.
+
+**Solaris Scheduling** Solaris uses priority-based thread scheduling, converting class-specific priorities into global priorities (0-159). It supports six scheduling classes:
+
+1. Time-Sharing (TS): Default class, dynamically adjusting priorities and time slices using a dispatch table.
+2. Interactive (IA): Similar to TS but optimized for windowing systems.
+3. Real-Time (RT): Highest global priorities (100-159).
+4. System (SYS): Runs non-changing kernel threads (e.g., scheduler, paging daemon).
+5. Fair Share (FSS): Allocates CPU shares instead of priorities to projects.
+6. Fixed Priority (FP): Same priority range as TS, but priorities are not dynamically adjusted.
+
+Interrupt service threads run outside of any scheduling class at the absolute highest global priority (levels 160-169).
+
+## **Algorithm Evaluation**
+
+How do system designers choose a CPU-scheduling algorithm? They rely on evaluation methods:
+
+**Deterministic Modeling** An analytical evaluation method that takes a predetermined, static workload and computes the exact performance of each algorithm for that workload.
+
+- **Pros:** Simple, fast, and provides exact comparative numbers.
+- **Cons:** Only applies to the specific, predefined workload. It is primarily used for illustrative and teaching purposes.
+
+**Queueing Models** Real-world workloads vary dynamically. We can model the system as a network of servers (the CPU, I/O devices), each with a queue of waiting processes. By measuring and approximating the distributions of arrival and service rates, we can perform **queueing-network analysis**.
+
+- **Little's Formula:** A fundamental equation in queueing theory that is valid for any scheduling algorithm and arrival distribution: `n = lambda * W` Where `n` is the average queue length, `lambda` is the average arrival rate of new processes, and `W` is the average waiting time in the queue.
+- **Limitations:** The mathematical models are often mathematically intractable for complex modern algorithms, forcing unrealistic assumptions that limit accuracy.
+
+**Simulations** To achieve higher accuracy, a software model of the system is programmed.
+
+- **Distribution-Driven Simulations:** Generate arrivals, CPU bursts, and departures using probability distributions (mathematical or empirical).
+- **Trace Files:** Created by monitoring real systems and recording the sequence of actual events. Running the simulation using trace files provides an exceptionally accurate way to compare different algorithms on realistic inputs.
+- **Cons:** Creating, debugging, and running simulations can be very expensive and time-consuming.
+
+**Implementation** The only completely accurate way to evaluate a scheduling algorithm is to build it, compile it into the operating system, and observe it in a real-world environment.
+
+- **Regression Testing:** Verifies that the new scheduler does not introduce bugs or degrade performance in existing OS modules.
+- **Complexity:** Modifying the OS kernel is difficult, and users may alter their behavior to game the scheduling algorithm (such as adding arbitrary terminal I/O to keep a process classified as interactive).
+
+## **Summary**
+
+Here is a summary of the key takeaways from this lesson:
+
+- **Schedules Optimize Resources:** Operating systems switch context between processes to maximize CPU utilization and balance criteria like throughput, turnaround time, waiting time, and response time.
+- **Core Algorithms:** FCFS is simple but susceptible to the convoy effect; SJF is optimal for average waiting times; RR is optimized for time-sharing using quanta; Priority scheduling uses numerical rankings and is prone to starvation (mitigated by aging).
+- **Advanced Queues:** Multilevel feedback queues partition tasks dynamically, promoting or demoting processes based on burst behavior.
+- **Multiprocessor Systems:** SMP utilizes private run queues to maintain processor affinity (warm caches) and implements load balancing via push/pull migrations. Multicore systems employ hardware multithreading to hide memory stalls.
+- **Real-Time Scheduling:** Hard real-time systems require bounded latencies. Static Rate-Monotonic scheduling limits utilization, while dynamic Earliest-Deadline-First is optimal and can reach up to 100% utilization.
+- **Production Implementations:** Linux CFS relies on virtual run time (`vruntime`) tracked inside a red-black tree; Windows employs a 32-level preemptive dispatcher with priority boosting; Solaris maps multiple scheduling classes (like TS, IA, RT) to a global priority range.
+- **Evaluation Methodologies:** Schedulers are analyzed using analytical models (including Little's formula: `n = lambda * W`), trace-driven simulations, or active live kernel testing.

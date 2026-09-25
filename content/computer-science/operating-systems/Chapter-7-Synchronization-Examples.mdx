@@ -1,0 +1,126 @@
+export const metadata = {
+	title: "Classic Synchronization Problems and Modern Concurrency",
+	description:
+		"An introduction to classic synchronization problems, kernel-level synchronization in Windows and Linux, POSIX and Java synchronization APIs, and alternative concurrency approaches such as transactional memory, OpenMP, and functional programming.",
+	order: 7,
+	draft: false,
+	tags: [
+		"computer science",
+		"operating systems",
+		"process synchronization",
+		"concurrency",
+		"POSIX",
+		"Java",
+		"transactional memory",
+	],
+};
+
+## Introduction
+
+Imagine five philosophers sitting around a table, starving to death because each has grabbed their left chopstick and is waiting indefinitely for their right. In the computing world, this nightmare is called a deadlock, and it occurs every day when threads compete for resources. How do modern operating systems and high-level languages prevent such chaos and keep execution running smoothly?
+
+### Key Learning Objectives:
+
+- Analyze and implement solutions for classic synchronization problems: Bounded-Buffer, Readers-Writers, and Dining-Philosophers.
+- Compare kernel-level synchronization designs in Windows and Linux.
+- Utilize POSIX APIs for mutexes, semaphores, and condition variables.
+- Leverage Java's robust synchronization tools, from built-in monitors to ReentrantLocks.
+- Evaluate alternative concurrency approaches, including Transactional Memory, OpenMP, and Functional Programming.
+
+## Classic Problems of Synchronization
+
+Concurrency control schemes are traditionally tested against a suite of classic synchronization problems. Traditionally solved using semaphores, these problems test a primitive's capability to safely coordinate processes without causing deadlocks or starvation.
+
+**The Bounded-Buffer Problem** Also known as the producer-consumer problem, this scenario involves a pool of $n$ buffers, each capable of holding one item. A producer process generates data for the buffer, while a consumer process consumes it. To safely coordinate access, three semaphores are utilized:
+
+- `mutex`: A binary semaphore (initialized to 1) providing mutual exclusion for buffer pool access.
+- `empty`: A counting semaphore (initialized to $n$) tracking empty buffer slots.
+- `full`: A counting semaphore (initialized to 0) tracking filled buffer slots.
+
+The producer waits for an empty slot, locks the buffer, inserts an item, unlocks, and signals that a slot is full. The consumer does the exact opposite in a symmetric fashion.
+
+**The Readers–Writers Problem** This problem models a shared database where some processes only read data (**readers**) and others update it (**writers**). Simultaneous read access is harmless, but simultaneous write access (or a reader and writer acting together) causes data corruption.
+
+- **First Readers-Writers Problem:** No reader is kept waiting unless a writer already has exclusive access. This can lead to writer starvation if a continuous stream of readers keeps arriving.
+- **Second Readers-Writers Problem:** Once a writer is ready, it must write as soon as possible, blocking any new readers. This can lead to reader starvation.
+
+A classic solution to the first problem uses a tracking variable, `read_count` (how many readers are active), protected by a `mutex` semaphore, and a shared `rw_mutex` semaphore to ensure exclusive access for writers. This concept is generalized in modern OSs as **reader-writer locks**, which are highly efficient for systems with many readers and few writers.
+
+**The Dining-Philosophers Problem** Five philosophers sit around a circular table with a bowl of rice and five single chopsticks. A philosopher needs both adjacent chopsticks to eat.
+
+- **Semaphore Solution:** Each chopstick is represented by a semaphore. If all five philosophers get hungry simultaneously and pick up their left chopstick, they will block indefinitely waiting for their right chopstick, resulting in a **deadlock**.
+- **Deadlock Remedies:** Limit the table to four concurrent philosophers, allow chopstick acquisition only if both are available (within a critical section), or use an asymmetric approach (e.g., odd-numbered philosophers pick up left first, even-numbered pick up right first).
+- **Monitor Solution:** A deadlock-free monitor solution tracks state (`THINKING`, `HUNGRY`, `EATING`) for each philosopher. A philosopher can transition to `EATING` only if neither neighbor is eating. If a philosopher is hungry but cannot eat, they wait on a condition variable specific to themselves.
+
+## Synchronization within the Kernel
+
+Operating system kernels must manage their own resource access across different computer architectures.
+
+**Synchronization in Windows** Windows is a multithreaded kernel supporting real-time systems and multiple processors.
+
+- **Uniprocessor Systems:** Access to global resources is protected by temporarily masking interrupts for interrupt handlers.
+- **Multiprocessor Systems:** Windows uses spinlocks to protect short code segments. The kernel ensures a thread is never preempted while holding a spinlock.
+- **Thread Synchronization:** Outside the kernel, Windows uses **dispatcher objects**. These can be in a **signaled state** (available, thread will not block) or a **nonsignaled state** (unavailable, thread blocks). Dispatcher objects include mutex locks, semaphores, events (similar to condition variables), and timers.
+- **Critical-Section Objects:** A highly efficient user-mode mutex. It uses a spinlock first; if the spin is too long, it allocates a kernel mutex. This avoids kernel intervention when there is low contention.
+
+**Synchronization in Linux** Prior to Version 2.6, Linux was nonpreemptive. Today, it is fully preemptive.
+
+- **Atomic Integers:** The simplest lockless mechanism using the opaque data type `atomic_t`. Math operations occur in a single, uninterrupted clock cycle without locking overhead.
+- **Mutexes and Spinlocks:** Mutex locks are used for protecting critical sections. Spinlocks are the primary tool on Symmetric Multiprocessing (SMP) architectures and are held only for brief durations. Both spinlocks and mutexes in Linux are **nonrecursive**.
+- **Preemption Control:** On single-processor systems, spinlocks are useless because a spinning thread would prevent the lock-holder from running. Thus, Linux replaces spinlocks on single cores by disabling kernel preemption (`preempt_disable()` and `preempt_enable()`). The kernel tracks the number of locks a task holds using a `preempt_count` counter. Preemption is blocked if `preempt_count > 0`.
+
+## POSIX Synchronization
+
+The POSIX API is standard for user-level application developers on UNIX, Linux, and macOS.
+
+**POSIX Mutex Locks** Mutex locks are defined by the `pthread_mutex_t` data type and initialized using `pthread_mutex_init()`. A thread gains exclusive access by calling `pthread_mutex_lock()`, which blocks other threads until `pthread_mutex_unlock()` is invoked.
+
+**POSIX Semaphores** POSIX supports two types of semaphores under the POSIX SEM extension:
+
+- **POSIX Named Semaphores:** Created and opened via `sem_open()`. Because they have a global system name (e.g., "SEM"), multiple unrelated processes can open them to synchronize.
+- **POSIX Unnamed Semaphores:** Initialized using `sem_init()`. They are faster and shared among threads of the same process (or across processes if placed in shared memory), but do not have a filesystem name.
+- **Operations:** Both use `sem_wait()` (equivalent to wait) and `sem_post()` (equivalent to signal).
+
+**POSIX Condition Variables** Since the C language lacks monitors, Pthreads pairs condition variables (`pthread_cond_t`) with a mutex lock to protect shared conditional data from race conditions. A thread locks the associated mutex, checks its condition, and calls `pthread_cond_wait()` if the condition is unmet. This atomically releases the mutex and blocks the thread. Another thread modifies the data, calls `pthread_cond_signal()` (or `pthread_cond_broadcast()`), and releases the mutex. The waiting thread then awakens, automatically reacquires the mutex, and resumes.
+
+## Synchronization in Java
+
+Java provides both language-level and API-level support for thread synchronization.
+
+**Java Monitors** Every object in Java has a single associated lock. Marking a method with the `synchronized` keyword requires the calling thread to own that object's lock.
+
+- **Entry Set:** If a thread calls a synchronized method while another thread holds the lock, it is put in the lock's **entry set** (blocked).
+- **Wait Set:** If a thread inside a synchronized method cannot proceed, it calls `wait()`. This releases the lock, blocks the thread, and moves it to the object's **wait set**.
+- **Notification:** When another thread calls `notify()`, one arbitrary thread is moved from the wait set to the entry set, where it can compete for the lock again.
+- **Block Synchronization:** Java also allows synchronizing a specific block of code inside a method to minimize lock scope.
+
+**Reentrant Locks** An API-level alternative to synchronized blocks is `ReentrantLock`. It acts similarly but adds features like a _fairness_ parameter (granting the lock to the longest-waiting thread). Because it is **reentrant**, a thread can acquire the same lock multiple times without deadlocking itself. For safety, the `unlock()` call must be placed in a `finally` block to guarantee release.
+
+**Semaphores and Condition Variables in Java**
+
+- **Semaphores:** Java provides a counting `Semaphore` class with `acquire()` and `release()` methods.
+- **Condition Variables:** Java allows creating specific conditions from a lock using `lock.newCondition()`. Unlike built-in monitors which only have one unnamed condition variable per object, this allows threads to wait on and signal **named** conditions, reducing unnecessary thread wakeups.
+
+## Alternative Approaches
+
+With the rise of multicore architectures, designing locking structures using standard primitives is increasingly difficult. Alternative techniques aim to simplify this design space.
+
+**Transactional Memory** Borrowed from database theory, a **memory transaction** is an atomic sequence of memory read-write operations.
+
+- **How it works:** Programmers wrap code blocks in an `atomic{}` construct. The runtime system executes the operations. If conflicts occur (e.g., another thread writes to a variable being read), the transaction is aborted and rolled back. If no conflict occurs, the transaction commits.
+- **Benefits:** No locks are held, eliminating the possibility of deadlocks. It scales better as the number of threads increases.
+- **Implementation:** **Software Transactional Memory (STM)** implements transactions via compiler-inserted instrumentation code. **Hardware Transactional Memory (HTM)** uses modified processor cache hierarchies and coherency protocols, incurring lower overhead than STM.
+
+**OpenMP** OpenMP is a compiler-directive-driven API for parallel programming in shared-memory environments. To protect a critical section from race conditions, developers use the `#pragma omp critical` compiler directive. OpenMP handles the low-level locking automatically, making it highly accessible, though developers must still manually identify critical regions and can still experience deadlocks if nesting multiple critical regions.
+
+**Functional Programming Languages** Imperative languages (C, Java) are state-based, where program state changes via variable mutation. By contrast, **functional programming languages** (like Erlang and Scala) disallow mutable state. Once a variable is assigned a value, it is immutable. Because state cannot change, race conditions and deadlocks are impossible. This eliminates the need for typical synchronization mechanisms entirely.
+
+## Summary
+
+### Key Takeaways:
+
+- **Classic Problems:** The Bounded-Buffer, Readers-Writers, and Dining-Philosophers problems serve as fundamental test beds for synchronization primitives.
+- **Kernel Mechanisms:** Windows synchronizes using dispatcher objects (mutexes, semaphores, events) and critical sections, whereas Linux relies on atomic integers, spinlocks, and disabling kernel preemption.
+- **POSIX Tools:** Pthreads provides mutexes and condition variables at the user level, alongside both Named (cross-process) and Unnamed (intra-process) semaphores.
+- **Java Solutions:** Java offers robust language-level monitors (`synchronized`, `wait`, `notify`) alongside highly flexible API tools like `ReentrantLock` and custom `Condition` variables.
+- **Modern Alternatives:** Transactional memory, OpenMP directives, and functional programming languages with immutable states aim to simplify concurrency and mitigate locking bugs.

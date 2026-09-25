@@ -1,0 +1,281 @@
+export const metadata = {
+	title: "Processes and Interprocess Communication",
+	description:
+		"An introduction to processes, process memory and control blocks, scheduling and context switching, process creation and termination, interprocess communication, pipes, sockets, and remote procedure calls.",
+	order: 3,
+	draft: false,
+	tags: [
+		"computer science",
+		"operating systems",
+		"processes",
+		"process scheduling",
+		"interprocess communication",
+		"IPC",
+	],
+};
+
+## **Introduction**
+
+How does a single computer chip simultaneously run your web browser, stream music, and compile code without missing a beat? Modern operating systems achieve this illusion of seamless multitasking through the powerful abstraction of a **process**—a program in execution. In this lesson, you will master how processes are structured, scheduled, and made to cooperate in complex modern systems.
+
+### **Learning Objectives**
+
+- **Analyze** the memory layout and representation of a process (including the Process Control Block).
+- **Contrast** the mechanisms of process scheduling, context switching, and state transitions.
+- **Examine** process creation and termination behaviors across UNIX, Linux, and Windows platforms.
+- **Deconstruct** Interprocess Communication (IPC) models, focusing on shared memory, message-passing, and pipes.
+- **Evaluate** client-server communication methods, including network sockets and Remote Procedure Calls (RPCs).
+
+## **The Process Concept**
+
+A program by itself is a passive entity—such as an executable file stored on disk. A **process**, on the other hand, is an active entity with a program counter specifying the next instruction to execute, along with a set of associated system resources.
+
+When an executable file is loaded into memory, it is divided into four distinct sections:
+
+- **Text Section:** Contains the compiled, executable machine code.
+- **Data Section:** Stores global and static variables. This is often subdivided into initialized and uninitialized data (historically known as the BSS segment).
+- **Heap Section:** Represents memory dynamically allocated during run time (e.g., using `malloc` in C or `new` in Java).
+- **Stack Section:** Offers temporary storage for function parameters, local variables, and return addresses (pushed as "activation records" on function calls and popped upon return).
+
+While the text and data sections are fixed in size, the stack and heap sections grow dynamically toward each other during program execution. The operating system must ensure they do not overlap.
+
+As a process executes, it moves through distinct operating system **states** defined by its current activity:
+
+- **New:** The process is in the middle of being created.
+- **Running:** Instructions are currently being executed by a CPU core.
+- **Waiting:** The process is idle, awaiting some external event (such as an I/O completion or receiving a signal).
+- **Ready:** The process is waiting to be assigned to a processor core.
+- **Terminated:** The process has finished execution.
+
+Only one process can run on a single CPU core at any given instant, though many processes can reside in the _ready_ and _waiting_ states.
+
+### **The Process Control Block (PCB)**
+
+Each process is represented in the kernel by a **Process Control Block** (also called a Task Control Block). The PCB serves as the repository for all state info required to start or restart a process:
+
+- **Process State:** Indicates if the process is new, ready, running, waiting, or halted.
+- **Program Counter:** Stores the memory address of the next instruction to execute.
+- **CPU Registers:** Includes accumulators, stack pointers, and general-purpose registers that must be saved when interrupts occur.
+- **CPU-Scheduling Information:** Incorporates process priority, pointers to scheduling queues, and other parameters.
+- **Memory-Management Information:** Holds segment tables, page tables, or base/limit register values.
+- **Accounting & I/O Status:** Tracks CPU run time, limits, list of open files, and allocated I/O devices.
+
+In Linux, the PCB is represented by the C structure `struct task_struct`, maintained in a doubly linked list of all active tasks. The kernel keeps a pointer named `current` referencing the process currently running on the core.
+
+### **Threads**
+
+The traditional process model assumes a process executes a single thread of control. To perform multiple tasks concurrently (e.g., typing in a word processor while running a spell checker), modern operating systems support **threads**. On systems that support threads, the PCB is expanded to store individual execution state and register information for each thread of control.
+
+## **Process Scheduling**
+
+The goal of multiprogramming is to maximize CPU utilization by keeping some process running at all times. Time-sharing aims to switch CPU cores among processes so rapidly that users can interact with each program dynamically.
+
+To manage this, the **process scheduler** selects available processes to execute on physical CPU cores. The number of processes currently residing in memory is referred to as the **degree of multiprogramming**. Most processes alternate between **I/O-bound** phases (spending most time doing I/O operations) and **CPU-bound** phases (spending time executing calculations).
+
+### **Scheduling Queues**
+
+Processes migrate among various queues during their lifecycles:
+
+- **Ready Queue:** A linked list containing all processes residing in main memory that are ready and waiting to execute on a CPU core.
+- **Wait Queues:** Linked lists containing processes that are blocked, waiting for a specific resource or event (like I/O completion or child termination).
+
+When a process is allocated a CPU core, it executes until it is interrupted, initiates an I/O request (moving to a wait queue), spawns a child and waits (moving to a wait queue), or is forcibly removed due to time-slice expiration (moving back to the ready queue).
+
+Sometimes, systems employ **swapping**, which temporarily removes processes from memory to disk to reduce the degree of multiprogramming when physical memory is overcommitted.
+
+### **The Context Switch**
+
+Interrupts prompt the operating system to switch a CPU core from its current task to run a kernel routine. Suspending a process and resuming it later requires saving its context. This operation is known as a **context switch**.
+
+During a context switch, the kernel performs a **state save** of the currently running process into its PCB and a **state restore** of the newly scheduled process from its PCB.
+
+Context-switch time is pure system overhead because the CPU does no useful work while switching. Its duration depends directly on hardware support (such as processors containing multiple register sets, which allow switching contexts by simply changing a register pointer) and the complexity of the OS memory-management system.
+
+## **Operations on Processes**
+
+Operating systems identify processes using a unique integer called a **Process Identifier (PID)**. This PID provides an index to access process attributes inside the kernel. In modern Linux distributions, the `systemd` process (which always takes PID 1) acts as the root parent process for all user processes.
+
+### **Process Creation**
+
+When a process spawns a child process, the execution can proceed in two ways:
+
+1. The parent executes concurrently with the child.
+2. The parent blocks, waiting for the child to terminate.
+
+There are also two structural choices for the child's address space:
+
+1. The child is an exact clone of the parent (inheriting duplicate memory values and variables).
+2. The child loads an entirely new program.
+
+In UNIX/Linux systems, process creation is implemented using the `fork()` system call. `fork()` creates an exact duplicate copy of the parent process. It returns `0` to the child process and returns the actual (non-zero) PID of the child to the parent. Typically, the child then executes the `exec()` system call (such as `execlp()`), which overwrites its entire address space with a new binary program. The parent can coordinate using the `wait()` system call to pause its own execution until the child exits.
+
+In Windows, process creation is handled by the `CreateProcess()` API call. Unlike `fork()`, `CreateProcess()` requires loading a specified program into the child's address space at creation time and expects ten distinct parameters (including `STARTUPINFO` and `PROCESS_INFORMATION` structures).
+
+### **Process Termination**
+
+A process terminates by invoking the `exit()` system call, returning an integer status value to its parent. The OS then reclaims all of its physical and virtual memory, open file descriptors, and I/O buffers.
+
+If a parent process terminates, some operating systems execute **cascading termination**, where all child processes are forcibly terminated.
+
+Two critical process termination states exist:
+
+- **Zombie Process:** A process that has finished execution but whose parent has not yet called `wait()`. Its entry must remain in the kernel's process table so the parent can read the exit status.
+- **Orphan Process:** A process whose parent has terminated without calling `wait()`. Traditional UNIX systems address this by assigning the `init` (or `systemd`) process as the new parent, which periodically invokes `wait()` to collect status and release the orphan's entry.
+
+### **Android Process Hierarchy**
+
+Due to resource constraints, mobile OS architectures like Android group processes into an **importance hierarchy** to decide which processes to terminate when resources run low. From most to least important, these are:
+
+1. **Foreground Process:** The active application visible on screen that the user is interacting with.
+2. **Visible Process:** A process performing background tasks whose status is actively displayed in the foreground.
+3. **Service Process:** A process performing an ongoing activity visible to the user (like streaming music).
+4. **Background Process:** A process performing a task hidden from the user.
+5. **Empty Process:** A process with no active components, held in memory purely to speed up subsequent launch times.
+
+## **Interprocess Communication (IPC)**
+
+Processes executing concurrently can be either _independent_ (cannot affect or be affected by other processes) or _cooperating_ (can affect or be affected). Cooperation is essential for information sharing, computation speedup, and system modularity.
+
+Cooperating processes require an **Interprocess Communication (IPC)** mechanism. The two fundamental IPC models are:
+
+- **Shared Memory:** A region of physical memory is mapped into the address spaces of cooperating processes. They write and read directly from this space without kernel intervention, making it fast. However, developers must explicitly implement synchronization to prevent concurrent write conflicts.
+- **Message Passing:** Processes exchange messages via the operating system using explicit `send()` and `receive()` primitives. This model is easier to implement in distributed networks and avoids data conflicts but is slower because it requires system call overhead for every transmission.
+
+### **Shared Memory and the Producer-Consumer Problem**
+
+A standard paradigm for cooperating processes is the **Producer-Consumer** problem. A producer process creates information that is consumed by a consumer process.
+
+This is solved in shared memory using a shared buffer implemented as a circular array with two pointers, `in` and `out`:
+
+- `in` points to the next free position in the buffer.
+- `out` points to the first full position in the buffer.
+- The buffer is **empty** when `in == out`.
+- The buffer is **full** when `((in + 1) % BUFFER_SIZE) == out`.
+
+Two types of buffers can be used:
+
+1. **Unbounded Buffer:** Has no size limit; the producer can always write.
+2. **Bounded Buffer:** Has a fixed size; the producer must block if the buffer is full, and the consumer must block if the buffer is empty.
+
+### **Message-Passing Systems**
+
+Message-passing systems must establish a logical **communication link** before data transfer occurs.
+
+Developers design communication links using three structural choices:
+
+#### **1. Naming**
+
+- **Direct Communication:** Each process must explicitly name the recipient or sender. Primitives are defined as `send(P, message)` and `receive(Q, message)`. If using _asymmetrical naming_, only the sender names the recipient: `receive(id, message)`.
+- **Indirect Communication:** Messages are sent to and received from shared mailboxes or ports. Primitives are defined as `send(A, message)` and `receive(A, message)` where `A` is the mailbox identifier.
+
+#### **2. Synchronization**
+
+- **Blocking (Synchronous):** A `blocking se` `nd` stalls the sender until the message is received. A `blocking receive` stalls the receiver until a message is available.
+- **Nonblocking (Asynchronous):** A `nonblocking send` allows the sender to transmit the message and resume. A `nonblocking receive` retrieves a valid message or a null value immediately.
+
+#### **3. Buffering**
+
+- **Zero Capacity:** The queue length is 0. The link cannot hold messages. The sender must block until the receiver retrieves the data (known as a _rendezvous_).
+- **Bounded Capacity:** The queue holds a finite length `n`. The sender blocks only if the queue is full.
+- **Unbounded Capacity:** The queue length is infinite. The sender never blocks.
+
+## **Examples of IPC Systems**
+
+To see how these concepts are applied in practice, we look at several real-world IPC implementations:
+
+### **POSIX Shared Memory**
+
+POSIX systems use memory-mapped files to implement shared memory:
+
+1. `fd = shm_open(name, O_CREAT | O_RDWR, 0666)`: Creates or opens a shared-memory object and returns an integer file descriptor.
+2. `ftruncate(fd, size)`: Configures the shared memory object size in bytes.
+3. `mmap(..., fd, ...)`: Maps the shared memory file into the process's local virtual address space.
+4. `shm_unlink(name)`: Removes the shared-memory segment from the system.
+
+### **Mach Message Passing**
+
+In the Mach kernel (which underlies macOS and iOS), communication occurs via unidirectional mailboxes called **ports**.
+
+- Tasks must possess specific **port rights** (like `MACH_PORT_RIGHT_RECEIVE` or `MACH_PORT_RIGHT_SEND`) to interact with ports.
+- Systems use the unified `mach_msg()` function to send or receive messages.
+- To improve performance, Mach uses virtual-memory mapping techniques: it maps the sender's message pages directly into the receiver's address space, avoiding copy operations.
+
+### **Windows Advanced Local Procedure Calls (ALPC)**
+
+Windows uses the ALPC facility for message-passing between processes on the same machine. It selects one of three transfer strategies based on message size:
+
+1. **Small Messages (< 256 bytes):** Copied directly into the port's message queue.
+2. **Medium Messages:** Passed through a **section object** (a region of shared memory).
+3. **Large Messages:** The server reads and writes directly into the client's virtual address space.
+
+### **Pipes**
+
+Pipes act as communication conduits. They are categorized into two types:
+
+#### **Ordinary Pipes**
+
+Ordinary pipes allow unidirectional, half-duplex communication in standard producer-consumer fashion. They require a parent-child relationship.
+
+- **UNIX Pipes:** Created using the system call `pipe(int fd[])`. The array returns two file descriptors: `fd[0]` is the read end, and `fd[1]` is the write end. A child process automatically inherits these file descriptors from its parent during a `fork()` call.
+- **Windows Anonymous Pipes:** Functionally identical to UNIX ordinary pipes, but handles must be explicitly passed to the child process via a configured `STARTUPINFO` structure.
+
+#### **Named Pipes**
+
+Named pipes are more powerful communication tools that do not require a parent-child relationship, are persistent, and support multiple concurrent writers.
+
+- **UNIX FIFOs:** Created using `mkfifo()`. They appear as normal files in the filesystem and support bidirectional, half-duplex communication.
+- **Windows Named Pipes:** Created using `CreateNamedPipe()`. They support full-duplex communication and can transmit data across networks between different machines.
+
+## **Client-Server Communication**
+
+Distributed systems require communication mechanisms that operate across networks:
+
+### **Sockets**
+
+A **socket** is an endpoint for network communication. A network connection consists of a unique pair of sockets, each defined by an IP address concatenated with a port number.
+
+Standard services listen on **well-known ports** (all ports below 1024 are reserved, such as HTTP on port 80 and SSH on port 22). When a client initiates a connection, its OS assigns it an ephemeral port number greater than 1024.
+
+Java abstractly represents sockets with three classes:
+
+1. `Socket` (for connection-oriented TCP communication).
+2. `DatagramSocket` (for connectionless UDP communication).
+3. `MulticastSocket` (for transmitting data to multiple recipients).
+
+Hosts use the special loopback IP address `127.0.0.1` to communicate with local processes running on the same machine.
+
+### **Remote Procedure Calls (RPCs)**
+
+An **RPC** allows a client to invoke a procedure on a remote host as if it were a local function call. The RPC system hides the underlying network details using two abstractions:
+
+- **Client-side Stub:** Locates the remote server, packs (marshals) the arguments, and transmits the network message.
+- **Server-side Stub:** Receives the message, unpacks (unmarshals) the arguments, and invokes the actual server procedure.
+
+#### **Argument Marshaling and XDR**
+
+Because computer architectures represent data differently, RPC systems must resolve differences like endianness (e.g., **big-endian** vs. **little-endian** byte ordering). They solve this by translating local variables into a machine-independent format called **External Data Representation (XDR)** during marshaling.
+
+#### **Invocation Semantics**
+
+To address packet loss and network failures, RPC protocols must implement reliable delivery semantics:
+
+- **At-Most-Once:** Messages are assigned timestamps; the server tracks processed timestamps to ensure a duplicate message is ignored.
+- **Exactly-Once:** Requires "At-Most-Once" plus explicit acknowledgment (ACK) messages sent from the server back to the client.
+
+#### **Dynamic Binding**
+
+Clients locate server ports using a dynamic matchmaker daemon. The client queries the matchmaker on a fixed port to obtain the server's dynamic port, and then executes RPC commands directly to that dynamic port.
+
+#### **Android RPC**
+
+Android uses RPCs as a form of IPC between processes running on the same system. Using the **Binder Framework**, a process binds to a service. Interfaces are defined using **Android Interface Definition Language (AIDL)**, which compiles `.aidl` files into Java interfaces and stubs that automatically handle parameter marshaling between distinct application processes.
+
+## **Summary**
+
+### **Key Takeaways**
+
+- **A process is an active, executing program** mapped into memory segments (Text, Data, Heap, Stack) and managed by a Process Control Block (PCB).
+- **The process scheduler optimizes CPU execution** using queues (Ready and Wait) and relies on context switching to swap executing processes.
+- **Process operations include creation (** **fork** **/** **CreateProcess** **) and termination**, which can lead to Zombie or Orphan states.
+- **Interprocess Communication (IPC) is split between Shared Memory** (fast, requires user synchronization) and **Message Passing** (reliable, higher system overhead).
+- **Pipes, Sockets, and RPCs extend IPC** into network environments, allowing isolated processes to cooperate seamlessly.

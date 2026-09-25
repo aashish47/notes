@@ -1,0 +1,312 @@
+export const metadata = {
+	title: "Process Synchronization",
+	description:
+		"An introduction to race conditions, critical sections, synchronization primitives, mutexes, semaphores, monitors, and liveness problems such as deadlock and priority inversion.",
+	order: 6,
+	draft: false,
+	tags: [
+		"computer science",
+		"operating systems",
+		"process synchronization",
+		"race conditions",
+		"mutex",
+		"semaphores",
+		"deadlock",
+	],
+};
+
+## Introduction
+
+Imagine sharing a single notepad with a colleague, where you both write and erase notes simultaneously. Without rules, your final notes would quickly become an illegible mess. In modern multi-core operating systems, this exact chaos is known as a **race condition**—and preventing it is the only thing standing between a smoothly running computer and total system corruption.
+
+In this lesson, you will master the principles of process synchronization:
+
+- **Identify and describe** the critical-section problem and how race conditions corrupt shared data.
+- **Compare** hardware-level synchronization primitives, including memory barriers, atomic operations, and compare-and-swap (CAS) instructions.
+- **Evaluate** high-level software tools like mutex locks, semaphores, and monitors.
+- **Diagnose and solve** liveness failures like deadlocks and priority inversion, choosing the right tool for different contention workloads.
+
+## Background and the Bounded-Buffer Dilemma
+
+Processes in an operating system can execute concurrently or in parallel. While concurrent execution maximizes CPU utilization by rapidly switching between processes, it also means a process can be interrupted at any point in its instruction stream. When cooperating processes directly share a logical address space or data buffer, this lack of control over execution timing can result in **data inconsistency**.
+
+Consider a classic operating system paradigm: the **bounded-buffer problem**, which models a producer process inserting items into a buffer and a consumer process removing them. Suppose we introduce a shared integer variable, `count`, initialized to 5, to keep track of the number of items in the buffer.
+
+When the producer adds an item, it executes: `count++;`
+
+When the consumer removes an item, it executes: `count--;`
+
+Independently, both statements are correct. However, if they are executed concurrently, the final value of `count` could be 4, 5, or 6! The only correct result is 5.
+
+To understand why, we must look at how these high-level statements are translated into assembly-level register operations on a typical CPU:
+
+**Producer (\*\***count++\***\*):**
+
+1. `register1 = count`
+2. `register1 = register1 + 1`
+3. `count = register1`
+
+**Consumer (\*\***count--\***\*):**
+
+1. `register2 = count`
+2. `register2 = register2 - 1`
+3. `count = register2`
+
+If the CPU scheduler interleaves these instructions, we can experience a race condition. For example:
+
+- **T0:** Producer executes `register1 = count` (register1 = 5)
+- **T1:** Producer executes `register1 = register1 + 1` (register1 = 6)
+- **T2:** Consumer executes `register2 = count` (register2 = 5)
+- **T3:** Consumer executes `register2 = register2 - 1` (register2 = 4)
+- **T4:** Producer executes `count = register1` (count = 6)
+- **T5:** Consumer executes `count = register2` (count = 4)
+
+Because the operations were interleaved, the consumer overwrote the producer's work, leaving `count` at an incorrect value of 4.
+
+A **race condition** occurs whenever multiple processes access and manipulate the same data concurrently, and the outcome of the execution depends entirely on the specific order in which the access takes place.
+
+## The Critical-Section Problem
+
+To prevent race conditions, we must coordinate cooperating processes. The code block where a process accesses and updates shared data is called its **critical section**.
+
+The challenge of designing protocols to ensure that no two processes execute in their critical sections simultaneously is called the **critical-section problem**.
+
+A typical process structure contains four distinct sections:
+
+- **Entry Section:** Where the process requests permission to enter its critical section.
+- **Critical Section:** Where the shared data is manipulated.
+- **Exit Section:** Where the process signals that it has finished with the critical section.
+- **Remainder Section:** The remaining unshared code.
+
+Any valid solution to the critical-section problem must satisfy three strict requirements:
+
+1. **Mutual Exclusion:** If process $P_i$ is executing in its critical section, then no other processes can be executing in their critical sections.
+2. **Progress:** If no process is executing in its critical section and some processes wish to enter, only those processes not executing in their remainder sections can participate in deciding which process enters next. This selection cannot be postponed indefinitely.
+3. **Bounded Waiting:** There must be a limit on the number of times other processes can enter their critical sections after a process has requested entry and before that request is granted.
+
+Operating system kernels are highly prone to race conditions because many kernel-mode processes are active at once, modifying shared structures like memory allocation tables, process lists, or file lists.
+
+To handle this, kernels are generally designed in one of two ways:
+
+- **Preemptive Kernels:** Allow a process running in kernel mode to be preempted. This makes the system highly responsive but makes synchronization complex and difficult to design, particularly on Symmetric Multiprocessing (SMP) architectures.
+- **Nonpreemptive Kernels:** Prevent preemption while running in kernel mode. A process runs until it voluntarily exits the kernel, blocks, or yields control. This design is inherently free from kernel-level race conditions but is less responsive.
+
+## Peterson's Solution
+
+Peterson's solution is a classic software-based solution to the critical-section problem. Although modern hardware architectures do not guarantee that it will execute correctly, it remains an excellent algorithmic model for studying process synchronization.
+
+Peterson's solution is restricted to two processes, $P_0$ and $P_1$. For convenience, when describing process $P_i$, we refer to the other process as $P_j$ (where $j = 1 - i$).
+
+The two processes share two main variables:
+
+- `int turn;` — Indicates whose turn it is to enter the critical section.
+- `boolean flag[2];` — Used to indicate if a process is ready to enter its critical section (e.g., if `flag[i]` is true, $P_i$ is ready).
+
+The algorithm for process $P_i$ is structured as follows:
+
+```
+while (true) {
+    flag[i] = true;
+    turn = j;
+    while (flag[j] && turn == j) {
+        /* busy wait */
+    }
+
+    /* CRITICAL SECTION */
+
+    flag[i] = false;
+
+    /* REMAINDER SECTION */
+}
+```
+
+When $P_i$ wants to enter, it sets its own flag to `true` and then generously sets the `turn` to $P_j$. If both processes attempt to enter at once, `turn` will be set to both $i$ and $j$ almost simultaneously, but only one assignment will persist. The final value of `turn` determines which process enters first.
+
+Why does this solution fail on modern hardware? To improve performance, modern processors and compilers frequently reorder read and write operations that have no data dependencies.
+
+In single-threaded applications, this reordering is invisible and safe. However, in shared-memory multithreaded systems, if the processor reorders the first two assignment statements in Peterson's entry section (assigning `turn` before setting `flag[i]`), both processes can bypass the `while` loop check and enter their critical sections at the same time.
+
+## Hardware Support for Synchronization
+
+Because software-only solutions fail on modern hardware, we must turn to direct architectural support. Modern hardware provides three primary synchronization mechanisms: memory barriers, atomic hardware instructions, and atomic variables.
+
+### Memory Barriers
+
+How an architecture defines its memory visibility guarantees is its **memory model**. It can be **strongly ordered** (memory modifications are immediately visible to all processors) or **weakly ordered** (modifications may not be immediately visible).
+
+To enforce ordering, systems use **memory barriers** (or memory fences). When a memory barrier instruction is executed, the CPU guarantees that all preceding loads and stores are complete before any subsequent loads or stores are executed.
+
+### Hardware Instructions
+
+Many architectures provide special instructions that test and modify a word, or swap two words, **atomically** (as one uninterruptible unit). Two main abstractions are:
+
+1. **test_and_set()**: This instruction takes a boolean target, returns its original value, and sets the target to `true` atomically.
+2. **compare_and_swap()** **(CAS)**: This instruction operates on three operands: a expression `value`, an `expected` value, and a `new_value`. It sets `value` to `new_value` _only_ if `value == expected`, and always returns the original `value`.
+
+To enforce atomic execution on Intel x86 processors, the assembly instruction `cmpxchg` is prefixed with the `lock` keyword, which locks the system bus while the destination memory address is being updated.
+
+While a simple CAS-based lock satisfies mutual exclusion, it does not guarantee bounded waiting. To satisfy all three critical-section requirements, we can implement an algorithm that tracks process states using an array `boolean waiting[n]` and an integer `lock`.
+
+### Atomic Variables
+
+Atomic variables build upon CAS instructions to provide atomic updates on basic data types (integers, booleans). For example, incrementing an atomic variable uses a loop that repeatedly attempts a CAS operation until it succeeds without interference from other threads.
+
+While highly efficient for single updates (like counters), atomic variables do not solve more complex synchronization issues, such as those with multiple independent dependent variables.
+
+## Mutex Locks
+
+Operating-system designers build higher-level software tools on top of these hardware primitives. The simplest of these tools is the **mutex lock** (short for mutual exclusion).
+
+A mutex lock uses a boolean variable `available` to indicate if the lock is free. It provides two atomic functions:
+
+- **acquire()**: Attempts to claim the lock. If `available` is false, the calling thread blocks.
+- **release()**: Frees the lock, setting `available` to true.
+
+```
+acquire() {
+    while (!available) {
+        /* busy wait */
+    }
+    available = false;
+}
+```
+
+The main drawback of the implementation above is that it requires **busy waiting**. A thread attempting to acquire an unavailable lock must loop continuously, wasting valuable CPU cycles on single-core systems.
+
+Because of this looping behavior, mutex locks that busy-wait are called **spinlocks**.
+
+Despite the CPU waste, spinlocks have a major advantage: they do not require a **context switch**, which itself is a highly time-consuming operation. On multi-core systems, if a lock is only going to be held for a short duration, it is often faster to let a thread "spin" on one core while another thread finishes its critical section on another.
+
+A general rule of thumb is: if the lock is held for a duration shorter than two context switches, a spinlock is preferred over a sleeping lock.
+
+Locks are evaluated by their **contention**:
+
+- **Uncontended:** A thread attempts to acquire a lock that is currently available.
+- **Contended:** A thread attempts to acquire a lock that is already held, forcing it to block. This can be categorized as **high contention** (many threads competing) or **low contention** (few threads competing).
+
+## Semaphores
+
+A **semaphore** is a more robust synchronization tool that controls access to shared resources through an integer variable $S$. Apart from initialization, $S$ is accessed only through two standard atomic operations: `wait()` and `signal()` (originally named $P$ and $V$ by Edsger Dijkstra).
+
+### Semaphore Types
+
+- **Counting Semaphores:** The value of $S$ can range over an unrestricted domain. It is initialized to the number of available instances of a shared resource.
+- **Binary Semaphores:** The value of $S$ ranges only between 0 and 1, behaving identically to a mutex lock.
+
+### Usage
+
+Counting semaphores manage resource allocation. Each process wanting a resource calls `wait()`, which decrements $S$. When a resource is released, the process calls `signal()`, which increments $S$. If $S$ drops to 0, all resources are exhausted, and subsequent requestors will block until the count rises above 0.
+
+Semaphores can also solve sequencing problems. For instance, if statement $S_2$ in process $P_2$ must only run _after_ statement $S_1$ in process $P_1$, we can share a semaphore `synch` initialized to 0:
+
+**Process** $P_1$**:**
+
+```
+S1;
+signal(synch);
+```
+
+**Process** $P_2$**:**
+
+```
+wait(synch);
+S2;
+```
+
+### Implementation
+
+To eliminate busy waiting, we can redesign `wait()` and `signal()`. Instead of spinning, if a process executes `wait()` and finds the semaphore is not positive, it adds itself to a waiting list associated with the semaphore and calls `sleep()` to suspend itself.
+
+A separate process executing `signal()` removes a suspended process from the waiting list and calls `wakeup()` to transition it back to the ready queue.
+
+Under this non-busy-waiting implementation, the semaphore value can become **negative**. If $S$ is negative, its magnitude represents the exact number of processes currently waiting on that semaphore.
+
+## Monitors
+
+While semaphores are highly flexible, a single programmer error (such as swapping the order of `wait()` and `signal()`, or omitting one entirely) can lead to subtle, catastrophic, and hard-to-debug timing errors.
+
+To prevent these mistakes, programming languages like Java and C# incorporate high-level synchronization constructs called **monitors**.
+
+A monitor is an **abstract data type (ADT)** that encapsulates shared data with programmer-defined operations. The monitor construct guarantees that **only one process at a time can be active inside the monitor**, inherently enforcing mutual exclusion.
+
+To build tailor-made synchronization schemes inside a monitor, programmers use **condition variables**, defined as: `condition x, y;`
+
+The only operations that can be called on a condition variable are `wait()` and `signal()`:
+
+- **x.wait()**: Suspends the calling process until another process calls `x.signal()`.
+- **x.signal()**: Resumes exactly one suspended process. If no process is suspended, it has no effect (unlike a semaphore's signal, which always increments the state).
+
+If a process $P$ executes `x.signal()` and wakes up a suspended process $Q$, both cannot run simultaneously inside the monitor. Two design options exist to handle this:
+
+1. **Signal and Wait:** $P$ waits until $Q$ either leaves the monitor or blocks on another condition.
+2. **Sign\*\***al and Continue:\*\* $Q$ waits until $P$ leaves the monitor or blocks on another condition.
+
+Monitors can prioritize process resumption using **conditional waits** in the form `x.wait(c)`, where `c` is an integer **priority number**. When `x.signal()` is called, the process with the smallest priority number is resumed first. This is ideal for scheduling, such as in a custom resource allocator.
+
+## Liveness
+
+Using synchronization tools can cause processes to wait indefinitely. **Liveness** refers to the properties a system must satisfy to ensure that processes make active progress during their execution life cycle.
+
+Liveness failures degrade performance and responsiveness. Two classic liveness failures are deadlock and priority inversion.
+
+Deadlock
+
+Deadlock occurs when two or more processes are waiting indefinitely for an event that can only be triggered by one of the other waiting processes.
+
+Consider two processes, $P_0$ and $P_1$, accessing two semaphores, $S$ and $Q$, both initialized to 1:
+
+- $P_0$ **executes** `wait(S)`
+- $P_1$ **executes** `wait(Q)`
+- $P_0$ **executes** `wait(Q)` _(must block and wait for_ $P_1$_)_
+- $P_1$ **executes** `wait(S)` _(must block and wait for_ $P_0$_)_
+
+Neither process can execute its respective `signal()` operation, leaving both permanently blocked.
+
+### Priority Inversion
+
+Priority inversion is a scheduling anomaly that occurs when a high-priority process is blocked waiting for a resource currently held by a low-priority process, while a medium-priority process preempts the low-priority process, indirectly stalling the high-priority process.
+
+Let three processes have priorities $L < M < H$:
+
+1. $L$ acquires resource $S$.
+2. $H$ becomes runnable and requests $S$. $H$ must wait for $L$.
+3. $M$ becomes runnable and preempts $L$ (since $M > L$).
+4. Now, $L$ cannot finish using $S$ because it is preempted by $M$. Consequently, $H$ is forced to wait for $M$, violating the priority hierarchy.
+
+This exact failure crippled NASA's **Mars Pathfinder** spacecraft in 1997, causing frequent computer resets on Mars!
+
+To resolve this, systems implement a **priority-inheritance protocol**. Under this protocol, any process holding a resource required by a higher-priority process temporarily inherits that higher priority. This prevents medium-priority processes from preempting it. Once the resource is released, the process reverts to its original priority.
+
+## Evaluation
+
+Choosing the right synchronization mechanism is critical to performance on modern multi-core architectures.
+
+Hardware solutions like CAS are typically used to build highly scalable **lock-free** algorithms. CAS-based approaches are **optimistic**: they update a variable and then check for conflicts, retrying if a collision occurs. Traditional locks are **pessimistic**: they assume a conflict will occur and block access beforehand.
+
+### How do these strategies perform under different contention loads?
+
+- **Uncontended:** Both are fast, but CAS-based protection is slightly faster than traditional locks.
+- **Moderate Contention:** CAS is significantly faster than traditional locks. CAS loops succeed quickly, whereas traditional locking triggers heavy OS overhead by suspending threads and performing context switches.
+- **High Contention:** Traditional locks are faster. Under heavy load, CAS collision detection fails repeatedly, causing threads to spin endlessly in loops and waste CPU cycles, while traditional locks sleep waiting threads, freeing up CPU time.
+
+### General Architecture Guidelines
+
+- **Atomic Integers:** Highly efficient and lightweight; ideal for single updates like counters.
+- **Spinlocks:** Best on multi-core systems when the lock is held for extremely short durations (fewer than two context switches).
+- **Mutex Locks:** Simpler and require less overhead than semaphores; best for basic critical-section protection.
+- **Counting Semaphores:** Ideal for controlling access to a finite pool of resources.
+- **Reader-Writer Locks:** Best when many threads need to read shared data but write operations are rare, as they allow multiple concurrent readers.
+- **Monitors/Condition Variables:** Offer high-level simplicity and safety but introduce additional language-runtime overhead.
+
+## Summary
+
+Here are the key takeaways from this lesson on process synchronization:
+
+- **Race conditions** occur when concurrent data modification leads to inconsistent values. To prevent them, we must enforce **mutual exclusion** in critical sections.
+- Any solution to the critical-section problem must satisfy three rules: **mutual exclusion, progress, and bounded waiting**.
+- **Peterson's solution** is a classic software-only synchronization algorithm that fails on modern architectures due to compiler and processor **instruction reordering**.
+- Hardware primitives like **memory barriers**, atomic instructions (**test_and_set()** and **compare_and_swap()**), and **atomic variables** provide the foundation for robust synchronization.
+- **Mutex locks** protect critical sections using simple state variables, but implementing them with spinlocks can cause **busy waiting**.
+- **Semaphores** utilize an integer count to manage resource pools. They can be implemented with blocking queues to avoid busy waiting.
+- **Monitors** are high-level programming constructs that automatically enforce mutual exclusion and utilize **condition variables** for custom process coordination.
+- Improper synchronization causes **liveness failures**, including **deadlocks** (circular waiting) and **priority inversion** (high-priority tasks stalled by lower-priority ones, solved via **priority inheritance**).

@@ -1,0 +1,187 @@
+export const metadata = {
+	title: "Operating Systems",
+	description: "An introduction to operating systems, covering system organization, interrupts, memory and I/O management, multiprocessing, virtualization, security, kernel data structures, computing environments, and open-source operating systems.",
+	order: 1,
+	draft: false,
+	tags: ["computer science", "operating systems", "system software", "computer architecture"],
+};
+
+## Introduction
+
+Did you know that an operating system acts exactly like a government? It performs no useful function by itself; instead, it simply provides an organized, secure environment within which other programs can do useful work. In this lesson, we will uncover how this essential software manages complex hardware behind the scenes.
+
+### Learning Objectives
+
+- Describe the dual-mode execution of computer hardware (user mode vs. kernel mode) and how it protects the system.
+- Explain the mechanics of interrupts, direct memory access (DMA), and the storage hierarchy.
+- Distinguish between symmetric multiprocessing (SMP), non-uniform memory access (NUMA), and clustered systems.
+- Identify fundamental kernel data structures and explain how they support resource allocation.
+- Compare diverse computing environments, from real-time embedded systems to high-performance cloud networks.
+
+## What Operating Systems Do
+
+A computer system is divided into four main components: the **hardware**, the **operating system**, the **application programs**, and the **users**. The hardware (CPU, memory, storage, I/O devices) provides raw computing power. The applications (compilers, web browsers, databases) define how these resources solve user problems. The operating system (OS) acts as the intermediary, coordinating and controlling the hardware use among application programs.
+
+To understand the OS, we must look at it from two different perspectives:
+
+- **The User View**: This perspective depends heavily on the interface. For personal computers or laptops, the OS is optimized for **ease of use** and personal performance, with little concern for **resource utilization** (how hardware is shared). For mobile devices, the interface centers on touch screens or voice recognition (like Apple's Siri). For embedded computers in cars or home appliances, there is often no user view at all; they operate autonomously.
+- **The System View**: From the computer's perspective, the OS is a **resource allocator** and a **control program**. As an allocator, it manages conflicting requests for CPU time, memory space, storage, and I/O devices, distributing them fairly and efficiently. As a control program, it manages execution sequences to prevent errors and improper use, closely controlling the operations of I/O devices.
+
+**Defining the Operating System** There is no single, universally accepted definition of an OS. A common, technical definition is that the OS is the one program running at all times on the computer, commonly referred to as the **kernel**. Along with the kernel, systems include **system programs** (utilities associated with the OS but not part of the kernel), **middleware** (software frameworks that support database, graphics, or multimedia applications, common in mobile OSs like iOS and Android), and **application programs**.
+
+## Computer-System Organization
+
+A modern general-purpose computer consists of one or more CPUs and multiple device controllers connected via a common **system bus**, which provides access to shared memory. Each device controller is in charge of a specific physical device (like a disk drive or audio card) and maintains its own local buffer storage and special-purpose registers.
+
+To bridge the gap between hardware and software, the OS provides a **device driver** for each device controller. The driver exposes a uniform interface to the rest of the operating system, allowing the CPU and controllers to execute operations in parallel. To avoid data collisions, a memory controller synchronizes access to shared main memory.
+
+**The Role of Interrupts** Hardware devices must have a way to alert the CPU when they have finished an operation or require attention. This is done via an **interrupt**:
+
+1. The device controller **raises** an interrupt by asserting a signal on the physical **interrupt-request line**.
+2. The CPU **catches** the interrupt at the end of its current instruction execution cycle.
+3. The CPU stops what it is doing and **dispatches** execution to the appropriate **interrupt handler routine**.
+4. To do this quickly, the CPU uses an **interrupt vector**—a low-memory array of pointers indexed by a unique interrupt number, which directly contains the starting addresses of specific handlers.
+5. The handler saves the current CPU state (including registers and program counter), processes the request, clears the interrupt, restores the saved CPU state, and executes a 'return from interrupt' instruction to resume the interrupted task.
+
+CPUs use two interrupt lines: a **nonmaskable interrupt** (reserved for critical errors like unrecoverable memory faults) and a **maskable interrupt** (which can be temporarily disabled by the CPU before executing critical, non-interruptible instruction sequences). When there are more physical devices than vector slots, systems use **interrupt chaining**, where each vector entry points to a linked list of handlers that are called sequentially until the target device is found.
+
+**Storage Structure** The CPU can load instructions only from memory, specifically **main memory** (or RAM), which is implemented via volatile **dynamic random-access memory (DRAM)**.
+
+When a computer powers up, it runs a **bootstrap program** located in nonvolatile **firmware** (like EEPROM). The boot loader initializes registers, memory, and controllers, locates the OS kernel, and loads it into main memory.
+
+Most instruction-execution cycles follow the **von Neumann architecture**:
+
+- Fetch an instruction from memory and store it in the instruction register.
+- Decode the instruction.
+- Fetch any required operands from memory into internal registers.
+- Execute the instruction on the operands and write results back to memory.
+
+Because main memory is volatile and typically too small to hold all programs permanently, computers rely on **secondary storage** (such as hard-disk drives and nonvolatile memory/NVM electrical storage). This forms a storage hierarchy structured by capacity, speed, and cost. Faster, smaller, more expensive semiconductor-based volatile memory (registers, cache, main memory) sits closest to the CPU, while slower, larger, cheaper nonvolatile devices (NVM, hard disks, magnetic tapes) sit further away.
+
+**I/O Structure and Direct Memory Access (DMA)** Interrupt-driven I/O is highly efficient for low-speed devices, but moving bulk data (like storage sectors) byte-by-byte creates massive CPU overhead. To solve this, computers use **Direct Memory Access (DMA)**.
+
+The device driver sets up memory buffers, pointers, and counters for the I/O device. The device controller then transfers an entire block of data directly between its local buffer and main memory without CPU intervention. The controller generates only a single interrupt per completed _block_ of data, rather than per _byte_, freeing the CPU to execute other tasks concurrently.
+
+## Computer-System Architecture
+
+Computer systems are categorized by the number of general-purpose processors they use:
+
+- **Single-Processor Systems**: These systems contain one main CPU with a single processing core that executes general-purpose instruction sets and runs user processes. They may contain auxiliary, special-purpose processors (like keyboard or disk controllers), but because these do not run user processes, the system remains classified as single-processor. Truly single-processor systems are rare today.
+- **Multiprocessor Systems**: These systems contain two or more processors sharing a physical bus, clock, memory, and peripheral devices. Their primary benefit is increased throughput (though the speed-up ratio with $N$ processors is less than $N$ due to overhead and resource contention). Modern implementations utilize **Symmetric Multiprocessing (SMP)**, where each processor runs a copy of the operating system and communicates peer-to-peer. Most are **multicore** systems, meaning multiple computing cores reside on a single physical chip, sharing a Level 2 (L2) cache while maintaining local L1 caches and register sets. When scaling to many processors, system bus contention can become a bottleneck; to solve this, **Non-Uniform Memory Access (NUMA)** architecture provides each CPU with its own faster local memory over a local bus, connecting all units via a shared system interconnect.
+- **Clustered Systems**: These are loosely coupled multiprocessor systems composed of distinct, independent computers (nodes) connected via a local-area network (LAN) or fast interconnect like InfiniBand. They share storage and are designed for **high-availability service** (the ability to maintain operations if a node fails). Clustered systems feature **graceful degradation** and, when capable of surviving any single component failure, are called **fault tolerant**. In **asymmetric clustering**, a standby machine ('hot-standby') does nothing but monitor the active server; in **symmetric clustering**, multiple hosts actively run applications and monitor each other. Clustered environments also handle high-performance computing through **parallelization** (splitting programs to run concurrently across nodes) and utilize a **Distributed Lock Manager (DLM)** to prevent conflicting writes to shared storage.
+
+## Operating-System Operations
+
+Once the bootstrap program loads the kernel, the system enters an event-driven loop. Some services run outside the kernel as **system daemons** (background services loaded at boot time, like 'systemd' in Linux). If there are no processes to execute or devices to service, the OS sits quietly waiting. Events are signaled by hardware interrupts or software **traps** (also called **exceptions**), which are software-generated interrupts caused by errors (like division by zero) or user requests for OS services (**system calls**).
+
+**Multiprogramming and Multitasking** Single programs cannot keep the CPU and I/O devices busy at all times. To maximize efficiency, operating systems use:
+
+- **Multiprogramming**: The OS keeps several processes in memory simultaneously. When the active process must wait (e.g., for I/O), the OS switches the CPU to execute another process.
+- **Multitasking**: A logical extension of multiprogramming. The CPU switches between processes so rapidly that users experience immediate, interactive **response times**. This requires **CPU scheduling** to choose the next process, and **virtual memory** to run programs that are larger than the physical memory.
+
+**Dual-Mode and Multimode Operation** To prevent malfunctioning or malicious user programs from crashing the entire system, modern hardware implements **dual-mode operation**:
+
+- **User Mode (mode bit = 1)**: Execution occurs on behalf of the user application. Access to hardware and critical resources is restricted.
+- **Kernel Mode (mode bit = 0)**: Execution occurs on behalf of the operating system (also called supervisor, system, or privileged mode). All physical instructions and address spaces are accessible.
+
+At boot, the hardware starts in kernel mode. Before passing control to a user program, the OS sets the mode bit to 1. When a user program requires a privileged operation (like reading a file), it executes a **system call**, generating a software trap. The hardware automatically sets the mode bit to 0, transitions control to the OS kernel to execute the system call, verifies safety, and then sets the mode bit back to 1 before returning control to the user program.
+
+Instructions that can cause system damage are classified as **privileged instructions** (e.g., modifying the timer, handling interrupts, accessing I/O devices). The hardware permits privileged instructions to run _only_ in kernel mode; any attempt to run them in user mode triggers an illegal-instruction trap to the OS, which terminates the offending program.
+
+Some processors provide more than two modes, such as Intel's four **protection rings** (Ring 0 is kernel, Ring 3 is user) or virtualization-aware modes for a **Virtual Machine Manager (VMM)**.
+
+**The Hardware Timer** To prevent user programs from monopolizing the CPU (such as falling into an infinite loop), the OS uses a **timer**. The OS sets a physical counter before transferring control to user mode. The physical clock ticks down, decrementing the counter. When the counter hits zero, a hardware interrupt is generated, and control automatically reverts back to the OS kernel. Modifying the timer's properties is a privileged instruction.
+
+## Resource Management
+
+The operating system acts as a central manager for all physical and logical resources:
+
+- **Process Management**: A program is a passive entity (like executable code stored on a disk), whereas a process is an active entity with a **program counter** indicating its current instruction. A single-threaded process has one program counter; a multithreaded process has multiple counters. The OS is responsible for creating, deleting, scheduling, suspending, resuming, and synchronizing processes.
+- **Memory Management**: Main memory is a large array of bytes, each with a unique address. It is the only large storage device directly accessible by the CPU. The OS tracks memory utilization, decides which processes and data to swap in and out of memory, and dynamically allocates or deallocates memory space.
+- **File-System Management**: The OS abstracts physical storage properties to define the logical unit of a **file**. The OS maps files onto physical media and manages directories, access controls, permissions, and nonvolatile backups.
+- **Mass-Storage Management**: Because main memory is small and volatile, systems rely on HDDs and NVM devices for secondary storage. The OS handles physical mounting/unmounting, free-space management, block allocation, disk scheduling, and partitioning.
+- **Cache Management**: Caching copies active information from slow, large storage into faster, temporary memory. The OS manages software-controlled caches, balancing size against performance. In multiprocessor systems, different CPUs may cache the same data block; maintaining identical values across all caches is called **cache coherency**, typically managed at the hardware level.
+- **I/O System Management**: The OS hides hardware-specific details from applications. The kernel's I/O subsystem includes memory management routines (buffering, caching, spooling), a general device-driver interface, and specific drivers for individual hardware components.
+
+## Security and Protection
+
+Multi-user and multitasking systems must secure access to system resources:
+
+- **Protection**: Any mechanism that controls access of processes or users to resources defined by the computer system. It sets rules for authorization and detects interface errors between subsystems.
+- **Security**: The defense of the system against external and internal attacks (such as viruses, worms, identity theft, or denial-of-service/DoS attacks).
+
+To enforce these boundaries, the OS assigns unique numerical **User Identifiers (user IDs / SIDs)** and **Group Identifiers (group IDs)** to accounts. These IDs are associated with all processes and threads initiated by a user. When a restricted task is needed, the OS permits **privilege escalation**. For example, in UNIX-like systems, the _setuid_ attribute runs a program with the effective UID of the file's owner (often root) rather than the active user.
+
+## Virtualization
+
+**Virtualization** abstract's a single physical computer's hardware into multiple separate execution environments, creating the illusion that each environment runs on its own isolated machine.
+
+It is distinct from **emulation**:
+
+- **Emulation**: Simulates hardware in software when the source CPU architecture is different from the target CPU architecture (e.g., executing PowerPC code on an Intel x86 chip). This requires translation of every machine instruction and is computationally slow.
+- **Virtualization**: Runs an operating system natively compiled for the underlying CPU architecture inside another operating system.
+
+The virtualization layer is managed by the **Virtual Machine Manager (VMM)** (or hypervisor). The VMM runs on the physical host hardware, presenting guest operating systems with a virtual replica of the physical environment, managing resources, and isolating guest virtual machines from one another.
+
+## Distributed Systems
+
+A distributed system is a collection of physically separate, possibly heterogeneous computer systems joined by a communication network.
+
+Networks are classified by geographical distance:
+
+- **Personal-Area Network (PAN)**: Short-range (Bluetooth, 802.11) connecting close personal devices.
+- **Local-Area Network (LAN)**: Connects nodes within a room, building, or campus.
+- **Metropolitan-Area Network (MAN)**: Links buildings or municipal systems within a city.
+- **Wide-Area Network (WAN)**: Links buildings, states, countries, or continents (e.g., the Internet, using TCP/IP).
+
+Operating systems approach networking in two primary ways:
+
+- **Network Operating Systems**: Autonomously managed OSs that are aware of the network and provide features like simple file sharing and message exchange across nodes.
+- **Distributed Operating Systems**: Tightly coupled networks that communicate closely, providing the illusion that a single operating system manages the entire network.
+
+## Kernel Data Structures
+
+Operating system kernels rely on fundamental, high-performance data structures to execute resource allocation and process scheduling:
+
+- **Lists, Stacks, and Queues**: Main memory operates like a physical array. However, to handle variable-sized items and dynamically modify order, kernels use **linked lists**. In a _singly linked list_, each item points to its successor; a _doubly linked list_ points to both predecessor and successor; and a _circularly linked list_ loops the final element back to the first. A **stack** is a Last-In, First-Out (LIFO) structure implementing _push_ and _pop_ operations, widely used for function call parameters and return addresses. A **queue** is a First-In, First-Out (FIFO) structure used for job waitlists, such as tasks waiting for CPU execution.
+- **Trees**: Represent data hierarchically. In a **binary tree**, a parent node has at most two children. A **binary search tree (BST)** enforces an ordered relationship where the left child is less than or equal to the right child. To prevent $O(n)$ search degradation, systems use balanced binary search trees, which maintain a depth of $O(\log n)$. Linux relies on a balanced **red-black tree** for its CPU-scheduling algorithm.
+- **Hash Functions and Maps**: A **hash function** performs mathematical operations on input data to return a numerical table index, achieving near $O(1)$ lookup performance. **Hash maps** link unique keys to specific values. Potential **hash collisions** (two keys yielding the same index) are resolved by chaining a linked list at the targeted table index.
+- **Bitmaps**: A highly space-efficient string of binary digits representing resource availability (e.g., in a 10-digit bitmap, the $i$-th bit represents the status of the $i$-th disk block: 0 for available, 1 for occupied).
+
+## Computing Environments
+
+Operating systems must be designed to accommodate diverse environments:
+
+- **Traditional Computing**: Standard office desktop and home configurations. Portability is achieved through laptops, **thin clients** (network computers acting as portals to central servers), and home networks secured by firewalls.
+- **Mobile Computing**: Lightweight devices (smartphones, tablets) featuring specialized sensors like GPS chips, accelerometers, and gyroscopes. Because mobile hardware faces strict power and size limits, they run specialized operating systems (predominantly Apple iOS and Google Android).
+- **Client-Server Systems**: Specialized distributed systems where **server systems** satisfy computational requests or file queries generated by distributed **client systems**.
+- **Peer-to-Peer (P2P) Systems**: Decentralized models where all nodes are equal peers, acting as both clients and servers. Nodes discover services via a centralized lookup server (like early Napster) or by using a decentralized discovery protocol broadcast (like Gnutella or Skype's hybrid VoIP protocol).
+- **Cloud Computing**: Delivers computing, database stacks (PaaS), storage, or application software (SaaS) as a utility service across a network. It uses virtualization to rapidly deploy virtual machines. Clouds can be public, private, or hybrid.
+- **Real-Time Embedded Systems**: Highly specialized computers designed for dedicated tasks (e.g., robotic arms, fuel injection systems, medical imaging). They run **real-time operating systems**, which must deliver correct outputs within strict, rigid time constraints. Missing a hard deadline constitutes a total system failure.
+
+## Free and Open-Source Operating Systems
+
+Operating systems can be categorised based on how their source code is managed:
+
+- **Proprietary (Closed-Source)**: Code is protected, compiled as binary, and restricted (e.g., Microsoft Windows).
+- **Open-Source**: Code is available for examination, aiding programmers in debugging and customization.
+- **Free Software**: Championed by Richard Stallman and the **Free Software Foundation (FSF)**. 'Free' refers to freedom of use, modification, and redistribution, not price. The FSF protects software via copyright licenses called the **GNU General Public License (GPL)**, which enforces **copyleft**—the condition that any redistribution of the program (including modified versions) must also be released under the same open freedoms.
+
+**Key Historic and Modern Implementations**
+
+- **GNU/Linux**: Created in 1991 when Linus Torvalds paired his newly designed UNIX-like kernel with GNU development tools. Rereleased under the GPL in 1992, Linux spawned hundreds of custom distributions (Red Hat, Ubuntu, Debian, Slackware).
+- **BSD UNIX**: Developed at UC Berkeley as an AT&T derivative. A lawsuit slowed its progress, but in 1994, a completely open-source version (4.4BSD-lite) was released. Modern variations include FreeBSD, NetBSD, and OpenBSD. Apple's core macOS kernel, **Darwin**, is derived from BSD UNIX.
+- **Solaris**: Sun Microsystems' commercial UNIX, open-sourced as OpenSolaris in 2005. Oracle's subsequent acquisition left its state unclear, but the open community continues development via Project Illumos.
+
+Most modern open-source OS development projects are maintained using **version control systems** (like Git or Subversion), which coordinate concurrent code contributions across distributed programming teams.
+
+## Summary
+
+### Key Takeaways
+
+- An operating system manages computer hardware, coordinates resources, and provides an execution environment for user application programs.
+- The CPU coordinates asynchronous physical events using interrupts and delegates high-volume data transfers to Direct Memory Access (DMA) controllers.
+- Dual-mode operation (User Mode and Kernel Mode) protects operating system code and physical registers from unauthorized modifications by user applications.
+- Resource management is categorized into discrete areas: process management, memory management, file-system management, mass-storage, caching, and I/O coordination.
+- Kernels maintain speed and organization by utilizing highly structured lists, stacks, queues, balanced red-black trees, hash maps, and bitmaps.
+- Virtualization allows multiple guest operating systems to execute natively on a single CPU architecture under the supervision of a Virtual Machine Manager (VMM).
