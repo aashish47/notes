@@ -1,0 +1,63 @@
+export const metadata = {
+	title: "Distributed Systems and Distributed File Systems",
+	description:
+		"A comprehensive study of distributed systems, covering network architectures, LANs and WANs, communication protocols, name resolution, distributed operating systems, process migration, robustness, transparency, scalability, and distributed file-system models.",
+	order: 19,
+	draft: false,
+	tags: [
+		"distributed systems",
+		"distributed file systems",
+		"LAN",
+		"WAN",
+		"networking",
+		"TCP/IP",
+		"name resolution",
+		"distributed operating systems",
+		"process migration",
+		"scalability",
+	],
+};
+
+## **Introduction**
+
+Did you know that the most massive and ubiquitous distributed system on Earth is one you use every single second—the Internet?
+
+In this lesson, we will dissect the underlying architectures, protocols, and design patterns of distributed systems and distributed file systems. By the end of this study, you will be able to:
+
+- Explain the core advantages of networked and distributed architectures.
+- Contrast the physical structures of Local-Area Networks (LANs) and Wide-Area Networks (WANs).
+- Trace the mechanics of name resolution, TCP/IP communication, and transport-layer routing.
+- Distinguish between network and distributed operating systems, focusing on data, computation, and process migration.
+- Analyze critical design challenges, including robustness, transparency, and scalability.
+- Compare client-server and cluster-based Distributed File Systems (DFS) models.
+
+## **Advantages of Distributed Systems**
+
+A **distributed system** is a collection of loosely coupled nodes (processors) interconnected by a communication network. From the perspective of any single node, its own resources are _local_, while all other nodes and their respective resources are _remote_. Nodes vary in size and function, ranging from small microprocessors to large general-purpose hosts.
+
+Nodes can be arranged in three physical configurations:
+
+- **Client-Server:** One node (the server) stores a resource that another node (the client) requests and uses.
+- **Peer-to-Peer:** No centralized servers exist; all nodes share equal responsibilities, acting as both clients and servers.
+- **Hybrid:** A combination of both client-server and peer-to-peer designs.
+
+At a low level, systems communicate via **message passing**. This simple foundation allows higher-level features (such as remote file storage and remote procedure calls) to function across the network.
+
+There are three primary motivations for building distributed systems:
+
+- **Resource Sharing:** Users at different locations can share hardware (such as graphics processing units (GPUs) or supercomputers), access remote files, print files, or process queries across a distributed database.
+- **Computation Speedup:** If an algorithm can be partitioned into concurrent subcomputations, a distributed system allows these tasks to run simultaneously across different sites. This is crucial for big data processing. Furthermore, **load balancing** helps route traffic from overloaded sites to underutilized nodes.
+- **Reliability:** If one site fails, the remaining nodes can continue operating. However, this depends on system architecture. If a system is composed of highly specialized, non-redundant servers (e.g., a single web server and a single database server), a single point of failure can halt the entire system. With proper hardware and data redundancy, the system achieves fault tolerance. If a failure is detected, the system must exclude the failed site, coordinate a correct transfer of functions, and smoothly integrate the site back into the network once it recovers.
+
+## **Network Structure**
+
+To understand how distributed systems interact, we must examine the underlying networks that connect them. Networks are categorized into two primary types based on geographic distribution, which directly dictates their speed and reliability:
+
+- **Local-Area Networks (LAN):** LANs cover small physical distances (such as a single home, office, or building). Because the nodes are close to each other, LANs feature high-speed communication links and low error rates. A typical LAN consists of hosts, shared peripherals, and **routers** to connect to external networks. Ethernet (IEEE 802.3) and WiFi (IEEE 802.11) are the standard protocols. Ethernet uses coaxial, twisted-pair, or fiber-optic cables and lacks a central controller, acting as a multiaccess bus. Speeds run from 10 Mbps to over 100 Gbps. WiFi operates wirelessly, with speeds ranging from 11 Mbps to over 400 Mbps.
+- **Wide-Area Networks (WAN):** WANs connect systems distributed across large geographic areas (such as countries or continents). The pioneer of WANs was the ARPANET, established in 1968, which evolved into today's Internet. WAN communication links include telephone lines, leased data lines, optical cables, microwave links, and satellite channels. These links are managed by routers, which inspect and steer traffic. WANs are typically slower than LANs, and bottleneck speeds are usually dictated by local **Internet Service Providers (ISPs)**.
+
+_Note on Interconnection:_ Modern setups often blur the lines between LANs and WANs. For example, cellular phone data networks utilize radio waves to connect mobile devices to a cell tower (resembling a LAN), while the towers themselves are connected via landlines and high-speed hubs to route packets across a massive WAN.
+
+## **Communication Structure and Name Resolution**
+
+Because networked systems do not share memory, processes cannot communicate via local process identifiers. Instead, a process on a remote system is identified by a pair: \*\*

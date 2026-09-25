@@ -1,0 +1,341 @@
+export const metadata = {
+	title: "Protection",
+	description:
+		"A comprehensive study of operating-system protection, covering privilege rings, protection domains, access matrices, ACLs, capabilities, RBAC, mandatory access control, sandboxing, system-call filtering, code signing, and JVM-based protection.",
+	order: 17,
+	draft: false,
+	tags: [
+		"operating systems",
+		"protection",
+		"access control",
+		"protection rings",
+		"access matrix",
+		"ACL",
+		"capabilities",
+		"RBAC",
+		"MAC",
+		"sandboxing",
+		"JVM",
+	],
+};
+
+Introduction
+
+Did you know that the "root" superuser in UNIX is so omnipotent that a single accidental character in a command can permanently erase an entire file system? System protection is the rigorous engineering discipline that prevents this omnipotence—and other program errors or malicious actions—from causing catastrophe. While _security_ guards system resources against external threats and unauthorized access, _protection_ controls how internal processes and users access those resources.
+
+Learning Objectives
+
+- **Differentiate** between security policies and protection mechanisms.
+- **Map** how protection rings (Intel, ARM) enforce hardware-level privilege separation.
+- **Construct and manipulate** an Access Matrix using operational rights (switch, copy, owner, control).
+- **Contrast** the implementations of Access Lists (ACLs), Capability Lists, and Lock-Key mechanisms.
+- **Evaluate** modern operating system protection frameworks, including RBAC, MAC, sandboxing, and JVM-based stack inspection.
+
+Goals of Protection
+
+As computer systems transitioned to multi-user, multiprogrammed environments, protection was developed to ensure that processes safely share a common logical name space (like a directory) or physical name space (like memory). Today, protection is critical for system reliability and mitigating communication platform exploits.
+
+Why We Need Protection
+
+- **Prevent Intentional Violations**: Restrict malicious users from executing unauthorized operations.
+- **Ensure Policy Consistency**: Force processes to utilize system resources only in ways consistent with defined system policies.
+- **Improve Reliability**: Detect latent errors at the interfaces between component subsystems. Early detection prevents a malfunctioning subsystem from contaminating healthy ones.
+- **Resource Defense**: Establish a clear boundary to distinguish authorized from unauthorized resource usage.
+
+Policy vs. Mechanism
+
+An essential design paradigm in operating system architecture is the strict **separation of policy and mechanism**:
+
+- **Mechanisms** determine _how_ protection will be enforced (e.g., hardware-assisted page tables, access-control lists).
+- **Policies** decide _what_ will be done (e.g., which user has write access to a specific database file).
+
+Separating the two ensures flexibility: when security policies change over time or vary by application, the underlying mechanism does not need to be redesigned or recompiled.
+
+Principles of Protection
+
+To simplify design decisions and keep systems consistent, designers rely on core guiding principles.
+
+The Principle of Least Privilege
+
+This principle dictates that programs, users, and systems are granted **just enough privileges** to perform their designated tasks.
+
+- **The UNIX Root Problem**: Running as "root" violates least privilege. Because root is virtually omnipotent, a user mistake or an exploit (like a buffer overflow) in a root-privileged process leads to complete system compromise.
+- **Mitigation**: If a process runs with constrained privileges, the operating system's permission system acts like an immune system, blocking malicious code-injection or unauthorized file deletions.
+
+Compartmentalization
+
+Compartmentalization protects individual system components using specific, localized permissions and access restrictions. If one component is subverted, the attacker cannot escalate privileges or compromise other components. This is implemented in various forms, from network DMZs to virtualization.
+
+Audit Trails and Defense in Depth
+
+- **Audit Trail**: A secure, permanent log of system accesses and attempted violations. It provides early warnings of an ongoing attack and helps reconstruct attack vectors post-compromise.
+- **Defense in Depth**: The deployment of multiple independent layers of protection (e.g., a firewall, OS-level permissions, and application-level encryption). Attackers must bypass all layers, not just one, to compromise the system.
+
+Protection Rings
+
+To enforce **privilege separation**, the system's kernel must run with a higher privilege level than user-space applications. This requirement is enforced via hardware-supported execution levels.
+
+The Protection Ring Model
+
+In this model, privilege levels are structured as concentric rings. If ring $i$ is inside ring $j$ ($i < j$), ring $i$ has greater privilege. Ring 0 is the innermost, fully privileged level (the kernel).
+
+When a system boots, it initializes at the highest privilege level, configures hardware-level protections, and drops to a less-privileged ring to run user applications. To return to a higher ring, user code must execute a hardware gateway instruction.
+
+Intel Architecture Rings
+
+- **Ring 3**: User mode code.
+- **Ring 0**: Kernel mode code.
+- **Hardware Control**: The current ring is tracked by two bits in the special `EFLAGS` register. Because Ring 3 processes cannot write to `EFLAGS`, they cannot escalate their own privileges.
+- **Ring -1**: Introduced with virtualization hardware to allow hypervisors (Virtual Machine Managers) to run with more privileges than guest operating system kernels.
+
+ARM Architecture and TrustZone
+
+Initially, ARM supported USR (user) and SVC (supervisor/kernel) modes. ARMv7 introduced **TrustZone (TZ)**, which established a separate, highly privileged hardware-backed execution environment.
+
+- Even the kernel cannot access the TrustZone's on-chip cryptographic key.
+- The kernel requests cryptographic operations from TrustZone via a specialized instruction: the **Secure Monitor Call (SMC)**.
+- **ARMv8 Exception Levels**: ARMv8 formalizes privilege separation into four Exception Levels:
+  - **EL0**: User mode.
+  - **EL1**: Kernel mode (guest OS).
+  - **EL2**: Hypervisor mode.
+  - **EL3**: Secure Monitor (TrustZone layer), which performs runtime kernel integrity monitoring (e.g., Samsung's Realtime Kernel Protection, Apple's WatchTower/KPP).
+
+Domain of Protection
+
+A computer system consists of processes and **objects**. Objects include hardware resources (CPU, physical memory, disks) and software resources (files, semaphores, databases). To safely access these, a process operates within a **protection domain**.
+
+The Need-to-Know Principle
+
+At any given time, a process must only access the objects it currently requires to complete its task. For instance, when a compiler compiles a file, it needs access to the source file and output object file—but it should have no access to the user's private keys or unrelated database files.
+
+- **Need-to-Know vs. Least Privilege**: Need-to-know is the _policy_ (the user needs read-only access to a file), while least privilege is the _mechanism_ used to enforce that policy.
+
+Domain Structure and Association
+
+A protection domain defines a set of objects and the allowable operations on those objects. An **access right** is an ordered pair: $$\langle \text{object-name}, \text{rights-set} \rangle$$
+
+For example, if domain $D$ holds $\langle \text{File F}, \{\text{read}, \text{write}\} \rangle$, a process in $D$ can read and write $File F$, but cannot delete or execute it.
+
+Domains can be associated with processes in two ways:
+
+- **Static Ass\*\***ociation\*\*: The set of resources available to a process is fixed throughout its lifetime.
+- **Dynamic Association**: The process can change its protection domain over time (via **domain switching**) to match its shifting phase of execution. This is necessary to adhere strictly to the need-to-know principle.
+
+Implementing Domains: Real-World Examples
+
+- **UNIX Domain Structure**: Each user is a domain. Domain switching occurs when logging out and logging in as another user, or during execution of a **setuid** binary. When an executable file has its `setuid` bit enabled, anyone executing it temporarily assumes the identity and privileges of the file's owner (e.g., the `passwd` command runs as root to modify `/etc/shadow`).
+- **Android Application IDs**: Android assigns a unique User ID (UID) and Group ID (GID) to each application upon installation. This treats each app as an isolated domain with its own private data directory, preventing unauthorized inter-app resource access.
+
+Access Matrix
+
+The abstract model of protection can be formalized as an **Access Matrix**.
+
+- **Rows** represent Protection Domains ($D_1, D_2, \dots, D_n$).
+- **Columns** represent Objects ($O_1, O_2, \dots, O_m$).
+- **Entries** $access(i, j)$ contain the set of access rights that domain $D_i$ has over object $O_j$.
+
+Dynamic Protection: Domains as Objects
+
+To control domain switching, we can include domains themselves as objects in the columns of the access matrix. A process in domain $D_i$ can switch to domain $D_j$ if and only if: $$\text{switch} \in access(i, j)$$
+
+Operations to Modify Access Rights
+
+To safely modify the matrix, we define three control operations:
+
+1. **The Copy Right (**$*$**)**: Denoted by appending an asterisk to an access right (e.g., `read*`). A process in domain $D_i$ with `read*` access to object $O_j$ can copy the `read` right to any other entry in column $O_j$.
+   - _Transfer variant_: The right is copied to a target domain and removed from the source domain.
+   - _Limited copy variant_: The right is copied, but without the copy modifier ($R$ instead of $R^*$), preventing the target from propagating it further.
+2. **The Owner Right**: If $access(i, j)$ contains `owner`, a process in domain $D_i$ can add or remove any access right in column $O_j$ (the object's column).
+3. **The Control Right**: Applies only to domain objects. If $access(i, j)$ contains `control`, a process running in domain $D_i$ can remove any access right from row $D_j$ (the domain's row).
+
+The Confinement Problem
+
+While copy and owner rights control access propagation, they cannot prevent a process from leaking information. The **confinement problem**—the task of guaranteeing that no information held in an object can migrate outside of its specified execution environment—is fundamentally unsolvable in general systems.
+
+Implementation of the Access Matrix
+
+Because the access matrix is typically **sparse** (most domains access only a tiny fraction of all system objects), storing it as a standard 2D array is highly inefficient. Operating systems utilize alternative data structures.
+
+1. Global Table
+
+The simplest approach: a table of ordered triples $\langle \text{domain}, \text{object}, \text{rights-set} \rangle$. Every operation on an object is checked against this table.
+
+- **Drawbacks**: The table is massive and cannot be stored entirely in main memory. This introduces overhead from virtual memory swapping and prevents grouping of similar objects.
+
+2. Access Lists for Objects (ACLs)
+
+Each column of the access matrix is implemented as an access list associated with one object. Empty entries are discarded. Each list consists of ordered pairs: $$\langle \text{domain}, \text{rights-set} \rangle$$
+
+- **Default Rights**: To optimize, a default set of access rights is defined. The system first checks the default rights or searches the list. If no matching entry is found, access is denied.
+
+3. Capability Lists for Domains
+
+Each row of the access matrix is implemented as a capability list associated with one domain. A **capability** is a secure, protected pointer or address representing an object, alongside its permitted operations.
+
+- **Protection of Capabilities**: Capability lists must be protected from modification. They are secured using two methods:
+  - **Tagged Memory**: Every memory address has a hardware tag bit. Only the kernel can modify the tag bit indicating an address contains a capability.
+  - **Segmented Memory**: The program's address space is split. One segment is user-accessible; the other, containing the capability list, is accessible only to the operating system.
+
+4. Lock-Key Mechanism
+
+A compromise between access lists and capability lists. Each object has a list of unique bit patterns (locks). Each domain has a list of unique bit patterns (keys). A process can access an object only if its domain key matches one of the object's locks. These lists are managed securely by the OS.
+
+Summary of Implementation Trade-offs
+
+- **Access Lists**: Align well with user needs (e.g., changing file permissions). However, determining all permissions for a specific domain is slow because the information is distributed across all objects.
+- **Capability Lists**: Localize domain-specific rights, allowing fast verification. However, revoking access across multiple capability lists is highly complex.
+- **Hybrid Approach (UNIX)**: A process first opens a file, prompting the OS to search the directory's access list. If authorized, a capability is created and loaded into the process's local open-file table. Subsequent read/write operations bypass the directory search, verifying authorization directly against the secure index in the local table.
+
+Revocation of Access Rights
+
+In dynamic protection environments, the system must support revoking access rights to shared objects. This introduces several design questions:
+
+- **Immediate vs. Delayed**: Does revocation occur instantly, or is it deferred?
+- **Selective vs. General**: Does revocation target a specific group of users or everyone who has access?
+- **Partial vs. Total**: Can a subset of rights (e.g., write-only) be revoked, or must all rights be stripped?
+- **Temporary vs. Permanent**: Can revoked access be subsequently restored?
+
+Revocation under Access Lists
+
+Revocation is simple. The OS searches the object's access list, deletes the target rights, and denies subsequent access. Revocation is immediate, selective, partial, and can be temporary or permanent.
+
+Revocation under Capability Lists
+
+Because capabilities are distributed throughout different domains, finding them to execute a revocation is extremely difficult. Four main techniques are used to address this:
+
+1. **Reacquisition**: Capabilities are periodically purged from all domains. To continue accessing an object, a process must reacquire its capability. If access was revoked, the reacquisition request fails.
+2. **Back-pointers**: The object maintains a list of pointers referencing all capabilities that point to it. To revoke access, the OS traverses the back-pointers and invalidates or updates the capabilities. This is highly flexible but expensive to implement (used in MULTICS).
+3. **Indirection**: Capabilities point to a unique entry in a global lookup table, which then points to the object. Revocation deletes the entry in the global table. Subsequent access attempts using the capability will fail because they point to an invalid table slot. This is simple but does not allow selective revocation (used in CAL).
+4. **Key-based Schemes**: A capability is initialized with a copy of the object's unique **master key**. When the capability is exercised, the hardware or OS compares its key to the master key. If they match, access is granted. Revoking access requires changing the object's master key via a `set-key` operation, immediately invalidating all outstanding capabilities.
+
+Role-Based Access Control
+
+Traditional access control systems assign permissions directly to users or groups. **Role-Based Access Control (RBAC)** advances this model by introducing an intermediate abstraction layer: **roles**.
+
+The Structure of RBAC
+
+In RBAC, system privileges are assigned to specific roles rather than users. Users are then assigned to one or more roles. This reduces security risks by adhering to the principle of least privilege, minimizing the need for highly privileged "superusers" or insecure `setuid` executables.
+
+Solaris implementation of RBAC
+
+Solaris 10 utilizes RBAC to manage administrative tasks without granting full root access:
+
+- **Privileges**: Fine-grained rights to execute a system call or use a specific system call flag (e.g., opening a socket, binding to privileged ports).
+- **Roles**: Collection of privileges and authorized programs.
+- **Execution flow**: A user assumes a role by verifying a role-specific password. The user's processes are executed with the restricted set of privileges defined by that role, preventing unauthorized system changes.
+
+Mandatory Access Control
+
+Operating systems historically relied on **Discretionary Access Control (DAC)** to secure files.
+
+- **Under DAC**: The owner of an object can set or modify its permissions (e.g., using `chmod` in UNIX).
+- **The Flaw**: If a malicious process runs under the owner's UID, it can change permissions or write malicious data. Furthermore, administrators (root) have unrestricted access, leaving the system vulnerable to root-level compromise.
+
+Mandatory Access Control (MAC)
+
+**MAC** enforces system-wide security policies that cannot be overridden, even by resource owners or root. Modern operating systems implement MAC alongside DAC (e.g., SELinux in Linux, TrustedBSD in macOS/iOS, Mandatory Integrity Control in Windows).
+
+The Concept of Labels
+
+MAC relies on security labels assigned to both **subjects** (processes/actors) and **objects** (files, sockets, devices):
+
+- **Subjects** are evaluated when they request an operation on an **object**.
+- The operating system compares the subject's label and the object's label against a system-wide policy ruleset.
+
+For example, labels might represent confidentiality levels:
+
+- `Unclassified` < `Secret` < `Top Secret`
+- A user with a `Secret` clearance runs a process. This process has `Secret` subject credentials.
+- The process can read `Secret` and `Unclassified` files, but the OS filters out `Top Secret` files entirely. The process cannot even list the file names in directory operations, protecting the system from privilege escalation.
+
+Capability-Based Systems
+
+To implement fine-grained control and avoid the dangers of monolithic root privilege, modern systems "slice up" the powers of the superuser using modern capability structures.
+
+Linux Capabilities
+
+POSIX.1e introduced a capability model that splits root privileges into distinct, single-purpose rights, represented as bits in a bitmask. Rather than running a utility with full root privileges, the OS assigns only the exact capabilities required.
+
+For example, the `ping` utility needs to open a raw network socket (traditionally requiring full root access). With capabilities, `ping` runs as a standard user with only the `CAP_NET_RAW` capability enabled.
+
+Each process or thread contains three distinct capability bitmasks:
+
+1. **Permitted**: The set of capabilities the process is allowed to use.
+2. **Effective**: The set of capabilities currently active during execution.
+3. **Inheritable**: The capabilities that can be passed to child processes.
+
+During execution, a process can voluntarily drop capabilities from its permitted set. Once dropped, they cannot be reacquired.
+
+Darwin Entitlements
+
+Apple's macOS and iOS utilize **Entitlements** to enforce application-level privileges. Entitlements are declaratory XML property lists (PLISTs) containing key-value pairs representing permissions (e.g., accessing the microphone, loading a kernel extension).
+
+- **Enforcement**: Entitlements are embedded directly inside the binary's cryptographic signature.
+- **Verification**: The kernel verifies the signature at launch and prevents tampering. If a process attempts an operation without holding the necessary entitlement, the operation is blocked. All core system entitlements (`com.apple.*`) are restricted strictly to Apple's own code-signed binaries.
+
+Other Protection Improvement Methods
+
+To defend against sophisticated modern attack vectors, operating systems implement defense-in-depth protection mechanisms.
+
+System Integrity Protection (SIP)
+
+Introduced in macOS 10.11, **SIP** restricts write access to system directories (like `/System`, `/sbin`, `/usr`) using extended file attributes. Under SIP, even the root user cannot write to, modify, or debug protected system files, protecting core components from malicious modification.
+
+System-Call Filtering
+
+Monolithic kernels are vulnerable to attacks targeting insecure system calls. **System-call filtering** inspects calls at the transition gateway to verify they are safe.
+
+- **SECCOMP-BPF**: A Linux mechanism using Berkeley Packet Filter (BPF) syntax to load custom system call filters. Processes can voluntarily drop the ability to execute dangerous system calls (like `execve` or `ptrace`).
+- **Argument Inspection**: Filters can analyze system call arguments to block exploits. This prevents attacks like race conditions in kernel mutexes (e.g., Linux's `futex` vulnerability).
+
+Sandboxing
+
+**Sandboxing** forces a process to run in a highly constrained environment, restricting system access. Restrictions are typically applied in the early startup phase before executing `main()` (often immediately after a `fork` system call).
+
+- **Android Sandboxing**: Combines SELinux MAC labels with `SECCOMP-BPF` filtering enforced by Android's Bionic C library.
+- **Apple "Seatbelt"**: Implements dynamic, Scheme-based profiles that enforce fine-grained parameter validation (e.g., restricting file paths to specific directories).
+
+Code Signing
+
+**Code signing** uses cryptographic hashing and digital signatures to verify that a binary has not been modified since its author created it. Operating systems like iOS and macOS leverage code signing to block unsigned, third-party software or immediately disable deprecated or compromised legacy applications.
+
+Language-Based Protection
+
+Operating system protection can be slow because every access check requires a transition into kernel mode. Programing languages offer an alternative: **compiler-enforced** and **runtime-enforced** language-based protection.
+
+Compiler-Based Enforcement
+
+Integrating protection rules directly into a programming language's type system allows developers to specify security rules declaratively (e.g., declaring fields as `private` or `protected`).
+
+- **Advantages**: Protection requirements are declared rather than programmed as system calls. These rules are verified off-line at compile time, eliminating runtime kernel-call overhead.
+- **The Flaw**: Security relies on the correctness of the compiler, the storage manager, and the file system from which the program is loaded. If the compiled bytecode is modified before execution, the protection fails.
+
+Runtime-Based Enforcement: Java JVM
+
+The Java Virtual Machine (JVM) supports loading and executing mutually untrusted classes side-by-side within a single process.
+
+When the JVM loads a class, it assigns it to a **protection domain** based on the source URL and its digital signature. A configurable policy file maps permissions to that domain.
+
+Stack Inspection
+
+Because classes call helper libraries to execute tasks, determining which class is responsible for a resource request is challenging. The JVM addresses this using **Stack Inspection**.
+
+- When an application thread requests access to a protected resource (e.g., opening a network socket), the library method calls `AccessController.checkPermission()`.
+- The JVM inspects the execution stack, starting from the active stack frame and working backward through previous callers.
+- If a frame is associated with a domain lacking the required permission, an `AccessControlException` is thrown.
+- **The doPrivileged Block**: If a library method needs to execute an action on behalf of an untrusted caller, it executes the action within a `doPrivileged` block. Stack inspection stops traversing when it hits a `doPrivileged` marker, granting access if the calling library itself has permission.
+
+Type Safety
+
+For stack inspection to be secure, programs must be prevented from altering their own stack frames or executing arbitrary memory writes. Java enforces this using strict **type safety**. Programmers cannot forge references, cast integers to pointers, or execute out-of-bounds array operations, ensuring robust data encapsulation.
+
+Summary
+
+Key Takeaways
+
+- **Protection vs. Security**: Protection focuses on controlling internal process access to resources, separating policy (what is done) from mechanism (how it is done).
+- **Least Privilege and Compartmentalization**: Systems are most secure when processes hold only the minimal privileges needed to complete their immediate tasks.
+- **Hardware Enforcement**: Concentric protection rings (Intel 0-3, ARM EL0-EL3) isolate user programs from the kernel gateway, utilizing specialized instructions (e.g., SMC, syscall) to safely transition between rings.
+- **Access Matrix**: A formal model where rows are domains and columns are objects. It is dynamically modified using `copy`, `owner`, and `control` rights, and is typically stored as Access Control Lists (ACLs) or Capability Lists.
+- **Advanced OS Security**: Systems combine Discretionary Access Control (DAC) with Mandatory Access Control (MAC) and defense-in-depth mechanisms, including sandboxing, code signing, and system-call filtering.
+- **Language-Level Protections**: Environments like the JVM leverage type safety, encapsulation, and runtime stack inspection to enforce permissions without incurring the overhead of operating system kernel switches.

@@ -1,0 +1,212 @@
+export const metadata = {
+	title: "File-System Interface",
+	description:
+		"A comprehensive introduction to file-system interfaces, covering file attributes and operations, open-file tables, file locking, access methods, directory structures, graph-based sharing, access control, and memory-mapped files.",
+	order: 13,
+	draft: false,
+	tags: [
+		"operating systems",
+		"file systems",
+		"file management",
+		"directory structures",
+		"file access",
+		"ACL",
+		"file protection",
+		"memory-mapped files",
+	],
+};
+
+## **Introduction**
+
+Did you know that to your operating system, almost everything—from a plain text document to an active running process or system hardware device—can be abstracted and manipulated as a simple sequence of bytes? This design choice is made possible by the file-system interface, which provides a uniform logical view of information storage regardless of the underlying physical media. In this lesson, we will explore the core concepts of file attributes, operations, access methods, directory structures, and the protection mechanisms that secure them.
+
+**Learning Objectives:**
+
+- Explain the logical abstraction of a file and differentiate its key attributes and structures.
+- Compare the per-process and system-wide open-file tables and evaluate file-locking mechanisms.
+- Compare sequential, direct, and index-based file access methods.
+- Analyze structural trade-offs between single-level, two-level, tree, and graph-structured directories.
+- Implement secure file protection using access-control lists (ACLs) and leverage memory-mapped files for high-performance I/O.
+
+## **The File Concept and Attributes**
+
+Computers store information on various physical media, such as Solid-State Drives (SSDs/NVM devices), Hard Disk Drives (HDDs), magnetic tapes, and optical disks. To insulate users and developers from the physical properties of these devices, the operating system defines a logical storage unit called a **file**.
+
+A file is a named collection of related information recorded on nonvolatile secondary storage. From a user's perspective, it is the smallest allotment of logical secondary storage—data cannot be written to storage unless it is contained within a file.
+
+While the information inside a file is defined by its creator (ranging from source code to binary executables, text, or multimedia), every file possesses a set of operating system-maintained **attributes**:
+
+- **Name:** The symbolic file name, which is the only attribute kept in human-readable form.
+- **Identifier:** A unique tag (usually a number) that identifies the file within the file system. This is the non-human-readable key used by the OS.
+- **Type:** Necessary for systems that support and optimize operations for different file formats.
+- **Location:** A pointer to the physical device and the specific block coordinates where the file resides.
+- **Size:** The current size of the file (in bytes, words, or blocks) and sometimes the maximum allowed size.
+- **Protection:** Access-control data determining which users can read, write, execute, or modify the file.
+- **Timestamps and User Identi** **fication:** Records for creation, last modification, and last use, which are critical for security, backup, and usage monitoring.
+
+Newer file systems also support **extended file attributes**, such as character encoding formats or cryptographic checksums to verify integrity. All of this metadata is managed within the file system's directory structure, which is stored on disk and loaded into memory as needed.
+
+## **File Operations and Open-File Tables**
+
+A file is an abstract data type. To manipulate it, the operating system provides a minimal set of system calls supporting seven basic operations:
+
+- **Creating a file:** The OS first allocates free space in the file system and then writes a new entry for the file into the corresponding directory.
+- **Opening a file:** Before a file is used, an `open()` call checks access permissions and copies directory metadata into memory. It returns a **file handle** (or file descriptor) used in subsequent operations to avoid repetitive directory searches.
+- **Writing a file:** Specifies the file handle and the data to write. The OS maintains a **write pointer** to keep track of the next block location to modify.
+- **Reading a file:** Specifies the file handle and a memory buffer. The OS utilizes a **read pointer** to track where the next chunk of data should be retrieved. For efficiency, a single per-process **current-file-position pointer** is typically shared by both read and write operations.
+- **Repositioning within a file (Seeking):** Adjusts the current-file-position pointer to a specified value without performing actual I/O.
+- **Deleting a file:** Searches the directory, releases all allocated disk blocks back to free space, and erases or marks the directory entry as free.
+- **Truncating a file:** Clears the contents of the file, resetting its size to zero and releasing its disk blocks while keeping its attributes and directory entry intact.
+
+To manage open files across multiple processes, the operating system employs a **two-level internal table structure**:
+
+- **Per-Process Open-File Table:** Tracks all files opened by an individual process. It stores process-specific information, such as the current-file-position pointer, access rights used to open the file, and accounting information.
+- **System-Wide Open-File Table:** Contains process-independent information for every file open anywhere on the system, including its physical disk location, file size, and access dates. Each per-process entry points to an entry in this system-wide table.
+
+To ensure safe entry reclamation, the system-wide table maintains an **open count**. Each `close()` system call decrements this count. When the open count reaches zero, the entry is safely removed from the system-wide table.
+
+## **File Locking Mechanisms**
+
+When multiple processes access the same file concurrently, the operating system must provide mutual exclusion to prevent data corruption. This is accomplished using **file locks**.
+
+File locking functions similarly to reader-writer locks:
+
+- **Shared Locks:** Analogous to reader locks. Multiple processes can acquire a shared lock concurrently to read the file.
+- **Exclusive Locks:** Analogous to writer locks. Only one process at a time can acquire an exclusive lock, preventing all other concurrent access.
+
+Furthermore, operating systems implement file locking using one of two semantic policies:
+
+- **Mandatory Locking:** Once a process acquires an exclusive lock, the operating system strictly blocks any other process from accessing the file, regardless of whether that process actively requests a lock. Windows environments typically enforce mandatory locking.
+- **Advisory Locking:** The operating system does not prevent unauthorized access directly. Instead, software developers must write applications to manually request and check locks before accessing files. UNIX and Linux systems historically rely on advisory locking.
+
+In Java, file locking is achieved by obtaining a `FileChannel` from a file stream and invoking the `lock()` method. Developers must use caution; improper implementation of mandatory locks can easily lead to system-wide deadlock scenarios if locks are held longer than necessary.
+
+## **File Types, Structure, and Internal Packing**
+
+An operating system can better manipulate files if it understands their internal structure and types.
+
+**File Types and Extensions** A common technique to indicate a file's type is via its name extension (e.g., `.exe`, `.docx`, `.c`). While some modern systems use these extensions purely as application "hints," others enforce strict rules. For example, macOS maintains a system-enforced **creator attribute** that links files to the creating program. UNIX-based systems use a **magic number** stored at the very beginning of binary files to reliably determine their format, rather than relying on user-modifiable extensions.
+
+**File Structure** Files can range from structured sequences of lines or records to unstructured streams of bytes. Some operating systems support multiple system-defined structures, but this increases OS size and complexity. Modern systems like UNIX and Windows minimize complexity by supporting a minimal number of structures—viewing files as simple streams of 8-bit bytes. However, all operating systems must support at least one specific structure: the executable format, which allows the loader to identify entry points, text sections, and data segments.
+
+**Internal File Structure and Packing** Physically, disks allocate storage in fixed-size blocks (physical records). However, logical records requested by an application rarely match physical block sizes.
+
+To optimize space, the file system performs **packing**, grouping multiple logical records into a single physical block. Since disk space is allocated only in whole blocks, any unused space at the end of the final block allocated to a file is wasted. This overhead is called **internal fragmentation**. The larger the block size of the file system, the greater the internal fragmentation waste.
+
+## **Access Methods**
+
+Operating systems provide different ways to access the data stored within files. The choice of access method depends heavily on the application's performance and functional requirements.
+
+**Sequential Access** The simplest and most common method is sequential access. Information in the file is processed in order, one record after another.
+
+- A read operation (`read next()`) reads the subsequent portion of the file and automatically advances the file pointer.
+- A write operation (`write next()`) appends new data to the end of the file and advances the pointer.
+- The pointer can also be reset to the beginning of the file, or skipped forward or backward by _n_ records. This method is modeled directly on physical magnetic tape drives.
+
+**Direct Access (Relative Access)** Direct access is based on a disk model, since disks allow random access to any physical block. The file is viewed as a numbered sequence of fixed-length logical blocks (relative block numbers).
+
+- Programs can read and write blocks rapidly in any order using absolute positions: `read(n)` or `write(n)`, where `n` is the relative block number.
+- A relative block number is an index relative to the start of the file (block 0, block 1, etc.), allowing the OS to place the file anywhere physically on disk without user involvement. This method is essential for high-performance databases and transaction systems.
+
+**Other Access Methods** More complex access methods can be built on top of direct access by constructing an **index** for the file. The index contains keys and pointers to the relative blocks of the file.
+
+- To find a record, the system performs a binary search on the in-memory index to locate the target block, and then accesses that block directly.
+- For extremely large files where the index itself cannot fit in memory, a two-tiered indexing scheme is used. In IBM's **Indexed Sequential-Access Method (ISAM)**, a small master index points to secondary index blocks on disk, which in turn point to the actual data blocks. This limits the worst-case lookups to just two direct-access reads.
+
+## **Directory Structures**
+
+A directory acts as a symbol table translating symbolic file names into their corresponding File Control Blocks (FCBs). It must support critical operations, including searching, creating, deleting, listing, renaming, and traversing files.
+
+Over time, directory organizations have evolved to handle increasingly complex multi-user storage requirements:
+
+**Single-Level Directory** All files are stored in a single, shared directory. While simple to implement, it becomes highly impractical as file counts grow or when multiple users share a system. Because every file in the directory must have a unique name, **name collisions** are unavoidable.
+
+**Two-Level Directory** To isolate users and eliminate name collisions, the system maintains a **Master File Directory (MFD)** containing entries for each user. Each user entry points to a private **User File Directory (UFD)**.
+
+- Users can use identical file names across different UFDs without conflict.
+- To reference a file outside of their local directory, users must specify a **path name** (e.g., `/userb/test.txt`).
+- System programs (compilers, loaders) are kept in a special system directory (like User 0) and found via a predefined **search path** to avoid duplicating massive utilities into every user's directory.
+
+**Tree-Structured Directories** The natural generalization of the two-level directory is an arbitrary-height tree. Users can create their own subdirectories to group and structure files logically.
+
+- Each process maintains a **current directory** to resolve local file lookups.
+- Paths can be **absolute** (starting from the root `/`) or **relative** (starting from the current directory).
+- Directories are treated as special files with an internal bit set to indicate directory status (1) rather than a normal file (0).
+- Deletion policies vary: some systems require a directory to be completely empty before deletion, while others (like UNIX `rm -r`) recursively delete the target directory along with all of its descendant files and folders.
+
+## **Graph Directory Structures**
+
+While tree structures organize files cleanly, they prohibit the direct sharing of files or directories between collaborative users. To facilitate sharing without creating duplicate copies, file systems implement graph structures.
+
+**Acyclic-Graph Directories** An acyclic graph allows directories to share subdirectories and files. Because there are no loops (cycles), any modification to a shared file is instantly visible to all sharing parties. Sharing is typically implemented in two ways:
+
+- **Links:** A directory entry containing an indirect pointer (or path) to the real file. In UNIX, these are called **symbolic links** (or soft links). Deleting the original file leaves symbolic links dangling.
+- **Duplicate Directory Entries:** All directory entries sharing the file are identical. This introduces severe consistency issues when the file is modified.
+
+To safely delete shared files without leaving dangling pointers, UNIX uses **hard links**. The system stores a **reference count** in the file's metadata block (inode). When a new hard link is established, the reference count increments. When a link is deleted, the count decrements. The actual file contents are only deallocated when the reference count drops to zero.
+
+**General Graph Directories** If the file system allows users to create links arbitrarily, the directory structure can easily degrade from a tree or acyclic graph into a general graph containing **cycles** (loops). Cycles introduce two major computational hazards:
+
+- **Infinite Search Loops:** Traversal or search algorithms can become stuck in endless loops continually searching the cycle.
+- **Dangling Space Reclamation:** The reference count of files or directories in a cycle may never drop to zero, even if they are completely unreachable from the root directory (due to self-referencing links).
+
+To reclaim this space, the OS must run a highly resource-intensive **garbage collection** process. This involves traversing the entire file system to "mark" reachable nodes, then performing a second "sweep" pass to reclaim unmarked space. To avoid these expensive algorithms, many operating systems actively prevent cycles by prohibiting hard links to directories or bypassing links during traversals.
+
+## **File Protection and Access Control**
+
+In multi-user operating systems, the protection system controls who can access files and what operations they are allowed to perform. Protection mechanisms restrict operations to specific categories:
+
+- **Read (r):** Read from the file.
+- **Write (w):** Write or rewrite the file.
+- **Execute (x):** Load the file into memory and run it.
+- **Append:** Append new data to the end of the file.
+- **Delete:** Remove the file from the directory and free its space.
+- **List:** View the contents of a directory.
+- **Attribute Change:** Modify file metadata.
+
+**Access-Control Lists (ACLs)** The most flexible approach is associating an Access-Control List (ACL) with each file and directory, listing specific user accounts and their permitted operations. However, because ACLs are variable in length, they can make directory space management highly complex.
+
+**Owner, Group, and Universe Classification** To simplify access control, many operating systems compress user classifications into three tiers:
+
+1. **Owner:** The user who created the file.
+2. **Group:** A set of users sharing access to the file who require similar permissions.
+3. **Universe (Other):** All other users in the system.
+
+In UNIX-based systems, this is represented by 9 permission bits: `rwxrwxrwx`. These bits are split into three groups of three, representing the Owner, Group, and Universe, respectively. For example, a file with permissions `rwxr-x---` (octal representation `750`) allows full access to the owner, read/execute access to the group, and zero access to all others.
+
+To balance simplicity and flexibility, modern systems (such as Windows NTFS and Solaris) use a combined approach. They implement the owner-group-other structure by default, but allow administrators to attach detailed ACLs for fine-grained permissions when needed. When conflicts arise, specific ACL rules take priority over general group permissions.
+
+## **Memory-Mapped Files**
+
+Traditional file I/O requires expensive `read()` and `write()` system calls, necessitating data copies between disk buffers and process memory. **Memory mapping** optimizes this process by associating a portion of a process's virtual address space directly with a disk file.
+
+**The Basic Mechanism** When a file is memory-mapped:
+
+1. The OS maps a virtual memory page to a target disk block.
+2. Initial read or write access to the memory address triggers a standard **page fault**.
+3. The operating system reads the corresponding block from the disk directly into a physical memory page.
+4. Subsequent file operations are executed as direct, high-speed memory accesses, avoiding system call overhead.
+
+Writes to memory-mapped regions are typically buffered in memory and written back to disk asynchronously. The changes are fully written back to the physical disk file when the file is officially closed or when the system experiences high memory pressure.
+
+Multiple processes can map the same file concurrently to establish **shared memory**. The virtual memory map of each process points to the exact same physical memory page holding the cached disk block. This enables rapid inter-process communication without the overhead of copying data.
+
+**Shared Memory in the Windows API** In Windows, creating shared memory via memory-mapped files requires three steps:
+
+1. Open the file with `CreateFile()` to obtain a file handle.
+2. Create a named mapping object with `CreateFi` `leMapping()`, specifying access permissions (e.g., `PAGE_READWRITE`) and an identifier name (e.g., `"SharedObject"`).
+3. Map a view of the file into the process's address space using `MapViewOfFile()`, which returns a pointer to the mapped virtual address.
+
+Other processes can open a handle to this shared memory region using `OpenFileMapping()` with the matching name. Once the process completes its work, it calls `UnmapViewOfFile()` to safely release the virtual memory allocation.
+
+## **Summary**
+
+Here is a quick recap of the vital concepts we covered in this lesson:
+
+- **File Abstraction:** Files provide a logical, uniform view of diverse nonvolatile media, containing human-readable names and identifiers pointing to metadata.
+- **Open-File Tables:** Operating systems separate tracking into per-process tables (current-file pointer, access modes) and system-wide tables (open counts, disk coordinates) to optimize file operations.
+- **Locking Mechanisms:** Shared locks allow multi-reader concurrency, whereas exclusive locks behave like writer locks. Windows adopts mandatory locking, while UNIX relies on advisory locking.
+- **Access Methods:** Sequential access processes blocks chronologically, whereas direct access enables relative block addressing. ISAM indexing scales direct access across very large files.
+- **Directory Topologies:** Systems progressed from flat single-level structures to tree-structures, and finally to acyclic and general graphs to accommodate file sharing. Cycles in graphs introduce severe traversal and garbage collection issues.
+- **Protection & Security:** Access-control lists (ACLs) provide fine-grained permissions, while systems like UNIX compress protection into a lightweight owner/group/universe permission scheme.
+- **Memory-Mapping:** Performance is dramatically increased by mapping files directly into a process's virtual address space, reducing system call overhead and facilitating high-speed shared memory.

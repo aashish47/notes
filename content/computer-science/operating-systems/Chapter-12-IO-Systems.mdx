@@ -1,0 +1,177 @@
+export const metadata = {
+	title: "I/O Systems",
+	description:
+		"A comprehensive introduction to operating-system I/O, covering device hardware, polling, interrupts, DMA, blocking and asynchronous I/O, kernel I/O subsystems, device drivers, STREAMS, and the complete path from application requests to physical hardware.",
+	order: 12,
+	draft: false,
+	tags: [
+		"operating systems",
+		"I/O systems",
+		"device drivers",
+		"interrupts",
+		"DMA",
+		"kernel",
+		"I/O scheduling",
+		"STREAMS",
+	],
+};
+
+## **Introduction**
+
+Did you know that when you browse a web page or edit a file, your computer's primary job is not computing an answer, but managing the flow of input and output? In modern computing, processing is often merely incidental to the massive task of data movement.
+
+In this lesson, we will explore how operating systems manage the high-speed traffic, immense variety, and structural complexities of physical devices. By the end of this lesson, you will be able to:
+
+- Explain the structural differences between polling, interrupts, and Direct Memory Access (DMA).
+- Differentiate between blocking, nonblocking, and asynchronous I/O methods.
+- Describe the layers of the kernel I/O subsystem, including scheduling, buffering, and caching.
+- Map the complete path of an application's I/O request down to physical hardware operations.
+
+## **Overview and I/O Hardware**
+
+Operating-system designers face a massive challenge: controlling devices that vary by multiple orders of magnitude in both function and speed. To prevent the core operating system from becoming entangled in these hardware details, the kernel features an I/O subsystem. This architecture relies on device drivers—modular software components that present a uniform interface to the kernel while encapsulating device-specific commands.
+
+At the hardware layer, devices communicate with the processor by sending electrical signals. Connection architectures are built on several essential concepts:
+
+- **Ports:** The physical connection points (sometimes called PHYs in data-center terminology) where device cables plug into the computer.
+- **Buses:** Shared sets of wires governed by a rigid transmission protocol. Modern systems rely on the PCIe (PCI Express) bus, which utilizes a point-to-point architecture with full-duplex lanes. Each lane consists of two signaling pairs (four wires total) carrying data packet bytes simultaneously in both directions. Link capacity is designated by an "x" prefix representing lane counts (e.g., PCIe gen3 x8 translates to 8 lanes running at a maximum throughput of 8 GB/s).
+- **Daisy Chains:** An arrangement where device A plugs into B, B into C, and C into the host port. Daisy chains typically function logically as a shared bus.
+- **Controllers:** The electronic hardware responsible for operating a port, bus, or device. Simple controllers reside on single chips (like serial ports), while complex protocols like Fibre Channel (FC) require a separate host bus adapter (HBA) card containing its own processor, private memory, and microcode.
+
+## **Memory-Mapped I/O and Polling**
+
+For the host processor to direct hardware transfers, it must communicate with the device controller's registers. These registers generally fall into four categories:
+
+- **Data-in:** Read by the host to retrieve input bytes.
+- **Data-out:** Written by the host to send output bytes.
+- **Status:** Read by the host to check device states, such as whether a transfer completed, if data is ready, or if an error occurred.
+- **Control:** Written by the host to initiate commands or change device modes (such as full-duplex vs. half-duplex settings).
+
+Processors interact with these registers using two primary methods. Historically, systems used dedicated I/O instructions. Today, most architectures favor memory-mapped I/O, where device-control registers are mapped directly into the CPU's physical address space. Standard memory-transfer instructions can then be used to read or write the registers, which is significantly faster for high-volume graphic and controller manipulation.
+
+The most basic coordination protocol between host and controller is polling (busy-waiting). Handshaking involves coordinating the state of two key bits: the controller's **busy bit** (in the status register) and the host's **command-ready bit** (in the control register). During a write operation, the host repeatedly reads the busy bit until it is cleared. The host then writes data to the data-out register, sets the write command, and asserts the command-ready bit. The controller detects this, sets its busy bit, performs the physical transfer, clears the command-ready bit, and finally clears its busy bit to signify completion.
+
+While highly efficient when devices are extremely fast, polling wastes enormous amounts of CPU cycles if the processor must spin in a busy-wait loop waiting for slow devices to respond.
+
+## **Interrupts**
+
+To eliminate the inefficiency of CPU polling, hardware utilizes an interrupt mechanism. This allows a device controller to asynchronously notify the CPU when it is ready for service.
+
+When a device raises an interrupt by signaling the CPU's physical **interrupt-request line**, the CPU automatically performs a state save of the currently executing thread. It then jumps to a predetermined address in memory to execute the **interrupt-handler routine** (found in the device driver). Once serviced, the handler restores the saved CPU state and issues a return-from-interrupt instruction to resume the original thread.
+
+To manage complex system workloads, modern interrupt hardware includes several advanced features:
+
+- **Deferred Handling (Maskable Interrupts):** CPUs have maskable and nonmaskable interrupt lines. The CPU can mask (disable) device interrupts during critical, non-preemptible instruction sequences. Nonmaskable interrupts are reserved for catastrophic events, like unrecoverable memory errors.
+- **Vectored Interrupts and Chaining:** Instead of polling all devices to identify the interrupt source, the CPU reads an address index from the **interrupt vector** table. Because there are typically more devices than vector slots, systems implement **interrupt chaining**, where each vector entry points to the head of a linked list of handlers. These are called sequentially until one accepts and services the interrupt.
+- **Prioritization:** Multilevel interrupts allow higher-priority devices (such as high-speed network interfaces near buffer overflow) to preempt lower-priority interrupt handlers (such as disk write completions).
+- **Traps:** Software-generated interrupts used for paging faults, mathematical exceptions (like division by zero), and system calls.
+
+Because interrupt service demands high speed, many operating systems divide processing into a First-Level Interrupt Handler (FLIH), which performs rapid state-saving and queues the work, and a Second-Level Interrupt Handler (SLIH), which executes the bulk of the actual data processing as a separately scheduled task.
+
+## **Direct Memory Access (DMA)**
+
+For high-throughput storage devices like disk drives, using the host CPU to move data register-by-register via Programmed I/O (PIO) is highly wasteful. Direct Memory Access (DMA) offloads this overhead to a dedicated coprocessor: the DMA controller.
+
+To initiate a DMA transfer:
+
+1. The host CPU writes a **DMA command block** into main memory. This block contains the memory source pointer, the destination pointer, and the byte count.
+2. The CPU writes the physical address of this command block to the DMA controller and returns to other processing tasks.
+3. The DMA controller takes control of the memory bus, placing addresses on the bus wires to transfer data directly between the device controller and main memory without CPU intervention.
+4. During the transfer, the device controller and DMA controller synchronize using dedicated handshaking wires: **DMA-request** and **DMA-acknowledge**.
+5. Once the transfer count reaches zero, the DMA controller raises an interrupt to notify the CPU that the transfer is complete.
+
+When the DMA controller seizes the memory bus, it temporarily blocks the CPU from accessing main memory—a phenomenon known as **cycle stealing**. However, because the CPU can still execute from its local caches, total system performance is greatly improved.
+
+To handle non-contiguous memory areas efficiently, some systems support **scatter-gather DMA**, where a single command block can list multiple source and destination buffers. Furthermore, while standard DMA uses physical memory addresses, advanced controllers support Direct Virtual Memory Access (DVMA), which translates virtual addresses directly during the transfer, removing the overhead of double buffering in kernel space.
+
+## **Application I/O Interface**
+
+To isolate application programmers from hardware variety, operating systems abstract device behavior into standard classes. Device drivers sit beneath these abstractions to transform generic kernel commands into device-specific controls.
+
+Devices are classified along several major axes:
+
+- **Character-stream vs. Block:** Character-stream devices (like keyboards) transfer bytes one-by-one, while block devices (like disks) transfer blocks as fixed-size units.
+- **Sequential vs. Random Access:** Sequential devices (like tape drives) force a fixed data order, whereas random-access devices (like SSDs) permit arbitrary head seek locations.
+- **Synchronous vs. Asynchronous:** Synchronous devices have predictable response times coordinated with system events, whereas asynchronous devices have unpredictable timing.
+
+To provide an "escape hatch" for arbitrary or specialized commands, operating systems like UNIX implement the `ioctl()` (I/O control) system call. `ioctl()` takes three arguments: a device file descriptor, a command code integer, and a pointer to an arbitrary memory structure, allowing applications to configure unique device features without requiring new system calls.
+
+In UNIX, device nodes reside directly in the file-system namespace. They are represented as a pair of numbers:
+
+- **Major Number:** Identifies the device driver type to which the kernel must route the I/O request.
+- **Minor Number:** Identifies the specific instance of the hardware managed by that driver.
+
+This division allows block devices to be accessed via standard file systems, or directly as a linear array of blocks (known as raw I/O or direct I/O) to avoid redundant buffer copying in performance-critical applications like database engines.
+
+## **Clocks, Nonblocking, Asynchronous, and Vectored I/O**
+
+Operating systems rely on hardware clocks and programmable interval timers (PIT) to enforce process time slices, trigger cache flushes, and track system time. Modern PCs use a High-Performance Event Timer (HPET) running in the 10-MHz range. To prevent system clock drift, operating systems utilize the Network Time Protocol (NTP) to sync system clocks with highly accurate time servers.
+
+When writing software, developer choices in I/O system calls drastically impact program flow:
+
+- **Blocking I/O:** The calling thread is suspended, moving from the run queue to a wait queue until the physical hardware action completes.
+- **Nonblocking I/O:** The system call returns immediately. If data is not fully ready, the call returns whatever is available (or zero bytes) along with a status code. This allows threads to poll for data without blocking, but can lead to high CPU overhead unless managed using multiplexers like `select()`.
+- **Asynchronous I/O:** The call requests a transfer and returns immediately. The system executes the entire transfer in the background. When finished, the kernel notifies the thread using a callback function, signal, or state variable modification.
+
+Additionally, applications can leverage **Vectored I/O (Scatter-Gather)**. Rather than issuing multiple separate system calls to read or write distinct memory regions, vectored I/O (such as UNIX's `readv` and `writev`) executes multiple transfers across a list of buffers in a single atomic system call. This significantly reduces system call overhead and context-switching costs.
+
+## **Kernel I/O Subsystem**
+
+The kernel I/O subsystem sits on top of physical hardware and device drivers to coordinate system-wide transfers. Its primary operations include:
+
+- **I/O Scheduling:** Reordering pending requests in device wait queues to maximize throughput and minimize physical head movement (e.g., reordering block requests to limit disk arm travel).
+- **Buffering:** Using memory regions to smooth out speed mismatches between producers and consumers (e.g., storing slow network packets until a full block can be written to disk). Double buffering uses alternating buffers to allow parallel reading and writing. Buffering also guarantees **copy semantics**, ensuring that data written reflects the buffer state at the exact time of the system call, regardless of subsequent changes by the application.
+- **Caching:** Keeping local, fast-access copies of disk data in main memory to eliminate slow storage reads.
+- **Spooling:** Managing output to non-multiplexed devices (like printers) by intercepting streams and saving them to temporary files, which are later sent to the physical device one at a time.
+- **Error Handling:** Managing physical failures and retrying transient errors, reporting final statuses using standard error indicators like `errno` or detailed SCSI sense codes.
+- **I/O Protection:** Ensuring all physical I/O instructions are designated as privileged instructions, and that memory-mapped registers are protected from user space to prevent security violations.
+- **Power Management:** Managing energy use in computing environments. Mobile systems like Android optimize battery life using **power collapse** (deep sleep mode where individual components like flash and CPU are turned off but can wake up instantly upon interrupt), **component-level power management** (using a device topology tree to selectively shut off unused buses and controllers), and **wakelocks** (allowing applications to temporarily prevent power collapse during active tasks like downloads or video rendering). Operating systems also use the ACPI (Advanced Configuration and Power Interface) standard to handle power states dynamically.
+
+## **Transforming I/O Requests to Hardware Operations**
+
+How does an application's call to a symbolic file name actually translate into a spinning disk controller command? Operating systems achieve this via multiple lookup tables.
+
+In UNIX, device paths are mounted alongside regular files. The kernel resolves a path using a **mount table** to identify the corresponding filesystem partition and major/minor numbers. It then uses these numbers to index a device table and locate the controller's port or memory-mapped physical address.
+
+Here is the step-by-step life cycle of a standard blocking read request:
+
+1. A process issues a blocking `read()` system call on an open file descriptor.
+2. The kernel's system-call interface validates the request parameters. If the data is already present in the memory buffer cache, it is copied directly to user space, completing the request.
+3. If not cached, the request is scheduled. The process is removed from the run queue and placed on the wait queue for the target device.
+4. The device driver allocates a kernel buffer for the incoming data and sends control commands to the device controller's registers.
+5. The device controller operates the physical hardware to perform the data transfer.
+6. The transfer is managed by a DMA controller, which writes directly into kernel memory.
+7. Upon completion, the DMA controller raises an interrupt. The interrupt handler receives the signal via the interrupt-vector table and notifies the device driver.
+8. The device driver verifies the completion status and signals the kernel I/O subsystem.
+9. The kernel copies the data from kernel memory to the application's user-space buffer and moves the process back to the ready queue.
+10. The scheduler eventually assigns the unblocked process to the CPU, and the application resumes execution.
+
+## **STREAMS and I/O Performance**
+
+UNIX System V features an architecture called **STREAMS** that allows applications to dynamically construct modular pipelines of driver code. A stream is a full-duplex connection consisting of:
+
+- **Stream Head:** Interfaces directly with the user application.
+- **Stream Modules:** Zero or more processing blocks pushed onto the stream using `ioctl()` (e.g., editing or protocol packaging).
+- **Driver End:** Directly controls the hardware.
+
+Each module contains a read queue and a write queue, and modules exchange data using message passing. To prevent faster modules from overwhelming slower ones, STREAMS supports **flow control**, which buffers messages locally until adjacent queues have available capacity.
+
+Managing I/O at high speeds places heavy demands on system performance, specifically regarding CPU execution, cache trashing during context switches, and memory bus utilization during data copies. To improve efficiency, architects apply several core principles:
+
+- Minimize context switches.
+- Reduce data copying in memory.
+- Use smart controllers, DMA, and large transfers to minimize interrupt frequency.
+- Offload CPU tasks by moving processing primitives directly into controller hardware.
+
+This optimization effort typically follows a common **device functionality progression**: algorithms are first prototyped flexibly in user-space application code, moved to kernel-space code for speed and resource integration once proven, and finally baked into dedicated controller hardware or silicon chips to achieve maximum performance.
+
+## **Summary**
+
+In this lesson, we explored the architecture of operating system I/O subsystems, detailing the mechanisms that bridge physical hardware to applications. Here are the key takeaways:
+
+- **Hardware Layering:** Device controllers use status, control, and data registers to communicate with the host. This communication is handled via dedicated instructions or memory-mapped physical address spaces.
+- **Coordination Models:** Polling (busy-waiting) is efficient for fast devices but wastes CPU cycles on slow ones. Interrupts resolve this by asynchronously signaling the CPU, utilizing interrupt-vector tables, prioritization, and FLIH/SLIH divisions.
+- **Direct Memory Access (DMA):** Offloads byte-by-byte data transfers from the CPU by directly writing data to main memory over the bus, notifying the processor only upon full block transfer completion.
+- **Subsystem Functions:** The kernel I/O subsystem handles scheduling, double buffering (to manage speed mismatches and copy semantics), caching, spooling, and advanced power management configurations (such as Android's component trees and wakelocks).
+- **System Call Types:** Developers choose between blocking, nonblocking, and asynchronous I/O methods. Vectored (scatter-gather) I/O allows multiple buffers to transfer data in a single atomic system call.
+- **Modular Architectures:** STREAMS provides an incremental and modular structure for writing drivers and protocol stacks through dynamic, flow-controlled, full-duplex module pipelines.

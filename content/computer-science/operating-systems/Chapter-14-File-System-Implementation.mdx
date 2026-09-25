@@ -1,0 +1,257 @@
+export const metadata = {
+	title: "File-System Implementation",
+	description:
+		"A comprehensive study of file-system implementation, covering layered architecture, directory structures, block allocation, free-space management, caching and performance optimization, journaling, copy-on-write, backups, WAFL, ZFS, and APFS.",
+	order: 14,
+	draft: false,
+	tags: [
+		"operating systems",
+		"file systems",
+		"file-system implementation",
+		"block allocation",
+		"free-space management",
+		"journaling",
+		"copy-on-write",
+		"ZFS",
+		"WAFL",
+		"APFS",
+	],
+};
+
+Introduction
+
+Did you know that reading a single file on your computer might trigger a cascade of actions across five different software abstraction layers, search multiple levels of memory caches, and traverse complex pointer trees—all in a fraction of a millisecond? Understanding how operating systems translate logical user actions like `open()` and `read()` into physical storage commands is key to appreciating system performance.
+
+In this lesson, you will achieve the following learning objectives:
+
+- Deconstruct the layered architecture of modern file systems and explain the roles of each level.
+- Compare directory implementations and analyze block allocation methods (contiguous, linked, and indexed).
+- Evaluate free-space management strategies and their performance implications on Hard Disk Drives (HDDs) and Non-Volatile Memory (NVM) devices.
+- Explain critical file-system reliability concepts, including consistency checking, journaling, and copy-on-write architectures.
+
+File-System Structure
+
+Modern operating systems must manage secondary storage media, primarily **Hard Disk Drives (HDDs)** and **Nonvolatile Memory (NVM) devices**. HDDs allow in-place rewriting and direct access, meaning the system can read and write blocks directly by moving the read-write heads. NVM devices, however, differ because they cannot be rewritten in place and exhibit distinct performance characteristics.
+
+To improve I/O efficiency, transfers between memory and mass storage are performed in units of **blocks** (typically 512 bytes or 4,096 bytes). A file system maps the user's logical files and directory structures onto these physical blocks.
+
+To minimize code duplication and manage complexity, operating systems implement file systems using a **layered design**:
+
+- **Application Programs**: The user-facing software triggering file operations.
+- **Logical File System**: Manages metadata (everything except actual file contents). It is responsible for directory management, file protection, and maintaining **File Control Blocks (FCBs)** (known as _inodes_ in UNIX).
+- **File-Organization Module**: Translates logical file blocks (numbered $0$ to $N$) into physical block addresses. It also contains the **free-space manager** to track unallocated blocks.
+- **Basic File System**: Issues generic commands (based on logical block addresses) to the device drivers. It manages memory buffers and caches holding directory, metadata, and data blocks.
+- **I/O Control**: Consists of device drivers and interrupt handlers. It translates high-level commands like "retrieve block 123" into hardware-specific bit patterns written to the physical controller.
+- **Devices**: The underlying physical hardware (e.g., magnetic disks or NVMs).
+
+_Challenge_: While layering minimizes duplicate code, it introduces operating-system overhead. Designers must carefully balance abstraction with performance.
+
+File-System Operations and Usage
+
+Operating systems use specific on-storage and in-memory structures to coordinate file activities.
+
+On-Storage Structures
+
+- **Boot Control Block**: Typically the first block of a volume, containing instructions to boot the OS (e.g., UFS _boot block_ or NTFS _partition boot sector_).
+- **Volume Control Block**: Holds volume details like block count, block size, free-block counts, and pointers (e.g., UFS _superblock_ or NTFS _master file table_).
+- **Directory Structure**: Organizes files (e.g., maps file names to inode numbers in UFS).
+- **Per-File FCB (or Inode)**: Contains permissions, ownership, dates, size, and pointers to the actual data blocks.
+
+In-Memory Structures
+
+These structures are loaded at mount time to improve performance via caching:
+
+- **Mount Table**: Contains info on each mounted volume.
+- **Directory-Structure Cache**: Holds recently accessed directory entries.
+- **System-Wide Open-File Table**: Holds a copy of the FCB for every currently open file in the system, alongside an open count.
+- **Per-Process Open-File Table**: Contains a pointer to the system-wide open-file table, current file offset pointers, and access modes for files open by a specific process.
+- **Buffers**: Temporarily hold blocks during read/write operations.
+
+Life Cycle of a File Operation
+
+1. **Creation**: The logical file system allocates a new FCB (or picks one from a pre-allocated pool), reads the directory structure into memory, updates it with the new name and FCB reference, and writes it back to storage.
+2. **Open**: When a process calls `open(filename)`, the system first checks the system-wide open-file table. If another process already has it open, the system simply creates a pointer in the per-process open-file table to the existing system-wide entry. If not, it searches the directory structure, loads the FCB from storage into the system-wide table, and links the per-process table to it. The system returns a pointer, called a **file descriptor** in UNIX or a **file handle** in Windows.
+3. **Close**: When a process calls `close()`, its per-process entry is removed and the system-wide open count is decremented. If the count reaches zero, updated metadata is written back to disk, and the system-wide entry is deallocated.
+
+Directory Implementation
+
+The directory-allocation algorithm dictates how file names are mapped to their metadata pointers, severely impacting search times and system performance.
+
+Linear List
+
+The simplest approach is a linear list of file names with pointers to data blocks.
+
+- **Operations**: To create a file, the system must perform a linear search to ensure no duplicate name exists, then append the new entry. Deletion involves searching for the entry, releasing its space, and marking it as unused (using an invalid inode number or a used-unused bit).
+- **Trade-off**: It is simple to program but highly inefficient to execute. Finding a file requires an $O(N)$ linear search. Sorting the list allows binary search ($O(\log N)$), but keeping the list sorted complicates creations and deletions due to the overhead of shifting directory data.
+
+Hash Table
+
+A linear list of directory entries paired with a hash data structure.
+
+- **Operations**: The hash table takes a value computed from the file name and returns a direct pointer to its entry in the linear list. This reduces search times to $O(1)$ on average.
+- **Trade-off**: Resizing is a major challenge. If a directory grows beyond the hash table's fixed capacity, the system must enlarge the table, establish a new hash function, and rehash all existing entries. Collisions (when two names hash to the same value) must be managed using techniques like **chained overflow**, where each hash entry is a linked list of colliding files.
+
+Space Allocation Methods
+
+A central design choice in file systems is how to allocate physical blocks to logical files. There are three primary methods:
+
+Contiguous Allocation
+
+Requires that each file occupy a set of contiguous blocks on the storage device.
+
+- **Implementation**: A file is defined by its starting block address and length.
+- **Pros**: Excellent performance. Sequential access is highly optimized, and direct access to block $i$ of a file starting at block $b$ is calculated instantly as $b + i$.
+- **Cons**: Suffer from **external fragmentation** as files are created and deleted, leaving small, unusable gaps. It also requires the creator to predict a file's ultimate size. To expand a file bounded by other allocated blocks, the system must either crash or find a larger contiguous hole and copy the entire file there.
+- **Optimization**: Modern variations use **extents**. A contiguous chunk is allocated initially; if more space is needed, another contiguous chunk (an extent) is linked to the first, resolving some in-place expansion limits.
+
+Linked Allocation
+
+Each file is a linked list of blocks scattered anywhere across the storage device. Each block contains both data and a pointer to the next block.
+
+- **Pros**: No external fragmentation. Files can grow dynamically without pre-declaring size.
+- **Cons**: Extremely slow direct access because finding block $i$ requires traversing the preceding $i-1$ blocks from disk. Pointers also consume block space (e.g., 4 bytes out of a 512-byte block wastes 0.78% of storage).
+- **Optimization**: Systems collect blocks into **clusters** (e.g., 4 blocks) to decrease pointer overhead and improve sequential I/O.
+- **File-Allocation Table (FAT)**: A crucial variation used by MS-DOS. It pulls all block pointers into a single central table located at the start of the volume. This table is cached in memory, eliminating sequential head seeks during pointer lookups.
+
+Indexed Allocation
+
+Brings all pointers together into a single, dedicated location called the **index block**.
+
+- **Implementation**: Each file has an index block containing an array of physical block pointers. The directory entry points directly to the index block.
+- **Pros**: Supports efficient direct access without external fragmentation.
+- **Cons**: Overhead is high for small files, as an entire index block must be allocated even for a 1-block file.
+- **Handling Large Files**:
+  - **Linked Scheme**: Links multiple index blocks together in a chain.
+  - **Multilevel Index**: A first-level index block points to second-level index blocks, which point to the actual data blocks.
+  - **Combined Scheme (UNIX Inode)**: Keeps direct and indirect pointers in the inode itself. In a typical configuration, the first 12 pointers are **direct blocks** (pointing to data), followed by a **single indirect block**, a **double indirect block**, and a **triple indirect block** to handle massive files.
+
+Performance Comparison Summary
+
+- **Contiguous**: Outstanding for both sequential and direct access, but crippled by fragmentation.
+- **Linked**: Decent for sequential, unusable for direct access.
+- **Indexed**: Balanced, but performance depends on file size and the depth of the index structure.
+
+Free-Space Management
+
+To reuse blocks from deleted files, the operating system maintains a **free-space list**. Despite the name, this list can be structured in several ways:
+
+Bit Vector (Bitmap)
+
+Each block is represented by a single bit: $1$ if free, $0$ if allocated.
+
+- **Pros**: Simple and efficient. Modern processors utilize hardware instructions to quickly find the first non-zero word, speeding up the search for consecutive free blocks.
+- **Cons**: Scale poorly. A 1-TB disk with 4-KB blocks requires a 32-MB bitmap. For efficiency, the entire bitmap must reside in main memory, consuming valuable RAM.
+
+Linked List
+
+Links all free blocks together on disk, keeping a pointer to the first free block in memory.
+
+- **Pros**: Zero RAM overhead.
+- **Cons**: Inefficient. Traversing the list to find contiguous blocks requires reading each block from disk, causing massive I/O delays on HDDs (though normally the OS only pulls the first block off the list).
+
+Grouping
+
+A modification of the linked list where the first free block stores the addresses of $n$ free blocks. The first $n-1$ are actual free blocks, while the $n$-th block contains the addresses of another $n$ free blocks.
+
+Counting
+
+Exploits the fact that contiguous blocks are often allocated or freed together. It stores the address of the first free block and a count of the contiguous free blocks that follow it. This structure can be stored in a balanced tree for $O(\log N)$ lookups.
+
+Space Maps (ZFS Case Study)
+
+Oracle's ZFS manages massive scale by dividing space into **metaslabs**, each with its own log-structured **space map**. Instead of writing space updates directly to disk bitmaps (which causes thousands of random writes), ZFS logs allocation and deallocation events in time order. When a metaslab is chosen for allocation, ZFS loads its space map into an in-memory balanced tree, replays the log to form an accurate picture of free space, and condenses the map by combining contiguous blocks.
+
+TRIMing Unused Blocks in NVM
+
+Unlike HDDs, NVM (flash) devices cannot overwrite blocks directly. They must erase blocks (composed of multiple pages) before rewriting, which is a slow process. If the file system simply updates its free-space list without telling the physical NVM controller, the NVM device remains unaware that pages are free. It eventually fills up, forcing slow, on-demand garbage collection during writes—a performance drop known as a "write cliff."
+
+To prevent this, controllers use **TRIM** (for ATA) or **unallocate** (for NVMe) commands. These tell the storage device that specific blocks are no longer in use, allowing the device to proactively erase them during idle periods.
+
+Efficiency and Performance
+
+Optimizing secondary storage is crucial because disk and NVM operations are much slower than CPU and RAM speeds.
+
+Efficiency Factors
+
+- **Metadata Placement**: UNIX pre-allocates and distributes inodes across the disk volume, matching files close to their corresponding metadata to minimize disk-head seek times.
+- **Clustering**: Allocating space in larger clusters reduces seeking but increases internal fragmentation. BSD UNIX solves this by dynamically dropping to smaller cluster sizes for small files or the trailing blocks of a file.
+- **Metadata Writes**: Recording "last write" or "last access" dates means that reading a file requires writing back to its FCB block, generating high I/O overhead.
+- **Pointer Sizes**: Moving from 32-bit (max 4 GB files) to 64-bit or 128-bit (ZFS) pointers supports larger files, but increases the size of allocation tables and directories.
+- **Dynamic OS Tables**: Early OS kernels used fixed-size tables for process and open-file lists. Modern systems allocate these tables dynamically to prevent system-wide artificial limits.
+
+Performance Optimizations
+
+- **Page Cache vs. Buffer Cache**: Traditionally, virtual memory cached data as pages (using virtual addresses) while the file system cached blocks (using physical block addresses). This led to **double caching** (the same data stored twice in memory) when using memory-mapped I/O.
+- **Unified Buffer Cache**: Modern OSes (Linux, Windows, Solaris) use a unified buffer cache where both memory-mapped files and standard `read()` / `write()` system calls reference the same page cache, avoiding double caching and maximizing memory usage.
+- **Synchronous vs. Asynchronous Writes**: Synchronous writes do not buffer; the calling process must wait for data to reach physical media (common for databases to ensure atomic transactions). Asynchronous writes buffer data in cache and return immediately, writing to disk later.
+- **Sequential Access Enhancements**:
+  - **Free-behind**: Discards a page from memory as soon as the next page in a sequence is requested, since it is unlikely to be read again.
+  - **Read-ahead**: Detects sequential access and proactively loads subsequent blocks into memory before they are requested, masking I/O latency.
+
+Recovery and Reliability
+
+A system crash can interrupt file-system updates in mid-operation, leaving directory structures, free-block pointers, and FCBs in inconsistent states.
+
+Consistency Checking
+
+Historically, systems relied on programs like `fsck` (UNIX) to scan all metadata on boot.
+
+- The consistency checker compares directories with physical allocation structures and tries to repair inconsistencies (e.g., reclaiming orphan blocks or connecting unlinked inodes to a `/lost+found` directory).
+- _Drawback_: Scanning modern terabyte-scale drives can take hours, during which the system is offline and unavailable.
+
+Log-Structured (Journaling) File Systems
+
+Journaling applies database transactional recovery techniques to file-system metadata:
+
+1. **Log Writes**: Any metadata change is written sequentially as a **transaction** to an on-disk circular log buffer (the _journal_).
+2. **Commit**: Once the transaction is successfully committed to the log, the system call returns to the user process.
+3. **Asynchronous Playback**: The log entries are replayed asynchronously to update the actual on-disk file-system structures.
+4. **Recovery**: If a crash occurs, the OS simply reads the log. Committed transactions that weren't fully written to the file structures are replayed (redone). Aborted transactions are undone. This recovery takes seconds, completely eliminating the need for full-disk metadata scans.
+
+Alternative Reliability Architectures
+
+- **No-Overwrite (Copy-on-Write)**: Systems like NetApp's WAFL and Solaris's ZFS never overwrite blocks in place. Updates are written to completely new blocks. When the transaction finishes, pointers are updated atomically to point to the new blocks. This minimizes corruption and enables near-instant **snapshots** (points in time capturing old block structures).
+- **Checksumming**: ZFS checksums all data and metadata blocks, validating structural integrity upon every read and automatically repairing corrupt blocks when paired with RAID.
+
+Backup and Restore
+
+To protect against hardware failure, systems implement backup schedules:
+
+- **Full Backup**: Copying every file from the disk to backup media.
+- **Incremental Backup**: Copying only files modified since the last backup.
+- **N-Day Cycles**: A system might run a full backup on Day 1, followed by incremental backups on Days 2 through $N$. Restoring requires playing back the full backup, then applying each incremental backup in sequence.
+
+Modern Case Studies: WAFL and APFS
+
+Looking at concrete, real-world file system implementations reveals how theoretical trade-offs are resolved in actual production code.
+
+WAFL (Write-Anywhere File Layout)
+
+WAFL is a specialized file system designed by NetApp for network file servers. It is heavily optimized for random writes.
+
+- **Architecture**: It is block-based and uses inodes to describe files. Crucially, _all metadata lives in standard files_ (inodes reside in an inode file, free blocks in a free-block map file). If the system adds more disks, these files simply expand.
+- **Snapshots**: WAFL creates snapshots by duplicating its root inode. Because it utilizes a copy-on-write design, subsequent updates write to new blocks rather than overwriting. The snapshot (old root inode) continues pointing to the old blocks, while the active file system (new root inode) points to the new ones. The only extra storage consumed is the changed blocks.
+- **Clones**: Read-write snapshots. Writes to a clone go to new blocks, leaving the original snapshot untouched.
+- **Replication**: Duplicates file system states across networks. Instead of sending raw files, WAFL transmits only the blocks changed between two snapshots, allowing efficient disaster recovery.
+
+APFS (Apple File System)
+
+Released in 2017 to replace the aging HFS+ file system, APFS was engineered from scratch to run across all Apple devices (Apple Watch, iPhone, Mac).
+
+- **Key Features**: Supports 64-bit pointers, snapshots, clones, encryption, and optimizations for NVM solid-state drives.
+- **Space Sharing**: APFS introduces **containers**. Multiple volumes draw space dynamically from a single shared pool of free space, allowing volumes to shrink and grow on demand.
+- **Fast Directory Sizing**: Instantly calculates and updates directory sizes.
+- **Atomic Safe-Save**: Performs file renames as single, atomic, fail-safe API primitives.
+- **I/O Coalescing**: Groups multiple small write operations into single, larger writes to optimize NVM performance and extend device life.
+
+Summary
+
+Here are the key takeaways from this lesson on file-system implementation:
+
+- **Layered Design**: File systems are implemented in layers to separate physical hardware details (I/O control) from high-level abstractions (logical file systems).
+- **Storage and Memory Structures**: On-disk structures (boot blocks, superblocks, FCBs) are cached in memory (mount tables, active open-file tables) to speed up file access and tracking.
+- **Allocation Trade-offs**: Contiguous allocation provides speed but is plagued by fragmentation; linked allocation is simple but slow for direct access; indexed allocation brings pointers together into index blocks for flexible direct access.
+- **Free-Space Management**: Bitmaps provide fast contiguous searches but consume high memory at scale. Advanced methods like counting, ZFS space maps, and physical TRIM commands optimize performance for larger disks and NVM media.
+- **Reliability Improvements**: Journaling file systems replace slow consistency checking (`fsck`) by writing sequential metadata changes to a transaction log, while WAFL and ZFS utilize copy-on-write architectures to prevent in-place block overwriting entirely.
+
+thumb_upGood report thumb_downBad report

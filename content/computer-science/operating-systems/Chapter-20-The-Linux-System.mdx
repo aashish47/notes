@@ -1,0 +1,253 @@
+export const metadata = {
+	title: "Linux System",
+	description:
+		"A comprehensive study of Linux internals, covering kernel architecture, dynamic modules, process and task management, CFS scheduling, physical and virtual memory, VFS, file systems, I/O, networking, IPC, and security mechanisms.",
+	order: 20,
+	draft: false,
+	tags: [
+		"operating systems",
+		"Linux",
+		"Linux kernel",
+		"process management",
+		"CFS",
+		"memory management",
+		"VFS",
+		"file systems",
+		"I/O",
+		"networking",
+		"IPC",
+		"Linux security",
+	],
+};
+
+Introduction
+
+Did you know that the operating system powering everything from modern Android smartphones to the world's most massive supercomputers started in 1991 as a simple, one-man hobby project by a Finnish university student? Today, Linux is a premier example of highly modular, high-performance operating system design. This lesson dives deep into the inner workings of the Linux kernel, examining its scheduling algorithms, memory management, file systems, device drivers, and security layers.
+
+**Learning Objectives:**
+
+- Track the historical milestones of the Linux kernel and understand its open-source licensing model.
+- Understand the core design principles of Linux, including monolithic kernel structure and dynamic kernel modules.
+- Explain the unified task representation for processes/threads and evaluate the Completely Fair Scheduler (CFS).
+- Demystify physical memory management (zones, buddy system, slab allocation) and virtual memory abstractions.
+- Analyze the Virtual File System (VFS), block/character device I/O, the networking stack, and security mechanisms.
+
+Linux History
+
+Linux's development began in 1991 when Linus Torvalds created a basic kernel for the Intel 80386 processor. By releasing the source code freely over the internet, he sparked a global collaboration that grew Linux from a small UNIX subset into a fully functional modern operating system.
+
+To understand modern setups, we must make a key distinction:
+
+- **Linux Kernel**: An original, privileged executive code written from scratch to manage hardware and system resources.
+- **Linux System**: The complete environment combining the kernel with tools from the GNU project, BSD libraries, and the MIT X Window System.
+- **Linux Distribution**: A packaged system including administrative tools, file-system managers, package managers (like RPM), and precompiled applications.
+
+Key milestones in the kernel's evolution highlight its rapid expansion:
+
+- **Version 0.01 (1991)**: Limited hardware support, ran only on 80386 processors, supported only the Minix file system, and lacked networking.
+- **Version 1.0 (1994)**: Added TCP/IP networking, BSD-compatible sockets, an enhanced file system, SCSI controller support, and read-only memory-mapped files.
+- **Version 1.2 (1995)**: Supported PCI bus hardware, DOS emulation via virtual 8086 mode, and basic dynamic modules. This was the final PC-only version.
+- **Version 2.0 (1996)**: Added symmetric multiprocessing (SMP) and multi-architecture ports (including 64-bit Alpha). It integrated writable memory-mapped files, unified file-system caching, internal kernel threads, and POSIX real-time scheduling.
+- **Versions 2.2 to 2.6**: Improved SMP scalability by moving away from the single "Big Kernel Lock" to fine-grained locks. Introduced preemptive kernel capabilities, the highly efficient $O(1)$ scheduler, and journaling file systems.
+- **Version 3.0 & 4.0 (2011/2015)**: Commemorated milestones and simplified version numbering. Introduced the Completely Fair Scheduler (CFS), improved virtualization, and iterative architectural updates.
+
+Linux is licensed under the **GNU General Public License (GPL) version 2.0**. This "copyleft" license ensures Linux remains free. Anyone distributing modified versions of the software must also make the source code available to recipients, preventing Linux from being redistributed as a binary-only proprietary product.
+
+Design Principles
+
+Linux is a multiuser, preemptively multitasking operating system designed to match traditional, nonmicrokernel UNIX systems. It prioritizes speed, efficiency, and strict adherence to standards. It is designed to comply with POSIX specifications, enabling seamless portability of applications across various UNIX-like environments. By default, its programming interface aligns with System V Release 4 (SVR4) semantics, though BSD compatibility libraries are available.
+
+A complete Linux system is split into three main bodies of code:
+
+- **Kernel**: Operates in the processor's privileged _kernel mode_. It holds full access to the physical resources of the computer and maintains fundamental abstractions like virtual memory, process execution, and device I/O.
+- **System Libraries**: Define a standard set of functions (e.g., `libc`) that allow applications to interface with the kernel. These convert high-level programming instructions into low-level kernel system calls, executing in unprivileged _user mode_.
+- **System Utilities**: User-mode programs executing specialized management tasks. These include configuration programs run during initialization and permanently running background _daemons_ (e.g., network listeners, log managers).
+
+Unlike modern microkernel designs, Linux maintains the historic UNIX monolithic model. All core operations—including device drivers, virtual memory, scheduling, and networking—coexist within a single kernel-mode address space. This avoids costly CPU context switches and complex interprocess communication (IPC) overhead when subsystems interact, relying instead on fast, direct C function calls.
+
+Kernel Modules
+
+While the Linux kernel is monolithic, it is not rigid. It has the ability to dynamically load and unload arbitrary sections of kernel code on demand. These **loadable kernel modules** execute with full system privileges. They allow developers to test new drivers without rebooting, and enable hardware companies to distribute drivers without releasing their proprietary intellectual property under the GPL (as long as the module remains separate and uses the kernel's module interface).
+
+The module infrastructure depends on four primary cooperative subsystems:
+
+- **Module-Management System**: Manages loading modules into memory and resolving their external symbols. The kernel exports a select group of internal symbols in a symbol table. When a user-mode utility initiates module loading, it scans the module's binary for unresolved external references, matches them to the kernel's symbol table, and substitutes the correct virtual addresses before writing the module to memory.
+- **Module Loader and Unl\*\***oader\*\*: User-mode tools that prompt the kernel to allocate contiguous virtual kernel memory, relocate the module's machine code, copy it verbatim, and update the symbol table. It also includes a module requester that polls the kernel; when a system request for an unloaded protocol or driver arrives, this component auto-loads it and unloads it once it is idle.
+- **Driver-Registration System**: Enables the newly loaded module to notify the kernel of its presence. It updates dynamic lookup tables for character/block devices, file systems, network protocols, or binary execution formats.
+- **Conflict-Resolution Mechanism**: Manages and arbitrates hardware resource allocation. It forces drivers to reserve hardware resources—like I/O ports, interrupt lines (IRQs), and DMA channels—preventing overlapping drivers (e.g., parallel printers and parallel line IP) from clashing.
+
+Process Management
+
+Linux manages process creation and program execution using the traditional UNIX model, separating them into two independent system calls: `fork()` (to duplicate a process) and `exec()` (to load and run a new binary object within the current process).
+
+In Linux, a process context is categorized into three specific divisions:
+
+- **Process Identity**: Includes the unique Process ID (PID), credentials (owner/group IDs), a _personality_ identifier (used by compatibility libraries to emulate other UNIX variants), and a _namespace_ (defining a process's unique view of the file-system hierarchy).
+- **Process Environment**: Consists of command-line arguments (argument vector) and "NAME=VALUE" pairs (environment vector), stored at the top of the process's stack in user-mode address space.
+- **Process Context**: The highly dynamic state of execution. It contains the scheduling context (saved registers, scheduling priority, pending signals, and a private kernel stack), resource accounting data, an open file table indexed by file descriptors (fds), a file-system context (defining root and current working directories), a signal-handler table, and the virtual memory context.
+
+Crucially, **Linux does not distinguish between processes and threads**. Instead, it refers to all execution flows as **tasks**. Thread creation is implemented via the `clone()` system call, which is a generalized version of `fork()`. The behavior of `clone()` is determined by a set of flags that specify which resources the parent and child tasks will share:
+
+- `CLONE_FS`: Shares file-system information (current working directory, etc.).
+- `CLONE_VM`: Shares the same virtual memory space.
+- `CLONE_SIGHAND`: Shares signal handlers.
+- `CLONE_FILES`: Shares the set of open file descriptors.
+
+When a task is spawned with all of these flags set, it functions as a thread, executing in the same address space as its parent. If none of these flags are set, it acts as a traditional process with fully isolated, copied resources. This flexibility is made possible because process subcontexts (like memory, file descriptors, and signal handling) are kept in independent data structures. The primary process descriptor simply points to these subcontexts, using reference counting to safely manage shared assets.
+
+Scheduling
+
+Linux scheduling allocates CPU time to active tasks using a priority-based, preemptive multitasking algorithm. It utilizes two distinct priority scales: a real-time range (0 to 99) and a standard time-sharing range governed by "nice values" (-20 to 19, where lower numbers indicate higher priority).
+
+For standard time-sharing tasks, Linux uses the **Completely Fair Scheduler (CFS)**. CFS departs from classic UNIX schedulers by eliminating fixed time slices. Instead, it aims to allocate CPU time proportionally among all runnable tasks.
+
+CFS operation is governed by three primary variables:
+
+- **Target Latency**: A configurable time interval during which every runnable task must be scheduled at least once. If $N$ tasks have equal priority, each gets $1/N$ of the target latency.
+- **Nice-weighted Allotment**: The scheduler weights each task's portion of the target latency based on its nice value. High-priority tasks receive larger portions of the CPU time, while low-priority tasks receive smaller portions.
+- **Minimum Granularity**: A hard minimum limit on execution time. If $N$ becomes extremely large, strict division of target latency would produce tiny execution periods, leading to excessive context-switching overhead. Minimum granularity ensures no task runs for less than this floor, sacrificing mathematical fairness to preserve system performance.
+
+For real-time processes, Linux implements POSIX.1b First-Come, First-Served (FCFS) and Round-Robin (RR) scheduling. This scheduling is _soft real-time_; the scheduler guarantees that the highest-priority real-time task runs first, but the kernel cannot guarantee exact microsecond scheduling latencies.
+
+Kernel synchronization is crucial for preventing data corruption in shared structures, especially since Linux 2.6 introduced a fully preemptive kernel. The kernel handles synchronization through several methods:
+
+- **Spinlocks**: Used on multi-processor (SMP) machines for locking short-duration critical sections. If the lock is held, the waiting CPU spins in a tight loop.
+- **Kernel Preemption Toggling**: Because spinning is useless on single-processor machines, spinlock functions are dynamically compiled into preemption controls on those systems. Acquiring a lock disables preemption via `preempt_disable()`, while releasing it enables preemption via `preempt_enable()`. Each task has a `preempt_count` counter inside its `thread_info` structure; when this value is greater than zero, kernel preemption is blocked.
+- **Semaphores**: Used for locking long-duration critical sections, putting the waiting task to sleep rather than spinning.
+- **Interrupt Splitting (Top/Bottom Halves)**: Standard interrupt service routines are split into a _Top Half_ (runs immediately with recursive interrupts disabled to handle critical hardware signals) and a _Bottom Half_ (runs deferred, complex processing with interrupts fully enabled to minimize hardware latency).
+
+Memory Management
+
+Linux memory management is split into physical memory allocation and virtual memory abstractions.
+
+**Physical Memory Management** Due to physical hardware limitations (such as legacy ISA devices only accessing low memory addresses), Linux divides physical RAM into distinct architectural regions called **zones**:
+
+- `ZONE_DMA`: For physical memory addresses below 16 MB, required by legacy DMA devices.
+- `ZONE_DMA32`: For physical addresses below 4 GB on 64-bit platforms, accommodating devices limited to 32-bit DMA.
+- `ZONE_NORMAL`: Physical memory mapped permanently into the kernel's virtual address space.
+- `ZONE_HIGHMEM`: Memory on 32-bit systems that exceeds 896 MB. It cannot be permanently mapped to the kernel and must be mapped dynamically when needed.
+
+At the core of physical memory allocation is the **page allocator**. This system manages page allocation using a **buddy system**. The allocator couples adjacent free memory blocks of identical size into pairs (buddies). When contiguous memory is released, the allocator merges buddies back into a larger block (a buddy heap) to combat fragmentation. When a small request cannot be met, large blocks are split recursively.
+
+For finer allocations, Linux uses two dynamic allocators on top of the page allocator:
+
+- `kmalloc()`: Allocates arbitrary-sized, physically contiguous blocks of memory. Once allocated, this memory remains pinned in physical RAM until explicitly freed with `kfree()`.
+- **Slab Allocator**: Optimizes the allocation of frequently used kernel objects (like inodes or process descriptors). It creates a dedicated _cache_ for each object type, populated by _slabs_ (consisting of contiguous physical pages). Slabs exist in one of three states: _Full_ (all objects are in use), _Empty_ (all objects are free), or _Partial_ (contains both free and used objects). New requests are satisfied from partial slabs first, or empty slabs next, avoiding the overhead of continuously creating and destroying objects.
+
+**Virtual Memory Management** The virtual memory manager maintains two distinct views of a process's address space:
+
+- **Logical View**: Describes the process address space as a collection of nonoverlapping, page-aligned regions, each represented by a `vm_area_struct`. These structures are linked in a balanced binary tree for rapid lookup.
+- **Physical View**: Stored in hardware page tables that map virtual pages to physical frames or disk sectors.
+
+Virtual memory regions are characterized by their backing store and how they handle write operations. They can be backed by a file (representing a window into the file via the kernel's _page cache_) or backed by nothing (representing _demand-zero memory_, which supplies pages filled with zeros on read). Write access is designated as _shared_ (updates write directly back to the backing store) or _private_ (uses _copy-on-write_ to clone shared physical pages only when a write is attempted, preserving memory).
+
+**Swapping and Paging** Linux relies on a paging mechanism to migrate individual virtual pages to secondary storage when physical RAM is low. It uses a modified **clock (second-chance) algorithm** that assigns an age to each page based on its access frequency. Infrequently accessed pages age down to zero and are selected for eviction under a Least Frequently Used (LFU) policy. Pageout allocations write sequential blocks to swap space using a _next-fit_ search algorithm.
+
+**Execution and Loading of User Programs** When a program calls `exec()`, the kernel uses a registered table of binary loaders to locate the correct loader (such as the ELF loader). The **ELF binary format** consists of a header followed by page-aligned sections. Instead of copying the binary directly into RAM, the loader maps the program's sections into the process's virtual memory layout:
+
+- **Kernel Virtual Memory**: Positioned at the top of the address space and protected from user-mode access.
+- **Stack**: Positioned below the kernel space and grows downward. It holds program arguments and environment variables.
+- **Memory-Mapped Regions**: Positioned in the middle of the address space to accommodate dynamic shared libraries.
+- **Run-Time Data (Heap)**: Extended upward using the `brk` pointer via the `sbrk()` system call.
+- **Program Data and Text**: Positioned at the bottom, containing initialized/uninitialized data and write-protected program code.
+
+To manage libraries, Linux supports **Dynamic Linking**. A small static function inside dynamically linked programs maps a linker library into memory. The linker reads the ELF binary, loads the required dynamic libraries, and resolves symbolic references. These libraries are compiled as **Position-Independent Code (PIC)**, allowing them to execute from any location in virtual memory.
+
+File Systems
+
+Linux relies on a **Virtual File System (VFS)** layer to hide the implementation details of various storage formats behind a unified interface. VFS uses object-oriented principles, defining four core object types, each containing a pointer to a table of operations:
+
+- **Inode Object**: Represents an individual, unique file (whether on disk, on a network, or a socket) and points to its raw data blocks.
+- **File Object**: Tracks a process's point of access to an open file, maintaining the byte offset, access permissions, and read-ahead metrics.
+- **Superblock Object**: Represents an entire mounted file system, managing the metadata and serving as the primary generator for inodes.
+- **Dentry (Directory Entry) Object**: Represents an individual directory component along a path (e.g., `/`, `usr`, `bin`). Dentries are stored in a high-speed **dentry cache** to bypass slow, iterative disk reads during path-name resolution.
+
+**The ext3 File System** Linux's native on-disk file system, `ext3`, is partitioned into segments called **block** **groups** (similar to BSD FFS cylinder groups) to minimize head seek times. Each group manages its own allocation bitmap. When allocating blocks to a new file, ext3 attempts to match the block group of its parent directory. To optimize performance, the system tries to allocate physically contiguous blocks, using a two-stage search:
+
+1. It searches the bitmap for an entire free byte (representing a contiguous sequence of 8 free blocks).
+2. If a free byte is found, it scans backward to flush the allocation against the preceding block, then preallocates up to eight blocks forward. This reduces disk fragmentation during concurrent file writes.
+
+**Journaling** `ext3` implements journaling, which records proposed metadata modifications sequentially to a circular buffer (the journal) as a **transaction** before writing them to the active file system. Once written to the journal, a transaction is committed. If a system crash occurs, the recovery utility plays back committed journal entries to guarantee file-system consistency, while aborting uncommitted transactions. For high performance, `ext3` can be configured to journal only metadata updates, leaving raw file data to be written asynchronously.
+
+**The /proc File System** The `/proc` file system is a virtual file system that does not store data on disk. Instead, its contents are generated on demand from kernel state when read.
+
+- Active process directories are named using their PIDs (e.g., `/proc/1234`).
+- VFS translates requested `/proc` pathnames to 32-bit inode numbers. The top 16 bits of the inode represent the process PID, and the lower 16 bits specify the requested system statistics.
+- Inode numbers with a PID of zero represent global system metrics, such as CPU statistics, kernel version, or memory availability.
+- The `/proc/sys` subdirectory allows administrators to dynamically tune kernel parameters at runtime. This can be done by writing text values to the virtual files or via the faster `sysctl()` binary system call, which accesses the dynamic entry tree directly without file-system overhead.
+
+Input and Output
+
+To provide a uniform interface, Linux maps physical device drivers to files, allowing administrators to manage device access using standard file-system permissions. Devices are classified into three primary categories:
+
+- **Block Devices**: Allow random access to independent, fixed-size blocks of data (e.g., hard drives, solid-state drives, CD-ROMs). The kernel reads blocks into buffers managed by the **request manager**. To maximize disk bandwidth, Linux schedules requests using the **Completely Fair Queueing (CFQ)** scheduler. CFQ maintains separate C-SCAN sorted lists of requests for each process, servicing them round-robin (pulling a default of four requests per process) to ensure equitable allocation of disk bandwidth.
+- **Character Devices**: Serial-access hardware with no block structure (e.g., mice, keyboards). The kernel performs minimal preprocessing on character device streams, passing requests directly to functions registered by the device driver. Standard terminal devices are managed via `tty_struct` structures linked to a **line discipline**. The line discipline interprets data streams, mapping raw terminal data to standard inputs and outputs, or encoding network traffic over serial connections (using PPP or SLIP).
+- **Network Devices**: Handled separately from block and character devices. Because network communication involves complex routing and protocols, user programs cannot write directly to these devices. Instead, they interact with them indirectly through the kernel's network socket layer.
+
+Interprocess Communication
+
+Linux provides several interprocess communication (IPC) mechanisms for synchronizing execution and passing data between processes:
+
+**Synchronization and Signals**
+
+- **Signals**: Inform a process of asynchronous events (e.g., child termination or timer expiration). Signals are lightweight and cannot carry data payloads.
+- **Wait Queues**: Used within kernel mode. Tasks place themselves on a wait queue associated with an event, modifying their scheduling state to block until awakened. This allows multiple tasks to block on a single event, such as a disk-read completion.
+- **System V Semaphores**: Provide synchronization across independent processes, supporting atomic operations on groups of semaphores.
+
+**Data-Passing Mechanisms**
+
+- **Pipes**: Establish a unidirectional communication channel between parent and child processes. Pipes are represented in the VFS as a dedicated inode containing read/write wait queues to synchronize the flow of data.
+- **Shared Memory**: The fastest IPC method, mapping a shared memory region directly into the address spaces of multiple processes. Because shared memory does not provide built-in synchronization, it is typically paired with semaphores to coordinate access.
+- **Shared-Memory Objects**: Persistent memory regions maintained by the kernel. The page allocator can swap out inactive shared memory pages to disk, retrieving them via page faults just like standard memory-mapped files.
+
+Network Structure
+
+Networking in the Linux kernel is organized into three cooperative software layers:
+
+1. **The Socket Interface**: A BSD-compatible socket abstraction that provides a uniform interface for user applications, regardless of the underlying network protocol.
+2. **Protocol Drivers**: Implement specific network protocols. The standard TCP/IP suite includes IP (for packet routing), UDP (for unreliable datagrams), TCP (for reliable, in-order packet delivery), and ICMP (for error reporting).
+3. **Network-Device Drivers**: Interface directly with physical network hardware, using protocol-identifier hash tables to route incoming packets to the correct protocol driver.
+
+To prevent costly memory duplication, the networking stack passes packets between layers using a single unified data structure: the **socket buffer (\*\***sk_buff\***\*)**. An `sk_buff` contains pointers to a continuous block of memory holding the network packet. Instead of copying data when wrapping packets with protocol headers, the kernel simply adjusts pointers at either end of the `sk_buff` to add or trim headers in place.
+
+The IP driver performs routing using two main tables:
+
+- **Forwarding Information Base (FIB)**: A persistent, hierarchical set of hash tables that maps routes based on specific addresses or wildcards.
+- **Route Cache**: Stores recent routing decisions for specific destinations, bypassing the complex FIB lookup process for active connections. Cache entries expire automatically after a period of inactivity.
+
+For security and structural management, the IP driver integrates three specialized components:
+
+- **Firewall Manager**: Filters incoming and outgoing packets. It evaluates `sk_buff` structures against chains of rules designated for forwarded, input, or output traffic.
+- **Disassembly and Reassembly**: If an outgoing packet exceeds the maximum transmission unit (MTU), the IP driver splits it into fragments. The receiving host manages fragments using `ipfrag` structures, grouping them into an `ipq` queue until all fragments arrive to rebuild the complete `sk_buff`.
+- **Socket Hashing**: TCP and UDP match incoming packets to destination sockets using hash tables keyed on a four-tuple: source IP, destination IP, source port, and destination port.
+
+Security
+
+Linux security is split into user authentication and resource access control:
+
+**Authentication** Historically, UNIX authentication relied on a publicly readable, salted, and encrypted password file (`/etc/passwd`). Modern Linux systems resolve authentication limitations using the **Pluggable Authentication Modules (PAM)** system. PAM provides a centralized authentication framework using a shared library. Administrators can update or replace authentication mechanisms (e.g., adding multi-factor authentication) by modifying a single configuration file, without needing to modify or recompile system applications.
+
+**Access Control** Linux controls access to system objects using unique numeric identifiers:
+
+- **User ID (UID)**: Identifies a specific user.
+- **Group ID (GID)**: Identifies a collection of users with shared access rights.
+
+Files and other system objects are protected by a **protection mask** that defines read, write, and execute permissions for the object's Owner, Group, and World (all other users).
+
+The privileged **root (UID 0)** user bypasses standard access checks, allowing full access to all system resources. Programs can temporarily escalate privileges using the `setuid` mechanism, which executes a program with the effective UID of the file's owner rather than the user running it.
+
+To improve security, Linux extends standard access control with three features:
+
+- **Saved User-ID**: Allows a process to drop and reacquire its effective UID repeatedly, minimizing the time a program runs with elevated privileges.
+- **fsuid and fsgid**: Process credentials used exclusively for file-system access checks. This allows network servers (like file shares) to access files on behalf of a user without assuming their identity for other operations, preventing the user from killing or suspending the server process.
+- **File Descriptor Passing**: Processes can pass open file descriptors to other processes over local network sockets, allowing a privileged process to grant selective file access without escalating the client's overall permissions.
+
+Summary
+
+**Key Takeaways:**
+
+- **Monolithic yet Modular**: Linux combines the performance of a monolithic kernel with the flexibility of dynamic kernel modules that load on demand.
+- **Task Unification**: Linux treats processes and threads identically as "tasks," managing resource sharing via flags in the `clone()` system call.
+- **Proportional CPU Scheduling**: The Completely Fair Scheduler (CFS) calculates execution times proportionally without traditional time slices, using target latency and minimum granularity to maximize throughput and responsiveness.
+- **Optimized Memory Allocation**: Physical RAM is split into zone-based arenas. The kernel uses a buddy system for page allocation, a slab allocator for kernel objects, and copy-on-write mechanisms to optimize virtual memory.
+- **Unified Interfaces**: The VFS abstracts file systems into superblocks, inodes, dentries, and files. Block devices are managed via CFQ scheduling, character devices use line disciplines, and networking utilizes pointer-manipulated `sk_buff` buffers.

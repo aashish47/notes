@@ -1,0 +1,269 @@
+export const metadata = {
+	title: "Mass-Storage Structure and Management",
+	description:
+		"A comprehensive introduction to HDDs, NVM/SSDs, disk scheduling, storage attachment, RAID, ZFS, swap-space management, error recovery, and operating-system storage management.",
+	order: 11,
+	draft: false,
+	tags: [
+		"operating systems",
+		"mass storage",
+		"HDD",
+		"SSD",
+		"disk scheduling",
+		"RAID",
+		"ZFS",
+		"storage management",
+	],
+};
+
+Introduction
+
+Did you know that a single microscopic speck of dust can cause a devastating 'head crash' on a spinning hard drive, instantly obliterating terabytes of data? Yet, modern systems run continuously for years without losing a single bit, thanks to an intricate dance of mathematical algorithms, hardware scheduling, and clever virtualization. In this lesson, we will dissect the architecture, mechanics, and management protocols that keep our data safe and accessible.
+
+Learning Objectives
+
+- **Analyze the physical mechanics** and performance constraints of both mechanical (HDDs) and solid-state (NVM/SSDs) storage devices.
+- **Evaluate and simulate** primary disk scheduling algorithms like FCFS, SCAN, and C-SCAN.
+- **Compare storage architecture connections** and attachments, including Host-Attached, NAS, SAN, and Cloud Storage.
+- **Contrast RAID levels** to balance reliability, performance, and storage efficiency.
+- **Master low-level OS storage management services**, such as formatting, logical partition mapping, swap space design, and error recovery.
+
+Overview of Mass-Storage Structure
+
+Secondary storage forms the nonvolatile backbone of computer memory systems. Modern systems primarily rely on **Hard Disk Drives (HDDs)** and **Nonvolatile Memory (NVM)** devices.
+
+Hard Disk Drives (HDDs)
+
+HDDs consist of flat, circular **platters** (ranging from 1.8 to 3.5 inches in diameter) coated with magnetic material. Data is read and written via a **read-write head** that flies micrometers above the spinning surface.
+
+- **Disk Arm:** Holds and moves the heads as a single unit.
+- **Tracks:** Concentric circular pathways on a platter surface.
+- **Sectors:** Subdivisions of tracks. Sectors are the smallest unit of physical data transfer (conventionally 512 bytes, now migrating to 4KB).
+- **Cylinder:** The vertical set of tracks aligned at a given disk arm position.
+- **Performance metrics:** Drive speed is specified in **Rotations Per Minute (RPM)**, typically 5,400 to 15,000 RPM.
+
+$$\text{Positioning Time (Random-Access Time)} = \text{Seek Time} + \text{Rotational Latency}$$
+
+- **Seek Time:** The time required to move the disk arm to the correct cylinder.
+- **Rotational Latency:** The time required for the target sector to rotate underneath the read-write head.
+- **Head Crash:** Occurs if a head contacts the magnetic platter surface. This physically damages the media and results in catastrophic data loss.
+
+Nonvolatile Memory (NVM) Devices
+
+NVM devices have no moving parts. They typically utilize an electronic controller and silicon-based **flash NAND die** semiconductor chips to store data. These are frequently packaged as **Solid-State Disks (SSDs)**, USB flash drives, or surface-mounted chips.
+
+_Pros and Cons of NVM vs. HDD:_
+
+- **Reliability & Speed:** NVM devices have no seek time or rotational latency, making them vastly faster for random-access and more resistant to physical shock.
+- **Cost & Lifespan:** NVM is more expensive per megabyte than HDD. NAND chips degrade with every erase cycle. Consequently, NVM lifespan is measured in **Drive Writes Per Day (DWPD)** rather than years.
+
+NAND Flash Controller Algorithms
+
+NAND cells can be read and written in page increments, but they cannot be overwritten directly. They must be erased first. Erasing occurs only in larger **block** increments.
+
+- **Flash Translation Layer (FTL):** A lookup table maintained by the controller mapping logical block addresses to physical NAND flash pages.
+- **Garbage Collection:** Reclaims space by copying valid pages from fragmented blocks into an **overprovisioning** space (commonly ~20% of the disk) so the original blocks can be entirely erased.
+- **Wear Leveling:** Algorithms that distribute writes across less-frequently erased blocks to prevent early physical failure of specific cells.
+
+Volatile Memory & RAM Drives
+
+DRAM can be logically carved out by drivers to act as secondary storage (**RAM drives** or RAM disks). These are volatile and lose data on power-down, but offer extreme speed for temporary files (e.g., Linux `/dev/ram` and `/tmp` using `tmpfs`).
+
+Secondary Storage Connection Methods
+
+Storage attaches via a bus interface, managed by host controllers (or Host Bus Adapters - HBAs) and built-in device controllers:
+
+- **Common Buses:** SATA, SAS, eSATA, FC (Fibre Channel), and USB.
+- **NVMe (NVM Express):** A high-speed interface that connects NVM devices directly to the system PCIe bus, yielding massive throughput and minimal latency.
+
+Address Mapping
+
+Operating systems access storage as a one-dimensional array of **Logical Block Addresses (LBAs)**. The internal device controller maps LBAs to physical sectors (for HDDs) or NAND pages (for NVM).
+
+- **Constant Linear Velocity (CLV):** Bit density is uniform. Rotation speed decreases as the head moves outward to keep data rate constant (used in CD/DVDs).
+- **Constant Angular Velocity (CAV):** Rotation speed remains constant. Bit density is lower on outer tracks to preserve a uniform transfer speed (used in HDDs).
+
+HDD Scheduling
+
+To optimize mechanical drive performance, operating systems seek to minimize seek times and maximize transfer bandwidth by reordering the queue of pending disk I/O requests.
+
+Let's trace the primary disk-scheduling algorithms using a sample request queue for cylinders: **[98, 183, 37, 122, 14, 124, 65, 67]** with the read-write head starting at **53**.
+
+First-Come, First-Served (FCFS)
+
+Services requests in the exact order they arrive. It is fair but highly inefficient.
+
+- **Trace path:** $53 \rightarrow 98 \rightarrow 183 \rightarrow 37 \rightarrow 122 \rightarrow 14 \dots$
+- **Total Head Movement:** **640 cylinders**.
+- **Drawback:** Massive head swings (e.g., from 122 to 14, then back to 124) limit throughput.
+
+SCAN (Elevator) Scheduling
+
+The head sweeps back and forth across the entire disk width, servicing requests along its path. It only reverses direction when it reaches the end.
+
+- **Assuming initial head direction is toward 0:**
+- **Trace path:** $53 \rightarrow 37 \rightarrow 14 \rightarrow 0 \text{ ($$reverses)} \rightarrow 65 \rightarrow 67 \rightarrow 98 \rightarrow 122 \rightarrow 124 \rightarrow 183$
+- **Total Head Movement:** **236 cylinders** (from 53 to 0, then 0 to 183).
+
+Circular SCAN (C-SCAN) Scheduling
+
+Designed to provide more uniform waiting times. The head services requests in one direction only. When it reaches the end, it immediately wraps around to the beginning _without_ servicing requests on the return trip.
+
+- **Assuming direction is toward higher cylinders (up to 199):**
+- **Trace path:** $53 \rightarrow 65 \rightarrow 67 \rightarrow 98 \rightarrow 122 \rightarrow 124 \rightarrow 183 \rightarrow 199 \rightarrow 0 \text{ (no service)} \rightarrow 14 \rightarrow 37$
+
+Selection of Scheduling Algorithms
+
+- Modern OSes cannot determine exact head physical coordinates due to internal controller mapping, but assume ascending LBAs indicate physical proximity.
+- **Linux Schedulers:**
+  - **Deadline:** Default in RHEL 7. Maintains separate read and write queues sorted by LBA (implementing C-SCAN), prioritizing reads to prevent blocking. It monitors request age using FCFS queues; if a request approaches the deadline (default 500 ms), it gets immediate service.
+  - **CFQ (Completely Fair Queueing):** Maintains queues per process, optimizing for spatial data locality.
+  - **NOOP:** A simple FCFS queue that merges adjacent requests; ideal for CPU-bound systems and fast solid-state storage.
+
+NVM Scheduling
+
+Since solid-state drives lack physical disk arms, standard mechanical scheduling focus (minimizing arm movement) is obsolete. NVM schedulers commonly employ a baseline **FCFS** queue.
+
+Key Characteristics of NVM I/O:
+
+- **Read/Write Asymmetry:** Read operations are highly uniform and incredibly fast. Writes are slower and highly variable due to the underlying erase cycles.
+- **Write Amplification:** This phenomenon occurs when an application write causes multiple internal reads and writes due to Garbage Collection (moving valid blocks, erasing, and rewriting). This severely impacts performance, especially on near-full drives.
+- **Performance Degradation:** Highly worn NVM devices (approaching their DWPD limits) exhibit slower write performance due to cell exhaustion.
+- **TRIM Command:** File systems use this to inform the SSD controller when blocks are deleted, allowing the FTL to avoid relocating invalid data during garbage collection.
+
+Error Detection and Correction
+
+Due to physical wear and electromagnetic interference, data blocks can spontaneously change states. Modern storage architectures deploy mathematical validation algorithms to combat corruption.
+
+| Mechanism                         | Complexity                           | Primary Use Case                                              |
+| --------------------------------- | ------------------------------------ | ------------------------------------------------------------- |
+| **Parity Bit**                    | Simple XOR operation                 | Detects single-bit errors in DRAM                             |
+| **Checksum**                      | Modular arithmetic                   | Verifies fixed-length data words                              |
+| **Cyclic Redundancy Check (CRC)** | Polynomial division / Hash functions | Identifies multi-bit transfer errors in networks and drives   |
+| **Error-Correction Code (ECC)**   | Complex mathematical matrix          | Detects and corrects multiple soft-bit errors per page/sector |
+
+Soft vs. Hard Errors
+
+- **Soft Error:** The controller Recalculates ECC on read, discovers a minor mismatch, reconstructs the corrupted bits, and returns correct data. It is logged as a recoverable error.
+- **Hard Error:** Corruption exceeds the mathematical correcting capacity of the stored ECC. The sector is deemed unrecoverable, returning an active I/O error to the system.
+
+Storage Device Management
+
+An operating system must systematically structure physical media before files can be stored or systems booted.
+
+Low-Level and Logical Formatting
+
+1. **Low-Level Formatting (Physical Formatting):** Divides raw magnetic platters or NAND dies into addressable locations containing headers, data space, and trailers (which house the ECC formulas). This is done at the factory.
+2. **Partitioning:** Slices the drive's logical block array into distinct, isolated groups. The OS treats each partition as an independent drive.
+3. **Volume Management:** Aggregates multiple partitions or drives together (e.g., in a RAID set). A **volume** can span multiple physical devices.
+4. **Logical Formatting:** Writes the filesystem data structures (such as inode allocation maps, journal data, and empty root directories) onto the partition.
+
+Clusters vs. Blocks
+
+To maximize read/write performance, the file system groups multiple raw sector blocks into larger virtual blocks called **clusters** (typically 4KB to 64KB).
+
+_Quest\_\_ion to Ponder:_ Why does database software often prefer **Raw I/O** (bypassing the operating system filesystem)? It enables the software to bypass OS buffer caches and write direct records to sequential logical blocks, eliminating OS scheduling overhead.
+
+Boot Block Architecture
+
+During system startup, the motherboard loads a minimal bootstrap loader from nonvolatile ROM/Flash firmware.
+
+- **Master Boot Record (MBR):** The first sector of a bootable drive containing boot code and a table identifying active partitions.
+- **Boot Sector:** Once the MBR determines the active partition, it executes the boot sector of that partition, loading the full OS kernel (e.g., using `grub2` in Linux).
+
+Bad-Block Recovery
+
+Physical sectors can go bad over time. Modern controllers mitigate this automatically:
+
+- **Sector Sparing (Forwarding):** The controller maps bad sectors to physical spare sectors set aside during low-level formatting.
+- **Sector Slipping:** To preserve spatial sorting, the controller slides subsequent sector addresses down by one spot to utilize a spare at the end of a cylinder.
+
+Swap-Space Management
+
+Swap-space acts as a secondary storage extension of physical RAM when virtual memory demand exceeds hardware capacities.
+
+Location and Configuration Options
+
+- **Within File System:** Swap space is created as a large system file. This is easy to configure but slower due to directory traversal, metadata overhead, and file fragmentation.
+- **Dedicated Raw Partition:** Swapping occurs in an isolated partition without any active filesystem. It utilizes custom allocation managers optimized strictly for transfer speed, though it is fixed in size once partitioned.
+
+Swap Space Management in Linux
+
+Linux isolates swap space primarily for **anonymous memory** (heap, stack, and uninitialized system memory) because compiled code pages can simply be discarded and re-read directly from their source executable files.
+
+- **Page Slots:** Linux swap areas are divided into consecutive 4-KB page slots.
+- **Swap Map:** An array of integer counters in RAM. Each counter tracks a single page slot. A counter value of `0` means the slot is free. A value greater than `0` denotes active mappings to that slot (e.g., a shared memory block mapped to multiple processes).
+
+Storage Attachment
+
+Computers access mass storage devices using three standard configurations:
+
+1. Host-Attached Storage
+
+Accessed directly via local I/O controller ports (SATA, SAS, USB, Thunderbolt). Enterprise systems use high-speed **Fibre Channel (FC)** fabric over optical cables to connect hosts directly to high-density storage arrays.
+
+2. Network-Attached Storage (NAS)
+
+Storage accessed remotely over standard local-area networks (LANs) via Remote Procedure Call (RPC) protocols:
+
+- **NFS (UNIX/Linux)** and **CIFS/SMB (Windows)** allow transparent file-sharing across hosts.
+- **iSCSI:** Sends raw SCSI command blocks directly over standard TCP/IP network packets. Clients format and manage these block arrays as if they were local devices.
+
+3. Cloud Storage
+
+Accessed over a WAN or the Internet to remote offsite data centers. Unlike NAS (which maps directly as a local mount point), Cloud Storage is primarily **API-based** (e.g., Amazon S3). Applications utilize API libraries to handle higher network latency and unexpected disconnects gracefully.
+
+Storage-Area Networks (SANs) and Storage Arrays
+
+A **SAN** is a private, dedicated network connecting multiple servers to a pool of storage arrays using high-speed protocols (FC, iSCSI, or InfiniBand). Unlike a NAS, which presents files over LAN, a SAN presents raw blocks over a dedicated storage fabric. Storage arrays housed within SANs utilize high-performance controllers to handle advanced capabilities like RAID, deduplication, replication, and snapshot backups.
+
+RAID Structure
+
+To mitigate drive failures and optimize multi-drive performance, systems utilize **Redundant Arrays of Independent Disks (RAID)**.
+
+Reliability and Performance Foundations
+
+- **Redundancy (Mirroring):** Duplicating writes across physical drives. If drive A fails, drive B steps in. Mirroring dramatically improves the Mean Time to Data Loss (MTTDL).
+- **Parallelism (Data Striping):** Spreading data blocks across multiple drives to increase parallel transfer bandwidth.
+  - **Bit-level Striping:** Splitting bytes at the bit level across $N$ drives (rarely used).
+  - **Block-level Striping:** Splitting file blocks sequentially across the array.
+
+Comparison of Standard RAID Levels
+
+| RAID Level        | Structural Approach                  | Minimum Drives | Storage Overhead                 | Redundancy Capacity                                              |
+| ----------------- | ------------------------------------ | -------------- | -------------------------------- | ---------------------------------------------------------------- |
+| **RAID 0**        | Non-redundant Block Striping         | 2              | $0\%$                            | Tolerates $0$ failures. Performance-only.                        |
+| **RAID 1**        | Mirroring                            | 2              | $50\%$ (Half capacity lost)      | Tolerates 1 physical drive failure.                              |
+| **RAID 4**        | Block Striping with Dedicated Parity | 3              | Equivalent to 1 drive's capacity | Tolerates 1 failure. High write overhead on the parity disk.     |
+| **RAID 5**        | Distributed Parity                   | 3              | Equivalent to 1 drive's capacity | Tolerates 1 failure. Parity block is striped dynamically.        |
+| **RAID 6**        | Dual distributed Parity (P+Q)        | 4              | Equivalent to 2 drives' capacity | Tolerates 2 simultaneous drive failures. Uses Galois field math. |
+| **RAID 10 (1+0)** | Mirrored pairs that are then striped | 4              | $50\%$                           | Tolerates multiple failures (as long as no mirror pair is lost). |
+| **RAID 01 (0+1)** | Striped sets that are then mirrored  | 4              | $50\%$                           | If one disk fails, the entire copy stripe becomes unavailable.   |
+
+The Software RAID Conundrum and the ZFS Solution
+
+Traditional RAID protects against complete physical disk failure but cannot detect corrupted data blocks, pointers, or partial writes ("torn writes").
+
+- **Solaris ZFS Solution:** Merges the filesystem and volume manager into one unified pool of storage. ZFS records cryptographic **checksums** for all metadata and data blocks, storing the checksum inside the parent block pointer. During reads, ZFS verifies the checksum; if a mirror copy is corrupted, ZFS automatically reconstructs and heals the bad block using the good mirror.
+
+Object Storage
+
+Traditional filesystems organize files in hierarchical tree directories. **Object Storage** stores unstructured data as distinct, independent objects in a unified storage pool.
+
+System Mechanics:
+
+- **No Directory Paths:** Programs store data and receive a unique **Object ID** to access it.
+- **Self-Describing Data:** Objects contain rich metadata describing their contents directly.
+- **Scalability:** Horizontal scalability is practically infinite. To scale, administrators simply add commodity server computers to the storage pool.
+- **Common Frameworks:** Hadoop Distributed File System (HDFS), Ceph, and Amazon S3.
+- **Use Case:** Best suited for massive unstructured data repositories (e.g., cloud photos, backup databases, streaming media files) rather than high-speed transactional filesystems.
+
+Summary
+
+Key Takeaways
+
+- **HDDs vs. NVMs:** Magnetic mechanical latency (seek and rotational times) contrasts with electric silicon-based write-wear constraints (Garbage Collection, DWPD limits, and wear leveling).
+- **I/O Schedulers:** Algorithms like SCAN and C-SCAN minimize seek paths on mechanical hard disks. High-speed NVM controllers use FCFS or NOOP schedulers to bypass physical moving head assumptions.
+- **OS Initialization:** Low-level physical formatting, partitioning, volume mapping, logical formatting (building filesystems), and Master Boot Record (MBR) setup are essential before storage can be mounted.
+- **Attachments:** Hosts connect locally via host-attached adapters (SATA, SAS, NVMe), over local networks (NAS using NFS/CIFS), or dedicated high-speed SAN arrays (Fibre Channel, InfiniBand).
+- **RAID and ZFS:** RAID configurations optimize throughput and safeguard data. ZFS checksum verification advances data security by actively detecting and self-healing minor block corruption.

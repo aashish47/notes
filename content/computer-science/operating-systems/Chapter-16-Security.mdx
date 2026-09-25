@@ -1,0 +1,331 @@
+export const metadata = {
+	title: "Security and Protection",
+	description:
+		"A comprehensive study of operating-system security, covering security threats, malware, program exploits, cryptography, authentication, network defenses, intrusion prevention, firewalls, and Windows security architecture.",
+	order: 16,
+	draft: false,
+	tags: [
+		"operating systems",
+		"computer security",
+		"protection",
+		"malware",
+		"cryptography",
+		"authentication",
+		"network security",
+		"firewalls",
+		"IPS",
+		"Windows security",
+	],
+};
+
+Introduction
+
+Did you know that in 2010, security researchers estimated that up to 90% of all global spam was silently sent by compromised "zombie" computers infected with hidden spyware? System security is a highly technical, fast-moving arms race where a single vulnerability in any layer can lead to complete compromise. This lesson breaks down computer security from the core definitions of threats to the mathematical architecture of modern cryptography and operating system defense strategies.
+
+By completing this lesson, you will be able to:
+
+- Distinguish between security and protection, and classify standard security violations.
+- Explain how program-level threats like buffer overflows, Trojan horses, viruses, and worms execute.
+- Perform basic cryptographic calculations for symmetric, asymmetric (RSA), and hashing algorithms.
+- Map out network security defenses including TLS handshakes, firewalls, and Intrusion Prevention Systems (IPS).
+- Analyze the security and auditing architecture of Windows 10.
+
+The Security Problem
+
+To build secure systems, we must first distinguish between **protection** and **security**:
+
+- **Protection** is the set of mechanisms that control access of processes and users to resources defined by a computer system.
+- **Security** is a measure of confidence that the integrity of a system and its data will be preserved under all circumstances.
+
+In secure computing, we define a **threat** as a potential security violation (such as discovering a vulnerability), whereas an **attack** is an active attempt to bypass security.
+
+Categories of Security Violations
+
+1. **Breach of Confidentiality**: Unauthorized reading of data (e.g., credit card or identity theft).
+2. **Breach of Integrity**: Unauthorized modification of data (e.g., modifying source code or financial ledgers).
+3. **Breach of Availability**: Unauthorized destruction of data (e.g., website defacement).
+4. **Theft of Service**: Unauthorized resource use (e.g., installing a daemon to turn a PC into a spam server).
+5. **Denial of Service (DoS)**: Preventing legitimate use of the system (e.g., overwhelming a network connection).
+
+Common Attack Methods
+
+- **Masquerading**: One participant pretends to be another host or person to breach _authentication_.
+- **Replay Attack**: Maliciously repeating a valid data transmission.
+- **Message Modification**: Altering data in transit without the sender's knowledge.
+- **Man-in-the-Middle (MITM)**: An attacker sits directly in the data flow, masquerading as the sender to the receiver, and vice versa. This is often preceded by **session hijacking** (intercepting an active communication session).
+- **Privilege Escalation**: Exploiting bugs to gain more system privileges than allowed (e.g., executing a script via email that runs with administrative rights).
+
+The Four-Layered Security Model
+
+Security must be implemented like a chain across four distinct levels. A vulnerability in any single layer compromises the entire system:
+
+1. **Physical**: Securing the physical site, machine rooms, and terminals against physical entry.
+2. **Network**: Securing communication vectors (fiber, wireless, leased lines) against interception and remote penetration.
+3. **Operating System**: Hardening the OS, minimizing its _attack surface_ (the set of points where an attacker can try to break in), and applying regular security patches.
+4. **Application**: Reviewing third-party apps, which often possess high privileges and harbor code bugs.
+
+In addition to these layers, systems are constantly vulnerable to **social engineering**, which uses human deception to bypass technical controls. **Phishing** is a common variant, misleading users into clicking malicious links or submitting confidential credentials.
+
+Program Threats and Malware
+
+Since programs are the active agents of work on a computer, they are a primary target for attackers. Software designed to exploit, disable, or damage systems is known as **malware**.
+
+Primary Malware Classifications
+
+- **Trojan Horse**: A program that acts in a clandestine, malicious manner while purporting to perform a benign function (e.g., a flashlight app that quietly steals and smuggles contact lists to a remote server).
+- **Trojan Mule (Login Emulator)**: A fake login screen that steals user credentials by displaying a fake password error and then exiting to the real login prompt.
+- **Spyware**: Software accompanying freeware/shareware that collects user information, serves unsolicited ads, or opens background spam daemons.
+- **Ransomware**: Malware that encrypts user data, holding it hostage to extort money in exchange for the decryption key.
+
+Trap Doors, Logic Bombs, and Privilege Violations
+
+Malware thrives when systems violate the **Principle of Least Privilege**, which dictates that every program and user must operate using the minimum privileges necessary to complete their job. When users run as administrators by default, malware can easily install persistent services that survive system reboots.
+
+Other structural program threats include:
+
+- **Trap Door (Back Door)**: An intentional security hole left by a programmer to bypass authentication (e.g., a custom compiler that secretly injects backdoors into compiled object code, as seen in the XcodeGhost exploit).
+- **Logic Bomb**: A trap door set to trigger only under specific logical conditions, such as on a particular date or if a specific database record is modified (e.g., a disgruntled admin scheduling a network wipe if they are removed from payroll).
+
+To counter structural code threats, development teams use **code reviews**, where code must be audited and approved by peer developers before it is integrated into the production code base.
+
+Code Injection and Buffer Overflows
+
+A **code-injection attack** occurs when an attacker adds or modifies executable code within a benign but vulnerable application. These vulnerabilities are common in low-level programming languages (C/C++) that support direct memory access via pointers without automatic bounds checking.
+
+The Mechanics of a Buffer Overflow
+
+Consider a C program containing an unbounded copy operation like `strcpy(buffer, argv[1])`. This function copies memory until it hits a NULL character, regardless of the target buffer's size. Depending on how much data is sent, three distinct memory corruption outcomes can occur:
+
+1. **Unnoticed (Small Overflow)**: The overflow spills into unused memory padding. Modern compiler optimizations often align allocations to 8-byte or 16-byte architectural boundaries, absorbing small overflows.
+2. **Logic Subversion/DoS (Medium Overflow)**: The overflow exceeds the padding and overwrites adjacent local variables on the stack. Changing variable values can subvert program conditions or cause unexpected runtime crashes.
+3. **Code Injection (Large Overflow)**: The overflow overwrites the entire stack frame, including the function's **return address**. When the function finishes execution, it jumps to a memory address written by the attacker.
+
+Shellcode, Trampolines, and NOP-Sleds
+
+To achieve code injection, attackers construct a payload containing binary assembly opcodes called **shellcode** (traditionally used to spawn a root shell using systems calls like `execvp("/bin/sh", ...)`).
+
+To ensure execution:
+
+- The return address is modified to point back to the injected shellcode on the stack.
+- A sequence of non-functional instructions called a **NOP-sled** is prefixed to the shellcode. This allows the program execution to safely "slide" down into the payload even if the target memory address is slightly misaligned.
+- A code fragment used briefly to jump execution to another target memory address acts as a **trampoline**.
+
+To prevent basic overflows, programmers should use bounded, size-aware function variants like `strncpy(buffer, argv[1], sizeof(buffer) - 1)` instead of unsafe operations like `strcpy()`, `sprintf()`, or `gets()`.
+
+Viruses and Worms
+
+While both are malicious, self-replicating code blocks, they are distinguished by how they spread:
+
+- **Viruses** require active human intervention to propagate (e.g., opening an infected email attachment or exchanging files on a USB drive).
+- **Worms** use a network connection to replicate autonomously from system to system without human assistance.
+
+How Viruses Work
+
+When a virus reaches a system, it is often installed via a **virus dropper** (typically a Trojan horse). Once active, viruses are classified by how they operate:
+
+- **File (Parasitic)**: Appends itself to an executable file and redirects the file's entry point to execute the virus code first before handing back control to the original program.
+- **Boot**: Infects the system boot sector, executing every time the machine is booted before the OS loads. It can also target system firmware (EFI or PXE card environments).
+- **Macro**: Written in high-level scripting languages (like Visual Basic). These run automatically when productivity applications open macro-enabled files (e.g., automated formatting scripts).
+- **Rootkit**: Infiltrates the operating system kernel itself. Once installed, it intercepts system calls to hide its files, processes, and network connections from security tools.
+- **Source Code**: Scans file systems to append virus code directly to uncompiled source files.
+- **Polymorphic**: Changes its binary byte pattern (signature) every time it infects a new file to evade detection.
+- **Encrypted**: Encloses its core virus payload in encryption, executing a small decryption loop first to bypass signature-matching scanners.
+- **Stealth**: Active malware that intercepts OS operations (such as file reads) to temporarily hide modifications.
+- **Multipartite**: Simultaneously infects multiple targets (such as memory, boot sectors, and files).
+- **Armored**: Highly obfuscated or compressed to prevent security researchers from reverse-engineering its code.
+
+The Monoculture Debate
+
+A **monoculture** exists when a large percentage of global computers run the identical hardware, operating systems, and application software. Security analysts debate whether a monoculture exponentially increases security risks, as a single exploit can scale to compromise millions of systems simultaneously.
+
+System and Network Threats
+
+When a computer connects to a network, its vulnerability escalates. To counter this, modern operating systems adopt a **secure by default** model, where non-essential network services (such as legacy FTP or telnet) are disabled at installation, shrinking the system's attack surface.
+
+Attackers frequently hide their operations by executing attacks from compromised **zombie systems** (or botnets). This makes locating the original attacker difficult. Similarly, attackers use **WarDriving** (scanning for unsecured wireless networks) to execute attacks anonymously from public locations.
+
+Network Attack Types
+
+- **Sniffing**: Passive interception of network traffic to capture unencrypted data streams.
+- **Spoofing**: Active masquerading by falsifying packet source addresses.
+- **Denial of Service (DoS)**: Network-based attacks designed to exhaust system resources (CPU, memory, or bandwidth) so legitimate transactions fail. **Distributed DoS (DDoS)** attacks utilize coordinated zombie networks to flood target servers with traffic.
+
+Technical Reconnaissance: Port Scanning
+
+Before executing an attack, hackers use **port scan\*\***ning\*\* to systematically map out a system's services and identify potential vulnerabilities. This process involves sending automated TCP/IP connection attempts or UDP packets to a range of ports.
+
+This scan facilitates **fingerprinting**, a reconnaissance technique that analyzes subtle protocol handler behaviors or protocol headers (like HTTP's `Server` header) to determine the exact OS type and version number of the target. Security tools like `nmap` are used for security auditing and network exploration, while tools like `Metasploit` compile specific payloads to exploit vulnerabilities discovered during scanning.
+
+Cryptography as a Security Tool - Encryption
+
+Since network packets pass through untrusted intermediate routers, we cannot trust packet source or destination addresses. **Cryptography** resolves this by using secret keys to constrain who can send or read a message.
+
+Mathematically, an encryption algorithm is defined by:
+
+- A set of keys $K$
+- A set of messages $M$
+- A set of ciphertexts $C$
+- An encrypting function $E : K \rightarrow (M \rightarrow C)$
+- A decrypting function $D : K \rightarrow (C \rightarrow M)$
+
+To remain secure, it must be computationally infeasible to derive key $k$ from the ciphertext $c \in C$ even when the encryption and decryption functions are public.
+
+Symmetric Encryption
+
+In symmetric encryption, the **same secret key** is used to encrypt and decrypt.
+
+- **Data Encryption Standard (DES)**: A traditional block cipher that transforms 64-bit blocks of plaintext using a 56-bit key. It is now considered insecure due to its short key length.
+- **Triple DES (3DES)**: Repeats the DES process three times using up to three keys: $c = E_{k3}(D_{k2}(E_{k1}(m)))$, giving an effective key length of 168 bits.
+- **Advanced Encryption Standard (AES)**: The current global standard, working on 128-bit blocks with key lengths of 128, 192, or 256 bits.
+- **Stream Ciphers**: Instead of blocks, these encrypt data bit-by-bit or byte-by-byte. A key is passed into a pseudo-random bit generator to produce a continuous **keystream**, which is combined with the plaintext via an XOR operation.
+
+Asymmetric Encryption
+
+Asymmetric (public-key) algorithms use different keys for encryption and decryption. This eliminates the need to securely transmit a shared secret key. An entity generates a public key ($k_e$) and a private key ($k_d$).
+
+**The RSA Algorithm (Example with small numbers)**:
+
+1. Choose two large prime numbers: $p = 7$ and $q = 13$.
+2. Compute the modulus: $N = p \times q = 7 \times 13 = 91$.
+3. Compute $(p - 1)(q - 1) = 6 \times 12 = 72$.
+4. Choose a public key exponent $k_e$ that is relatively prime to 72: $k_e = 5$.
+5. Compute a private key exponent $k_d$ such that $(k_e \times k_d) \bmod 72 = 1$: $k_d = 29$ (since $5 \times 29 = 145$, and $145 \bmod 72 = 1$).
+
+**To Encrypt Message** $m = 69$: $$c = m^{k_e} \bmod N = 69^5 \bmod 91 = 62$$
+
+**To Decrypt Ciphertext** $c = 62$: $$m = c^{k_d} \bmod N = 62^{29} \bmod 91 = 69$$
+
+Asymmetric cryptography is highly computationally expensive compared to symmetric algorithms. In practice, asymmetric algorithms are only used to securely encrypt and distribute symmetric keys.
+
+Authentication, Key Distribution, and TLS
+
+While encryption restricts who can _read_ a message, **authentication** constrains who can _send_ it.
+
+Hashing and Digital Signatures
+
+- **Hash Function**: Generates a small, fixed-size **message digest** (or hash value) from a variable-length message. Hash functions ($H$) must be **collision-resistant**, meaning it is computationally infeasible to find two different messages $m$ and $m'$ where $H(m) = H(m')$. Common algorithms include MD5 (now insecure) and SHA-1.
+- **Message Authentication Code (MAC)**: A symmetric-key cryptographic checksum generated from the message digest. It requires a shared secret key.
+- **Digital Signature**: An asymmetric authentication method. The sender hashes the message and encrypts the hash with their **private signature key** ($k_s$): $$s = H(m)^{k_s} \bmod N$$ Anyone can verify this signature by decrypting it with the sender's **public verification key** ($k_v$) and comparing it to the calculated hash of the received message. This provides **nonrepudiation**, preventing a sender from denying they signed a document.
+- **Code Signing**: Creators digitally sign software binary code to ensure system integrity during installation.
+
+Key Distribution and Certificates
+
+To prevent Man-in-the-Middle attacks where an attacker distributes their own "bad" public key, systems use **digital certificates**. A certificate is a public key digitally signed by a trusted **Certificate Authority (CA)** (standardized in the X.509 format).
+
+Transport Layer Security (TLS)
+
+TLS is the primary protocol used to secure web traffic. It uses asymmetric cryptography to securely negotiate a temporary, symmetric **session key**:
+
+1. **Negotiation**: Client connects to the server and sends a 28-byte random value $n_c$. The server responds with its own random value $n_s$ and its CA-signed certificate ($cert_s$).
+2. **Verification**: The client verifies the certificate with the CA's built-in public key.
+3. **Premaster Secret**: The client generates a random 46-byte premaster secret ($pms$) and encrypts it using the server's public key ($k_e$). It sends this encrypted value to the server.
+4. **Master Secret**: The server decrypts the value using its private key ($k_d$). Both parties now calculate a unique 48-byte master secret ($ms$) using the parameters: $ms = H(n_c, n_s, pms)$.
+5. **Key Generation**: Both parties derive unique symmetric encryption keys ($k_{cs}, k_{sc}$) and MAC generation keys ($k^{mac}_{cs}, k^{mac}_{sc}$) to encrypt and authenticate all subsequent communications.
+
+User Authentication
+
+Operating systems must reliably verify a user's identity. User authentication is traditionally based on three factors: something you know, something you have, or something you are.
+
+Passwords and Vulnerabilities
+
+Passwords are the most common authentication mechanism, but they suffer from distinct vulnerabilities:
+
+- **Guessing**: Exploiting personal information (names, pets, birth dates).
+- **Brute-Force (Enumeration)**: Testing every possible alphanumeric combination.
+- **Dictionary Attacks**: Systematically testing compiled lists of common passwords and dictionary words.
+- **Eavesdropping**: Utilizing **shoulder surfing** or packet network sniffing to steal passwords.
+- **Hardware interception**: Installing structural **skimmers** on terminal devices.
+
+Securing Stored Passwords
+
+To prevent system administrators or attackers from reading user passwords, operating systems store passwords in a hashed format using one-way cryptographic hash functions. When a user logs in, the OS hashes the input password and compares it to the stored hash value.
+
+However, if an attacker copies the system password file, they can execute dictionary hashes offline. To mitigate this:
+
+- **Salting**: The system generates a random number (a **salt**) when a password is created. The salt is combined with the plaintext password before hashing. This ensures identical passwords yield different hashes, rendering precomputed hash tables (rainbow tables) useless.
+- **Shadow Passwords**: Moving hashed password databases out of standard world-readable files into secure root-only access paths.
+
+One-Time Passwords (OTP) and Biometrics
+
+To prevent sniffing or replay attacks, systems use **One-Time Passwords (OTP)** where passwords change each session:
+
+- **Challenge-Response**: The system generates a challenge ($ch$). The user's device computes a hash of the shared password ($pw$) and the challenge: $H(pw, ch)$. The resulting authenticator is sent back.
+- **Two-Factor Authentication (2FA)**: Requires two distinct factors—typically "something you know" (a PIN) combined with "something you have" (a physical USB token or app-generated time-synced OTP).
+- **Biometrics**: Measuring human attributes (fingerprint ridge scans, palm templates, or iris structures) to perform high-security **multifactor authentication**.
+
+Implementing Security Defenses
+
+To secure systems, administrators practice **Defense in Depth**—employing multiple overlapping layers of security.
+
+Vulnerability Assessments and Audits
+
+- **Security Policy**: A living document establishing system configuration rules and administrative guidelines.
+- **Risk Assessment**: Placing financial value on assets and calculating the probability of security losses.
+- **Penetration Test**: Actively scanning systems and networks for configuration errors, default passwords, unauthorized setuid programs, or unpatched applications.
+
+Intrusion Prevention Systems (IPS)
+
+An IPS detects active attacks and responds by blocking traffic or killing malicious processes. They use two main approaches:
+
+1. **Signature-Based**: Scanning input or network packets for specific, known attack patterns.
+2. **Anomaly Detection**: Benchmarking normal system activity (such as system call sequences or login times) to flag deviations. This is useful for identifying **zero-day attacks** (previously unknown exploits), but it is prone to **false positives** (false alarms).
+
+**The Mathematical Challenge of False Alarms (Bayes' Theorem)**: Suppose an OS audit log generates 1,000,000 daily records. Intrusive events ($I$) are extremely rare, accounting for only 20 records ($P(I) = 0.00002$, meaning $P(\neg I) = 0.99998$). Let $A$ denote an alarm. If an IPS has a high true-positive rate ($P(A|I) = 0.8$) and a seemingly excellent low false-positive rate ($P(A|\neg I) = 0.0001$):
+
+$$P(I|A) = \frac{P(I) \times P(A|I)}{P(I) \times P(A|I) + P(\neg I) \times P(A|\neg I)}$$ $$P(I|A) = \frac{0.00002 \times 0.8}{0.00002 \times 0.8 + 0.99998 \times 0.0001} \approx 0.14$$
+
+Despite the system's accuracy, only **14% of triggered alarms are actual attacks**. The remaining 86% are false positives, demonstrating why an extremely low false-alarm rate is critical to prevent administrator alert fatigue.
+
+Firewall Architecture
+
+A **firewall** acts as a secure gateway separating different security domains, such as the internet and an internal network. Firewalls often establish a semi-trusted buffer zone called a **Demilitarized Zone (DMZ)** for public-facing servers (web/mail servers).
+
+- **Personal Firewall**: Software residing on a single host to control inbound and outbound traffic.
+- **Application Proxy Firewall**: Deep-packet inspectors that understand specific protocols (like SMTP) to strip malicious commands.
+- **System-Call Firewall**: Sits between the application and kernel, limiting which system calls a process can make.
+
+Other Modern OS Hardening Solutions
+
+- **ASLR (Address Space Layout Randomization)**: Randomizes the starting memory locations of the stack, heap, and system libraries to make predicting memory addresses for code-injection attacks difficult.
+- **Separate Partitions**: Isolating system files on a read-only partition while keeping user data on a read-write partition. Modern mobile platforms like Android use cryptographic hashing (`dm-verity`) to verify the integrity of the system partition on boot.
+
+Windows 10 Security Architecture
+
+Windows 10 implements a complete multi-user security architecture built on user accounts and object access permissions.
+
+Tokens and Subjects
+
+- **Security Access Token**: Created when a user logs on. It contains the user's unique Security ID (SID), group SIDs, and systemic privileges (e.g., changing system time or backing up files). This token is copied to every process executed by the user.
+- **Subject**: Tracks execution permissions. A **simple subject** is a standard application run by the user. A **server subject** is a system service that temporary adopts (impersonates) the security context of a client program to act on its behalf.
+
+Mandatory Integrity Control and User Account Control (UAC)
+
+Windows Vista introduced **Mandatory Integrity Control (MIC)**, which assigns one of five **integrity labels** (untrusted, low, medium, high, system) to both subjects (processes) and securable objects (files, directories).
+
+To access an object, a process must satisfy the discretionary access rules and have an integrity label equal to or higher than the object's label. The write operation bit `NoWriteUp` is enforced globally: a medium-integrity process (like an internet browser) cannot write to a high-integrity system directory.
+
+**User Account Control (UAC)** uses this mechanism by creating two distinct tokens for administrative accounts:
+
+1. A standard user token with a **medium** integrity label for everyday tasks.
+2. An elevated administrator token with a **high** integrity label, activated only after explicit user confirmation.
+
+Security Descriptors and Access-Control Lists
+
+Every securable object in Windows 10 is defined by a **security descriptor** containing:
+
+- The owner's Security ID (SID).
+- A **Discretionary Access-Control List (DACL)**: Identifies which users or groups are allowed or explicitly denied access. It is composed of **Access-Control Entries (ACE)**, which pair SIDs with specific action masks (e.g., ReadData, WriteData, Execute).
+- A **System Access-Control List (SACL)**: Specifies which system interactions (success or failure) generate auditing logs.
+
+Windows 10 separates objects into **container objects** (directories, which support security inheritance) and **noncontainer objects** (files, which do not automatically pass permissions down).
+
+Summary
+
+Key Takeaways
+
+- **Protection vs. Security**: Protection controls access to system-defined resources, while security is the overarching integrity of the system and its environment.
+- **Program Exploits**: Code injection and buffer overflows exploit unsafe pointer/memory operations in low-level languages. These can be mitigated by bounded string copy functions and OS-level ASLR.
+- **Self-Replication**: Viruses require human intervention to spread; worms autonomously traverse network links.
+- **Cryptographic Balance**: Symmetric encryption (DES, AES) is fast and uses a single secret key; asymmetric encryption (RSA) is computationally expensive, uses public/private key pairs, and is ideal for secure key exchange and digital signatures.
+- **Authentication Barriers**: Storing passwords securely requires salting and one-way hashing. Challenge-response systems and physical OTP generators help neutralize sniffing and replay attacks.
+- **Defensive Depth**: Hardening systems requires overlapping techniques, including firewalls (DMZs), audit logs, signature or anomaly IPS, partition isolation, and unified access policies.

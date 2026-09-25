@@ -1,0 +1,194 @@
+export const metadata = {
+	title: "File-System Internals and Distributed File Systems",
+	description:
+		"A comprehensive study of file-system mounting, disk layouts, VFS architecture, remote file systems, distributed naming, consistency semantics, and the Network File System (NFS).",
+	order: 15,
+	draft: false,
+	tags: [
+		"operating systems",
+		"file systems",
+		"VFS",
+		"file-system mounting",
+		"distributed file systems",
+		"NFS",
+		"consistency semantics",
+		"remote file systems",
+	],
+};
+
+## **Introduction**
+
+Did you know that a modern operating system can simultaneously manage billions of files across dozens of radically different storage types—including virtual file systems that exist only in your RAM or serve as direct portals into the operating system kernel? This lesson explores the hidden gears of file-system internals, mounting dynamics, the Virtual File System (VFS) abstraction, and the complex engineering behind distributed, network-shared storage.
+
+### **Learning Objectives**
+
+- **Analyze** how operating systems mount and organize local, raw, and remote file systems.
+- **Deconstruct** the architecture of the Virtual File System (VFS) layer and its key object-oriented representations.
+- **Evaluate** client-server file systems, remote failure modes, and distributed naming directories.
+- **Compare** file consistency models (UNIX, Session, and Immutable) and their performance trade-offs.
+- **Examine** the mechanics of the Network File System (NFS), including path translation and stateless protocol execution.
+
+## **File Systems and Disk Layouts**
+
+A general-purpose computer does not store just one file; it typically stores thousands, millions, or even billions of files across multiple physical storage devices. Storage devices can be sliced up into partitions, which contain volumes, which in turn host file systems.
+
+Modern operating systems simultaneously run both general-purpose and special-purpose file systems. For example, on a standard Solaris system, you may find:
+
+- **tmpfs**: A temporary, highly fast file system created in volatile main memory. Its contents are entirely erased if the system reboots or crashes.
+- **objfs**: A virtual file system that serves as an interface to the kernel, giving debuggers access to kernel symbols.
+- **ctfs**: A virtual file system maintaining process contract information to control boot processes.
+- **lofs**: A loopback file system allowing one file system to be accessed in place of another.
+- **procfs**: A virtual file system presenting information on all active processes as a directory tree.
+- **ufs, zfs**: Standard, general-purpose file systems.
+
+### **Disk Partitions: Raw vs. Cooked**
+
+Depending on the volume manager, a volume can span multiple partitions or disks. Every partition is formatted in one of two ways:
+
+- **Cooked partition**: Contains a standard, structured file system ready for user files.
+- **Raw partition**: Contains no file system. Raw disk spaces are used when a standard file system is inappropriate or introduces unnecessary overhead. For example, UNIX swap space utilizes raw partitions because it uses its own custom disk layout. Similarly, large databases, RAID management configurations, and system configuration bitmaps often bypass the OS file-system layer and format raw partitions to meet their exact performance requirements.
+
+### **The Boot Process and Dual-Booting**
+
+To load an operating system, the system hardware needs to know how to locate and start the kernel. However, at boot time, the system has not yet loaded the file-system code, meaning it cannot navigate a standard directory tree.
+
+To bridge this gap, bootable partitions contain sequential blocks of raw code known as the **bootstrap loader**. This loader is loaded directly into memory as an image. It contains just enough low-level, hardcoded logic about the specific file-system layout to find, load, and execute the main operating system kernel.
+
+In **dual-boot** environments, a more advanced boot loader occupies the boot space. This loader understands multiple file-system structures and operating systems, allowing users to select which OS partition to mount as the **root partition** at startup.
+
+## **File-System Mounting**
+
+Just as an individual file must be opened before use, an entire file system must be **mounted** before it becomes accessible to processes.
+
+During a mount operation, the operating system is given the target storage device and a **mount point** (typically an empty directory in the existing file system where the new directory structure will be attached).
+
+### **The Mount Verification Process**
+
+When a mount command is issued:
+
+1. The OS queries the target device driver to read the device directory.
+2. It verifies that the partition contains a valid file system of the expected format.
+3. The OS updates its in-memory mount table, indicating that a file system is active at the specified mount point. Seamless directory traversal is now possible across different physical disks.
+
+### **Mounting Semantics Across Operating Systems**
+
+Operating systems handle mount namespaces and conflicting directories differently:
+
+- **UNIX and Linux**: Integrate all mounted devices into a single, unified root directory structure. If a device is mounted over a directory that already contains files, the OS hides the existing files, making only the newly mounted files visible. When the device is unmounted, the original directory contents reappear.
+- **macOS**: Automatically searches for file systems when a device is attached. It mounts the file system under the `/Volumes` directory and adds a labeled folder icon to the desktop namespace.
+- **Microsoft Windows**: Traditionally maintains an extended two-level directory structure where physical devices are assigned distinct drive letters (e.g., `C:\path\to\file`). Each drive letter has its own independent graph directory structure. Modern versions of Windows, however, can also mount file systems anywhere inside the existing directory tree, mirroring UNIX behavior.
+
+## **File Sharing and Multiple Users**
+
+Multi-user operating systems must mediate file sharing to protect user data from unauthorized modification or access. To achieve this, systems assign ownership and access rights using two main metadata concepts: **owners (or users)** and **groups**.
+
+- **Owner**: The user who has ultimate control over a file, with the ability to modify attributes and grant permissions.
+- **Group**: A defined subset of system users who share similar access privileges to the file.
+
+When a user requests an operation (e.g., read, write, execute), the OS compares the requesting process's User ID (UID) and Group ID (GID) against the file’s stored ownership metadata. If the IDs match the owner or group attributes, the corresponding permissions are applied; otherwise, "all other users" permissions are enforced.
+
+### **Portable Media Challenges**
+
+This ID-checking scheme relies on a centralized index of UIDs and GIDs. However, if a portable hard drive or USB stick is moved between entirely different machines, ID mismatches can occur. For example, if User A is assigned UID `1000` on Machine 1, but User B is assigned UID `1000` on Machine 2, User B will automatically gain owner-level permissions to User A's files if the portable drive is plugged into Machine 2. System administrators must carefully coordinate UIDs across systems or reset file ownership when devices migrate between machines.
+
+## **Virtual File Systems**
+
+How does an operating system allow users to seamlessly browse files across a diverse mix of local disks, network directories, and temporary memory structures without forcing applications to write unique routines for each storage type?
+
+Instead of writing custom system calls for every file system, modern operating systems use a layered, object-oriented approach. The file-system architecture is broken into three distinct layers:
+
+1. **The File-System Interface**: The user-facing API based on classic system calls like `open()`, `read()`, `write()`, and `close()`, which operate using file descriptors.
+2. **The Virtual File System (VFS) Layer**: This acts as a middleman. It defines a clean VFS interface that separates generic file operations from their actual storage implementation. It also provides a way to uniquely represent a file across a network using a data structure called a **vnode**. Unlike local UNIX inodes, which are only unique within a single physical file system, vnodes contain a network-wide unique identifier.
+3. **The Implementation Layer**: The specific driver or protocol handler (e.g., local Ext4, ZFS, or remote NFS) that executes the requested actions.
+
+### **Linux VFS Object Types**
+
+The Linux VFS defines four core object types, each containing a pointer to a function table (API) containing the addresses of the specific code blocks meant to execute operations on that object:
+
+- **Superblock object**: Represents an entire, individual file system.
+- **Inode object**: Represents an individual file.
+- **Dentry object**: Represents an individual directory entry.
+- **File object**: Represents an open file (supporting functions like `open()`, `close()`, `read()`, `write()`, and `mmap()`).
+
+Because of this structure, the VFS layer does not know or care whether an inode represents a disk file, a directory, or a network file. It simply resolves the object's function table and executes the function at the predefined location, ensuring clean modularity.
+
+## **Remote File Systems and Client-Server Models**
+
+As networks evolved, file sharing shifted from manual file transfers (using programs like FTP or web browsers) to integrated **Distributed File Systems (DFS)**, where remote directories appear as if they are local. This deep integration is built on the **client-server model**, where a _server_ exports a physical directory over the network, and a _client_ mounts that directory locally.
+
+### **Authentication and Security Risks**
+
+In a local environment, user ID checking is highly secure. Over a network, client-server authentication is a major challenge because client IDs can be **spoofed** (imitated).
+
+By default, UNIX and classic NFS configurations trust the client to report the correct user ID. If User A has UID `1000` on the client but UID `2000` on the server, requests are handled incorrectly because the server evaluates the request using UID `1000` rather than the true user ID of `2000`. To resolve this, systems use secure encryption keys, although maintaining key compatibility across devices adds overhead.
+
+### **Distributed Naming Services**
+
+To prevent the chaos of mismatched user tables across a network, **Distributed Information Systems** (or naming services) provide unified directory spaces:
+
+- **Domain Name System (DNS)**: Resolves hostnames to IP addresses across networks.
+- **Network Information Service (NIS)**: Originally introduced by Sun Microsystems to centralize system configuration files (usernames, hostnames, etc.), though it sends passwords unencrypted over the network.
+- **Common Internet File System (CIFS) & Active Directory**: Microsoft's network environment, which uses a central directory structure and the **Kerberos** security protocol to authenticate user logins.
+- **Lightweight Directory-Access Protocol (LDAP)**: The secure, modern industry standard for distributed naming. It allows single sign-on across an entire enterprise's computers, centralizing user databases and permissions.
+
+### **DFS Failure Modes and State Semantics**
+
+Remote file systems are susceptible to network partitioning, server crashes, and physical cable failures. When a remote server suddenly becomes unreachable mid-session, the DFS protocol must dictate failure semantics:
+
+- **Stateless DFS (e.g., NFS Version 3)**: The server maintains zero information about client connections, active mounts, or open files. Each client request must carry a full set of credentials, directory handles, and file offsets. If the server crashes, it can reboot and immediately resume handling requests without recovery overhead. However, this lack of state makes it vulnerable to forged requests.
+- **Stateful DFS (e.g., NFS Version 4)**: The server tracks open file handles and client sessions. This introduces recovery complexity during server crashes but dramatically improves performance, cache consistency, and file security.
+
+## **Consistency Semantics**
+
+When multiple users access a shared file simultaneously, the system must enforce **consistency semantics** to determine exactly _when_ modifications made by one user become visible to others. These actions are tracked within a **file session** (the span of actions between a file's `open()` and `close()` operations).
+
+There are three primary consistency models used by operating systems:
+
+- **UNIX Semantics**: All writes to an open file are visible immediately to other users who have that same file open. Users can also share a single file-location pointer, meaning one user's traversal through the file directly alters the file location for all other sharing users. This model forces a single, shared physical image of the file, which can cause performance delays due to lock contention.
+- **Session Semantics (Andrew File System / OpenAFS)**: Writes to an open file are _not_ immediately visible to other users who have the file open. Instead, modifications are only committed to the server and made visible to _new_ sessions that start _after_ the current session is closed. This allows users to work on local, cached copies of the file concurrently without system delay.
+- **Immutable-Shared-Files Semantics**: Once a file is designated as shared by its creator, its contents can never be modified again. Its name cannot be reused, and its data is fixed. Because the file is strictly read-only, sharing and caching across distributed networks is highly efficient and straightforward to implement.
+
+## **Network File System (NFS) Deep Dive**
+
+The **Network File System (NFS)** is a highly successful client-server system designed to share files transparently across local (LAN) and wide (WAN) area networks. Although NFS Version 4 is the modern standard, NFS Version 3 remains widely deployed and serves as the perfect model for studying distributed file systems.
+
+NFS achieves machine and operating system independence by building remote procedure calls (RPCs) on top of an **External Data Representation (XDR)** protocol. This abstracts data representation differences between heterogeneous hardware systems.
+
+### **The NFS Mount Protocol**
+
+To access a remote directory, a client executes a mount command. This initiates the Mount Protocol:
+
+1. The client sends a request to the server containing the remote directory name.
+2. The server checks its **export list** (such as `/etc/dfs/dfstab` in Solaris) to verify if the client has permission to mount that directory.
+3. If approved, the server returns a **file handle** to the client. This file handle serves as a unique key for all future accesses and contains the file-system identifier and inode number of the target directory.
+
+### **The NFS Protocol & Stateless Execution**
+
+The NFS protocol does not include `open` or `close` operations. Because NFS servers are **stateless**, they do not track which files are open or which clients are active.
+
+Every write or read RPC request must be **idempotent**—meaning executing the same operation multiple times produces the exact same result as executing it once. To prevent duplicate executions of non-idempotent operations, every NFS request is tagged with a unique sequence number.
+
+Furthermore, because the server is stateless, it cannot cache writes in volatile memory without risking data loss. It must write all modified data (including inodes and metadata blocks) **synchronously** to disk before returning a success code to the client. To minimize this performance bottleneck, servers often utilize battery-backed nonvolatile RAM caches, allowing quick acknowledgments while safely queuing physical disk writes.
+
+### **Path-Name Translation and Caching**
+
+Because each client can mount directory structures in highly customized, non-transitive ways, the server has no unified view of the client's namespace.
+
+Therefore, path-name translation in NFS cannot be performed in a single operation. Instead, the path (e.g., `/usr/local/dir1/file.txt`) must be broken down and translated component by component. This requires sending separate lookup RPCs for each sub-directory step.
+
+To keep performance reasonable, clients use two local caches:
+
+- **File-Attribute Cache**: Stores directory vnode details. It is discarded by default after 60 seconds or whenever a modification mismatch is detected.
+- **File-Blocks Cache**: Caches physical file data blocks locally on the client.
+
+These aggressive caching and write-buffering techniques mean NFS does not strictly conform to either UNIX or Session consistency semantics, representing a pragmatic compromise between speed and strict correctness.
+
+## **Summary**
+
+### **Key Takeaways**
+
+- **Diverse File Systems**: Computers manage multiple file-system types. Special-purpose file systems like `tmpfs` and `procfs` exist alongside general-purpose ones like `zfs` and `ufs`.
+- **Mounting**: Mounting links storage devices to directory mount points. The OS verifies the formatting and updates in-memory tables. Root partitions mount at boot, while raw partitions (like swap space) bypass formatting entirely.
+- **Virtual File System (VFS)**: The VFS layer abstracts underlying differences using `vnodes` for network-wide unique representation and structure tables for file system operations on key objects like `inodes`, `superblocks`, `dentries`, and `files`.
+- **Remote Models & Failure States**: Distributed file systems connect clients to servers. Stateless designs (NFS v3) rely on idempotent requests and synchronous writes for robust recovery, whereas stateful designs (NFS v4) improve performance but complicate server crash recovery.
+- **Consistency Models**: Systems manage concurrent file accesses through UNIX semantics (immediate visibility), Session semantics (visibility after close), or Immutable-Shared-Files semantics (read-only enforcement).
