@@ -1,0 +1,186 @@
+export const metadata = {
+	title: "Database Management Systems",
+	description:
+		"An introduction to database-management systems, covering data models, abstraction levels, database languages, design, engine architecture, transactions, application architectures, users, and the evolution of database systems.",
+	order: 1,
+	draft: false,
+	tags: ["computer science", "databases", "DBMS", "SQL", "data management"],
+};
+
+## Introduction
+
+Imagine a global bank losing its customer accounts, or a social network losing the connections between its users. Under these circumstances, their entire corporate value would instantly vanish. In the modern world, information is often a company's most valuable asset. This lesson introduces database-management systems (DBMS) and the essential concepts, architectures, and languages used to protect and manipulate large-scale digital information.
+
+By completing this lesson, you will be able to:
+
+- Explain the critical limitations of file-processing systems and how a DBMS resolves them.
+- Distinguish between the logical, physical, and view levels of data abstraction.
+- Identify the roles of Data-Definition Language (DDL) and Data-Manipulation Language (DML).
+- Map the architectural components of a database engine, including the storage manager, query processor, and transaction manager.
+- Contrast two-tier and three-tier application architectures.
+
+## Database-System Applications
+
+Database systems manage data that is highly valuable, relatively large, and accessed by multiple users and applications simultaneously. While early applications in the 1960s dealt with simple, rigidly formatted data, modern systems handle highly complex relationships and highly variable data structures.
+
+Databases operate behind the scenes of almost all daily digital operations. Representative applications include:
+
+- **Enterprise Information**: Tracking sales, customer purchases, accounting, employee payroll, taxes, and benefits.
+- **Manufacturing and Supply Chain**: Tracking production in factories, warehouse inventory, and orders.
+- **Banking and Financial Services**: Maintaining customer account records, tracking loan balances, logging credit card purchases, and processing automated stock market trades in real time.
+- **Universities**: Managing student registrations, course details, prerequisites, and grades.
+- **Airlines**: Coordinating ticket reservations and scheduling across geographically distributed networks.
+- **Web-Based Services and Social Media**: Logging user profiles, friend/follow connections, posts, likes, click histories, and targeted advertisement delivery.
+
+## Purpose of Database Systems
+
+Before database-management systems, organizations kept information in traditional file-processing systems supported by conventional operating systems. In a file-processing system, permanent records are stored in raw files, and custom application programs are written to retrieve and add records to specific files. This approach has several severe drawbacks:
+
+- **Data Redundancy and Inconsistency**: Because different programmers write various applications over time, data files often have different formats. The same information may be duplicated in several files (e.g., a student's address recorded in both the Music and Math department files). This redundancy wastes disk space and leads to inconsistency when one file is updated but another is missed.
+- **Difficulty in Accessing Data**: Retrieving data requires custom-written programs. If a user needs a non-standard list (e.g., finding all students within a specific postal code who have taken over 60 credits), they must either extract it manually or wait for a programmer to write a new application. There is no rapid, ad-hoc querying.
+- **Data Isolation**: Because files are scattered in different directories and formatted differently, writing new programs to pull cross-referenced data is extremely difficult.
+- **Integrity Problems**: Data values must satisfy specific constraints (e.g., an account balance cannot fall below zero). In file systems, these constraints are hardcoded into application programs. Modifying constraints or adding new ones requires changing all related application code.
+- **Atomicity Problems**: If a system fails midway through an operation, the system can end up in an inconsistent state. For example, during a transfer of $500 from Account A to Account B, if the system crashes after debiting A but before crediting B, the money is lost. Ensuring atomicity—that an operation occurs in its entirety or not at all—is exceptionally difficult in raw files.
+- **Concurrent-Access Anomalies**: To improve speed, systems allow multiple users to update data at the same time. Without supervision, concurrent updates can lead to corrupted data. For instance, if two clerks simultaneously withdraw money from the same $10,000 account, they might both read the $10,000 value, calculate different final balances, and overwrite each other's changes, leaving the database incorrect.
+- **Security Problems**: Granular security is difficult to enforce when data is stored in raw files. It is hard to allow a clerk access to general student records while completely blocking access to sensitive payroll or medical data.
+
+## View of Data
+
+A DBMS must provide users with an abstract view of data, hiding low-level details of how data is stored and maintained.
+
+**Data Models** At the core of any database is the data model, which is a collection of conceptual tools for describing data, data relationships, data semantics, and consistency constraints. The four main data models are:
+
+- **Relational Model**: Data is represented as collections of tables (also called relations). Each table has columns with unique names and rows representing records. It is the most widely deployed data model today.
+- **Entity-Relationship (E-R) Model**: Describes the world in terms of basic objects (entities) and the relationships among them. This model is widely used during the initial database design phase.
+- **Semi-structured Data Model**: Allows individual data items of the same type to have differing sets of attributes. It is commonly represented using formats like JSON and XML.
+- **Object-Based Data Model**: Extends the relational model with object-oriented concepts like encapsulation, methods, and object identity.
+
+**Data Abstraction** To simplify user interaction, a DBMS uses three distinct levels of abstraction:
+
+- **Physical Level**: The lowest level of abstraction. It describes in detail how data is actually stored on disk (e.g., consecutive bytes, data block locations, and indexes used for quick access).
+- **Logical Level**: The middle level of abstraction. It describes what data is stored and what relationships exist among those data items. Database administrators (DBAs) and programmers work at this level. This level exhibits physical data independence: the physical storage design can change without requiring rewriting of the logical applications.
+- **View Level**: The highest level of abstraction. It describes only part of the database. Most users do not need all information; views simplify their interaction and provide security by hiding sensitive tables.
+
+**Instances and Schemas**
+
+- **Database Schema**: The overall design of the database (analogous to variable declarations in a program). This includes the physical schema (design at the physical level) and the logical schema (design at the logical level).
+- **Database Instance**: The actual collection of data stored in the database at a specific moment in time (analogous to the values of variables at a specific point in a program's run).
+
+## Database Languages
+
+A DBMS provides specialized database languages to design and query data. In modern systems, these languages are integrated into a single standard: SQL (Structured Query Language).
+
+**Data-Definition Language (DDL)** The DDL is used to define the database schema and its properties. When a DDL statement is executed, the DBMS places the structure information into the data dictionary, which contains metadata (data about data). DDL also enforces integrity constraints:
+
+- **Domain Constraints**: Specifies the data type (e.g., integer, character, date) of each attribute.
+- **Referential Integrity**: Ensures that values in one table match values in another (e.g., a course record's department name must exist in the department table).
+- **Authorization**: Controls read, insert, update, and delete access permissions for different users.
+
+An example of SQL DDL is:
+
+```
+create table department (
+  dept_name char (20),
+  building char (15),
+  budget numeric (12,2)
+);
+
+```
+
+**Data-Manipulation Lang** **uage (DML)** The DML enables users to access or manipulate data. There are two primary types of DML:
+
+- **Procedural DMLs**: The user specifies what data is needed and exactly how to retrieve it.
+- **Declarative DMLs (Nonprocedural DMLs)**: The user specifies what data is needed without specifying how to retrieve it. SQL is declarative. The database engine calculates the most efficient access path.
+
+An example of an SQL query finding the name of all instructors in the History department is:
+
+```
+select instructor.name
+from instructor
+where instructor.dept_name = 'History';
+
+```
+
+**Database Access from Application Programs** Because declarative languages like SQL are not computationally complete (they cannot perform arbitrary logic or handle UI elements directly), they are embedded in host languages (like C++, Java, or Python) using application-program interfaces (APIs) such as ODBC (Open Database Connectivity) or JDBC (Java Database Connectivity).
+
+## Database Design
+
+Database design is the process of defining the structures needed to support an enterprise's operations. The design moves through several sequential phases:
+
+1. **Requirements Analysis**: The designer interacts with users and domain experts to characterize and document the exact data needs of the enterprise.
+2. **Conceptual Design**: The designer translates user requirements into a conceptual schema. This phase focuses entirely on what data is to be captured and how different data items relate to one another, ignoring physical storage concerns. Designers typically use the E-R model or normalization algorithms during this step.
+3. **Logical Design**: The high-level conceptual schema is mapped onto the specific implementation model of the target DBMS (e.g., relational tables).
+4. **Physical Design**: The designer specifies the physical features of the database, including the file organization, index structures, and internal storage setups.
+
+## Database Engine
+
+A database system is partitioned into three major functional modules: the storage manager, the query processor, and the transaction manager.
+
+**Storage Manager** The storage manager provides the interface between the low-level data stored on disk and the queries/applications submitted to the system. It handles the following components:
+
+- **Authorization and Integrity Manager**: Checks user access privileges and enforces integrity constraints.
+- **Transaction Manager**: Ensures the database remains consistent despite system crashes and manages concurrent executions.
+- **File Manager**: Directs the allocation of space on disk and sets up data structures on disk.
+- **Buffer Manager**: Handles data movement from slow disk storage to fast main memory, caching data to maximize CPU performance.
+
+The storage manager manages the raw data files, indices (which point directly to specific data records for rapid lookups), and the data dictionary.
+
+**Query Processor** The query processor translates high-level queries into low-level operations. It includes:
+
+- **DDL Interpreter**: Interprets DDL statements and registers schema structures in the data dictionary.
+- **DML Compiler**: Translates declarative DML statements into an evaluation plan of low-level instructions. It also optimizes queries by selecting the lowest-cost evaluation plan.
+- **Query Evaluation Engine**: Executes the low-level instructions produced by the DML compiler.
+
+**Transaction Management** A transaction is a collection of operations that performs a single logical function. A transaction must satisfy the following properties to preserve data integrity:
+
+- **Atomicity**: The transaction must happen in its entirety or not at all (all-or-nothing).
+- **Consistency**: The database must remain in a valid, consistent state before and after transaction execution.
+- **Durability**: The changes made by a successful transaction must persist even in the event of a total system crash.
+
+To enforce these, the DBMS employs a recovery manager (for failure recovery) and a concurrency-control manager (to manage concurrent, non-conflicting actions).
+
+## Database and Application Architecture
+
+Database servers can run on centralized computer systems, parallel environments (exploiting multiple CPUs sharing a single memory), or distributed systems (spanning multiple geographically separated machines).
+
+Additionally, application architectures are structured in two main ways:
+
+- **Two-Tier Architecture**: The application resides entirely on the client machine and directly invokes database functionality on the server using queries.
+- **Three-Tier Architecture**: The client machine acts merely as a front-end interface (such as a web browser or mobile app). The client communicates with an intermediate application server, which contains the application's business logic. The application server, in turn, queries the database server to fetch and update data. Three-tier setups provide vastly superior security, scalability, and central control over two-tier setups.
+
+## Database Users and Administrators
+
+Users interact with database systems in different ways and require different interfaces:
+
+- **Naïve Users**: Unsophisticated users who interact with the system through pre-written web or mobile form interfaces (e.g., a student registering for a class online).
+- **Application Programmers**: Computer professionals who write the application interfaces and programs.
+- **Sophisticated Users**: Users (like data analysts) who write raw SQL queries or use advanced data analysis tools to explore database patterns.
+
+**Database Administrator (DBA)** A DBA holds central control over the database system. Their responsibilities include:
+
+- **Schema Definition**: Writing and executing DDL statements to create database schemas.
+- **Storage and Access-Method Definition**: Setting up physical organizations and indexes.
+- **Schema Modification**: Modifying schemas to meet the evolving needs of the organization.
+- **Granting Authorization**: Controlling access permissions for different classes of users.
+- **Routine Maint** **enance**: Backing up data, ensuring adequate disk space, and monitoring query performance.
+
+## History of Database Systems
+
+The storage and processing of data has evolved dramatically over several eras:
+
+- **1950s & Early 1960s**: Magnetic tapes were used for sequential storage. Processing data required sequential merging and sorting of tapes.
+- **Late 1960s & Early 1970s**: The introduction of hard disks allowed direct access to data. This led to hierarchical and network models (representing lists and trees). In 1970, Edgar Codd published his landmark paper introducing the relational model, which completely separated logical design from physical details.
+- **Late 1970s & 1980s**: Projects like IBM's System R and Berkeley's Ingres proved that relational systems could be highly efficient. Relational databases replaced hierarchical and network systems due to their ease of use. Parallel and distributed database research began.
+- **1990s**: Databases expanded to support decision support, high-rate transactions, and 24/7 web access as the World Wide Web grew rapidly.
+- **2000s**: Support was added for semi-structured data (XML, JSON) and spatial data. Column-oriented stores emerged for analytical processing. 'NoSQL' systems arose to provide lightweight data management, scale, and 'eventual consistency' (sacrificing strict transaction consistency for performance).
+- **2010s**: NoSQL systems evolved to support stricter consistency models. Cloud databases and Software-as-a-Service (SaaS) models became dominant, shifting physical infrastructure management to cloud providers.
+
+## Summary
+
+In this lesson, we explored how database-management systems provide structured, safe, and efficient environments to store and retrieve data:
+
+- **DBMS vs. File Systems**: A DBMS eliminates the redundancy, inconsistency, access difficulties, lack of security, and concurrency issues inherent to raw file systems.
+- **Levels of Abstraction**: The DBMS divides data into physical, logical, and view levels to isolate applications from underlying hardware changes.
+- **Languages**: SQL combines Data-Definition Language (schema design and constraints) and Data-Manipulation Language (declarative retrieval and modification).
+- **Engine Design**: Inside the engine, the query processor, storage manager, and transaction manager coordinate to optimize execution, manage physical caches, and maintain ACID transaction properties.
+- **Modern Architectures**: Modern architectures heavily rely on three-tier setups (Client -> App Server -> DBMS) to provide enterprise-grade performance and security.

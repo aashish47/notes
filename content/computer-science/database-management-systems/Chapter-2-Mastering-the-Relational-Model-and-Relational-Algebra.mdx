@@ -1,0 +1,166 @@
+export const metadata = {
+	title: "Relational Model and Relational Algebra",
+	description:
+		"An introduction to the relational model, covering relations, tuples, attributes, schemas, instances, keys, integrity constraints, and the fundamental operations of relational algebra.",
+	order: 2,
+	draft: false,
+	tags: [
+		"computer science",
+		"databases",
+		"relational model",
+		"relational algebra",
+		"SQL",
+	],
+};
+
+Introduction
+
+Did you know that the core mathematical model powering almost all modern enterprise databases has remained virtually unchanged for over half a century? Despite the rise of NoSQL and massive scale changes, the Relational Model continues to rule database design because of its simplicity and mathematical elegance. In this lesson, we will deconstruct this elegant model from its foundational structures to the expressive operations of formal Relational Algebra.
+
+**Learning Objectives:**
+
+- Deconstruct the mathematical structure of relational databases (relations, tuples, attributes, and domains).
+- Distinguish between database schemas (logical designs) and database instances (snapshots of data).
+- Analyze and apply structural constraints, focusing on superkeys, candidate keys, primary keys, and foreign keys.
+- Formulate queries using the core operations of formal Relational Algebra.
+
+Structure of Relational Databases
+
+A **relational database** consists of a collection of tables, each assigned a unique name. The relational model is grounded in mathematical terminology, which maps directly to database concepts:
+
+- **Relation**: A table.
+- **Tuple**: A row in a table, representing a sequence (or list) of values. An $n$-tuple represents a relationship among a set of $n$ values.
+- **Attribute**: A column header of a table.
+- **Relation Instance**: A specific set of rows (tuples) containing data at a given moment. The order in which tuples appear in a relation is completely irrelevant because a relation is mathematically defined as a set.
+
+**Domains and Atomicity** For each attribute, there is a set of permitted values called its **domain**. We require that the domains of all attributes be **atomic**. A domain is atomic if its elements are considered indivisible units.
+
+- _Example of Non-Atomicity_: If an `instructor` table has a `phone_number` attribute that stores a _set_ of multiple phone numbers, the domain is non-atomic.
+- _Example of Atomicity_: If a single phone number is stored and treated as an indivisible unit, it is atomic. However, if the database splits the value into a country code, area code, and local number during processing, it is treated as non-atomic.
+
+**Null Values** The **null value** is a special value signifying that a value is unknown or does not exist (e.g., an instructor with an unlisted phone number). Because null values introduce computational difficulties during query updates and evaluation, database designers attempt to eliminate them whenever possible.
+
+Database Schema and Instances
+
+When designing or working with databases, we must carefully differentiate between structural definitions and the actual data:
+
+- **Database Schema**: The logical design of the database. It is highly static and rarely changes.
+- **Database Instance**: A snapshot of the actual data in the database at a specific instant in time. It changes frequently as tuples are inserted, updated, or deleted.
+
+**Analogy to Programming**
+
+- A **relation schema** corresponds to a programming language's **type definition** (e.g., `struct` or `class`).
+- A **relation instance** corresponds to the **value of a variable** of that type.
+
+**Schema Representation** A relation schema consists of a list of attributes and their corresponding domains. For example, the schema for the `department` relation is written as: `department (dept_name, building, budget)`
+
+To relate tuples across distinct relations, database designers duplicate attributes. For instance, `dept_name` appears in both the `instructor` schema and the `department` schema, allowing us to associate an instructor with the details of their department.
+
+Keys and Integrity Constraints
+
+To distinguish tuples within a relation, we specify constraints using attributes. No two tuples in a relation instance can have identical values across all attributes.
+
+**Superkeys, Candidate Keys, and Primary Keys**
+
+- **Superkey**: A set of one or more attributes that, taken collectively, uniquely identify a tuple in a relation. If $K$ is a superkey, then any superset of $K$ (adding more attributes) is also a superkey.
+- **Candidate Key**: A minimal superkey—meaning a superkey for which no proper subset is itself a superkey.
+- **Primary Key**: The candidate key chosen by the database designer as the principal means of identifying tuples within a relation. By convention, primary key attributes are listed first and underlined in the schema (e.g., `classroom (building, room_number, capacity)` where `building` and `room_numb``er` form a composite primary key).
+
+**Foreign Keys and Referential Integrity**
+
+- **Foreign-Key Constraint**: A constraint requiring that a value in attribute(s) $A$ of a referencing relation $r_1$ must match the primary-key value of attribute(s) $B$ in a referenced relation $r_2$.
+- _Example_: The `dept_name` attribute in the `instructor` table is a foreign key referencing the `department` table's primary key (`dept_name`).
+- **Referential-Integrity Constraint**: A broader constraint requiring that the values appearing in specified attributes of a referencing relation must also appear in specified attributes of the referenced relation. Unlike foreign keys, the referenced attributes do not have to be the primary key of the referenced relation.
+
+Schema Diagrams
+
+A database schema, along with its primary key and foreign-key constraints, is graphically depicted using a **schema diagram**.
+
+- Each relation schema is represented as a box containing its name and attributes.
+- **Primary keys** are underlined inside the box.
+- **Foreign-key constraints** are shown as directed arrows pointing from the foreign-key attributes in the referencing relation to the primary key of the referenced relation.
+- **Referential integrity constraints** (which do not target a primary key) are distinguished by using a **two-headed arrow** pointing from the referencing attribute to the referenced attribute.
+
+Relational Query Languages
+
+A query language is a specialized language in which a user requests information from a database. These are categorized into three main paradigms:
+
+1. **Imperative**: The user instructs the system to perform a specific sequence of operations on the database to compute the result, relying on state variables that change over time.
+2. **Functional**: Computations are expressed as the evaluation of side-effect-free mathematical functions that operate on data or the results of other functions. **Relational Algebra** is a functional query language.
+3. **Declarative**: The user describes _what_ information is desired without providing a specific sequence of steps to retrieve it. This is typically done using mathematical logic, leaving the database system to determine the execution plan. **Tuple Relational Calculus** and **Domain R\*\***elational Calculus\*\* are declarative.
+
+Commercial languages, such as SQL, combine elements of all three approaches to make query writing practical and highly expressive.
+
+The Relational Algebra: Unary Operations
+
+Relational algebra consists of a set of formal operations that take one or two relations as input and produce a new relation as their result. In formal relational algebra, all duplicate tuples are automatically eliminated because relations are mathematical sets.
+
+**The Select Operation (**$\sigma$**)** The select operation filters tuples that satisfy a given predicate.
+
+- **Notation**: $\sigma_{predicate}(relation)$
+- **Comparisons**: Operators include $=, \neq, <, \le, >, \ge$.
+- **Logical Connectives**: You can combine multiple predicates using and ($\land$), or ($\lor$), and not ($\neg$).
+- _Example_: To find instructors in the Physics department with a salary greater than $90,000: $$\sigma\_{dept_name = 'Physics' \land salary > 90000}(instructor)$$
+
+**The Project Operation (**$\Pi$**)** The project operation is a unary operation that returns its argument relation with certain attributes left out. It acts as a column-level filter.
+
+- **Notation**: $\Pi_{attribute\_list}(relation)$
+- _Example_: To list only the ID, name, and salary of all instructors: $$\Pi_{ID, name, salary}(instructor)$$
+- **Generalized Projection**: Allows expressions to appear in the projection list. For example, $\Pi_{ID, name, salary / 12}(instructor)$ computes the monthly salary.
+
+**Composition of Operations** Because the output of any relational algebra operation is itself a relation, we can compose operations into larger nested expressions.
+
+- _Example_: "Find the names of all instructors in the Physics department": $$\Pi_{name}(\sigma_{dept\_name = 'Physics'}(instructor))$$
+
+Combining Relations: Cartesian Product and Joins
+
+Often, the data we need spans multiple tables. Relational algebra provides operations to combine separate relations.
+
+**The Cartesian-Product Operation (**$\times$**)** The Cartesian product combines information from any two relations, concatenating every tuple of the first relation with every tuple of the second relation.
+
+- **Notation**: $r_1 \times r_2$
+- **Schema Concatenation**: If $r_1$ has arity $k_1$ and $r_2$ has arity $k_2$, the resulting schema has arity $k_1 + k_2$.
+- **Attribute Naming**: To distinguish attributes with identical names, we prefix the attribute with its source relation name (e.g., `instructor.ID` vs. `teaches.ID`).
+- **Size**: If $r_1$ has $n_1$ tuples and $r_2$ has $n_2$ tuples, the Cartesian product will contain $n_1 * n_2$ tuples.
+
+**The Join Operation (**$\bowtie$**)** The join operation allows us to combine a Cartesian product and a selection into a single operation to pair logically related tuples.
+
+- **Notation**: $r \bowtie_{\theta} s = \sigma_{\theta}(r \times s)$, where $\theta$ is a joining predicate.
+- _Example_: To find all instructors paired with the courses they actually teach: $$instructor \bowtie_{instructor.ID = teaches.ID} teaches$$
+
+Set, Assignment, and Rename Operations
+
+To handle complex query logic, relational algebra utilizes set-theoretic operations alongside expression-management tools.
+
+**Set Operations (**$\cup$**,** $\cap$**,** $-$**)**
+
+- **Union (**$\cup$**)**: Combines tuples from both input relations, eliminating duplicates.
+- **Intersection (**$\cap$**)**: Returns only tuples that appear in both relations.
+- **Set Difference (**$-$**)**: Returns tuples that appear in the first relation but not the second.
+
+_Crucial Constraint: Relation Compatibility._ For set operations to be valid, the input relations must be **compatible**:
+
+1. They must have the exact same number of attributes (**arity**).
+2. The types of the $i$-th attributes must be identical for all $i$.
+
+**The Assignment Operation (**$\leftarrow$**)** The assignment operation assigns the result of a relational-algebra expression to a temporary relation variable. This allows complex, deeply nested queries to be written as sequential, easily readable programs.
+
+- _Example_: $$temp\_fall \leftarrow \Pi_{course\_id}(\sigma_{semester = 'Fall' \land year = 2017}(section))$$ $$temp\_spring \leftarrow \Pi_{course\_id}(\sigma_{semester = 'Spring' \land year = 2018}(section))$$ $$result \leftarrow temp\_fall \cap temp\_spring$$
+
+**The Rename Operation (**$\rho$**)** Results of relational algebra expressions do not have names, making it impossible to refer to them or use them twice in the same expression (such as in a self-join). The rename operator solves this.
+
+- **Notation**: $\rho_x(E)$ returns the result of expression $E$ under the name $x$.
+- **Attribute Renaming**: $\rho_{x(A_1, A_2, \dots, A_n)}(E)$ renames the relation to $x$ and its attributes to $A_1, A_2, \dots, A_n$.
+- _Example (Self-Join)_: To find instructors who earn more than the instructor with ID 12121, we can rename the `instructor` relation twice to perform a comparison: $$\Pi_{i.ID, i.name}(\sigma_{i.salary > w.salary}(\rho_i(instructor) \times \sigma_{w.ID = '12121'}(\rho_w(instructor))))$$
+
+**Equivalent Queries and Optimization** There are often multiple ways to express the same query in relational algebra. For instance, applying a selection _before_ a join is mathematically equivalent to applying it _after_ the join: $$\sigma_{dept\_name = 'Physics'}(instructor \bowtie_{instructor.ID = teaches.ID} teaches) \equiv (\sigma_{dept\_name = 'Physics'}(instructor)) \bowtie_{instructor.ID = teaches.ID} teaches$$ Finding these equivalent expressions is the fundamental mechanism used by modern database **query optimizers** to execute queries as efficiently as possible.
+
+Summary
+
+**Key Takeaways:**
+
+- **The Relational Model** structures data as relations (tables), tuples (rows), and attributes (columns) over atomic domains.
+- **Database Schemas** are the logical designs of relations, while **Database Instances** are the highly dynamic snapshots of data.
+- **Superkeys** uniquely identify a tuple; **Candidate Keys** are minimal superkeys; **Primary Keys** are the chosen designators; and **Foreign Keys** preserve referential constraints between relations.
+- **Schema Diagrams** visually map database integrity constraints using directed lines and arrows.
+- **Relational Algebra** is a formal, functional query language containing fundamental operators: Select ($\sigma$), Project ($\Pi$), Cartesian Product ($\times$), Join ($\bowtie$), Union ($\cup$), Set Difference ($-$), Intersection ($\cap$), Assignment ($\leftarrow$), and Rename ($\rho$).

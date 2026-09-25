@@ -1,0 +1,171 @@
+export const metadata = {
+	title: "Physical Storage Systems and RAID",
+	description:
+		"An introduction to physical database storage, covering storage hierarchies, magnetic disks, NAND flash, SSDs, RAID configurations, storage interfaces, and disk-block access optimization techniques.",
+	order: 3,
+	draft: false,
+	tags: [
+		"computer science",
+		"databases",
+		"storage systems",
+		"RAID",
+		"SSD",
+		"disk management",
+	],
+};
+
+## Introduction
+
+Did you know that a mirrored disk configuration can mathematically protect your data for over 57,000 years, yet a single unbuffered power outage during a write operation can still leave your database corrupted? Database engines must bridge the gap between high-level logical abstractions, like tables and queries, and the physical realities of silicon and spinning metal. This lesson peels back the logical layers to explore physical storage media, interfaces, disk mechanics, flash memory engineering, RAID configurations, and low-level block access optimizations.
+
+### Learning Objectives
+
+By completing this lesson, you will be able to:
+
+- Compare physical storage media across the dimensions of speed, cost, volatility, and hierarchy.
+- Detail the mechanical architecture of magnetic disks and evaluate physical performance metrics like seek time and rotational latency.
+- Explain NAND flash memory constraints, including page reads, block erases, and how the Flash Translation Layer manages wear leveling.
+- Evaluate RAID levels (0, 1, 5, and 6) based on performance, reliability, rebuild times, and cost.
+- Analyze disk-block access optimization techniques including buffering, read-ahead, elevator scheduling, and non-volatile write buffers.
+
+## Overview of Physical Storage Media
+
+Computer systems utilize a variety of data storage media, structured in a hierarchy. As we descend this hierarchy, the cost per unit of data decreases, while the access time increases.
+
+### The Storage Hierarchy
+
+- **Cache:** The fastest and most expensive storage medium. It is managed by hardware and is relatively small. Database implementors must design query-processing data structures to optimize cache hits.
+- **Main Memory:** The volatile medium where general-purpose machine instructions operate on active data. It is volatile, meaning its contents are lost during a system crash or power failure.
+- **Flash Memory:** A non-volatile semiconductor memory (retains data without power). It is cheaper per byte than main memory but more expensive than magnetic disks. Solid-State Drives (SSDs) package flash memory into block-oriented interfaces (transferring data in 512-byte to 8-kilobyte blocks).
+- **Magnetic-Disk Storage:** The primary medium for long-term online database storage. It is non-volatile, resilient to system crashes, and significantly cheaper than SSDs, though it offers lower random input/output performance.
+- **Optical Storage:** Devices like DVDs and Blu-ray disks. They use laser light sources and are typically too slow for active database operations, making them useful mainly for read-only distribution or cold backups.
+- **Tape Storage:** Sequential-access storage used primarily for archival purposes. Tapes are highly economical for storing massive volumes of data (petabytes) but require sequential winding to access a specific location, resulting in access latencies of tens to hundreds of seconds.
+
+### Storage Classification
+
+Storage media are categorized into three operational levels:
+
+1. **Primary Storage:** Volatile, ultra-fast media (cache, main memory) operated on directly by the CPU.
+2. **Secondary Storage (Online Storage):** Fast, non-volatile media (flash memory, magnetic disks) containing active, online database files.
+3. **Tertiary Storage (Offline Storage):** Highly cost-efficient, slow, sequential, or mechanical non-volatile media (magnetic tape, optical-disk jukeboxes) used for backups and archival storage.
+
+## Storage Interfaces
+
+To transfer data, storage devices connect to the host computer through physical buses and logical communication interfaces:
+
+- **SATA (Serial ATA):** A common connection interface. SATA-3 supports transfer rates up to 6 Gigabits per second (Gbps), translating to raw data transfer speeds of roughly 600 Megabytes per second (MB/s).
+- **SAS (Serial Attached SCSI):** Primarily used in high-performance enterprise servers, supporting transfer speeds up to 12 Gbps.
+- **NVMe (Non-Volatile Memory Express):** A high-speed logical interface designed specifically to bypass legacy disk-controller bottlenecks for SSDs, typically routing directly over the PCIe internal computer bus.
+- **SAN (Storage Area Network):** An architecture where a dedicated high-speed network connects large arrays of disks to multiple servers. SAN connections utilize protocols like **iSCSI** (SCSI commands over IP), **Fiber Channel** (FC, transfer rates of 1.6 to 12 GB/s), or **InfiniBand** (offering ultra-low latency and high bandwidth).
+- **NAS (Network Attached Storage):** Similar to SAN, but instead of exposing a raw, block-level disk interface, NAS provides a file system interface over networks using protocols like NFS (Network File System) or CIFS (Common Internet File System).
+- **Cloud Storage:** Data accessed remotely via APIs. Because cloud storage exhibits high latency (tens to hundreds of milliseconds), it is typically utilized for storing object backups rather than active relational database blocks.
+
+## Magnetic Disks
+
+Magnetic disks provide the bulk of cost-effective, high-capacity secondary storage in modern systems. Understanding their mechanical operation is essential for understanding database performance tuning.
+
+### Physical Characteristics of Disks
+
+A disk drive consists of several flat, circular **platters** covered in magnetic material and mounted on a central **spindle**. Platters spin at speeds typically ranging from 5,400 to 10,000 revolutions per minute (RPM).
+
+- **Read-Write Heads:** Suspended micro-inches above the platter surfaces. The spinning platter creates an air cushion that floats the head. If the head makes physical contact with the platter, a **head crash** occurs, scraping off magnetic material and destroying data.
+- **Tracks and Sectors:** The surface of each platter is logically organized into concentric rings called **tracks**. Tracks are further divided into **sectors**, which represent the smallest physical unit of read/write operations (traditionally 512 bytes).
+- **Cylinders:** Since the read-write heads for all platters are mounted on a single mechanical **disk arm assembly**, they move in unison. The collection of tracks situated at the same radial distance across all platters is called a **cylinder**.
+- **Disk Controller:** An embedded hardware chip that translates high-level block commands into physical head actions. It appends **checksums** to sectors to detect data corruption during reads and performs **remapping of bad sectors** by logically rerouting bad sectors to healthy, pre-allocated physical sectors.
+
+### Performance Measures of Disks
+
+- **Access Time:** The delay between a read/write command being issued and the start of data transfer. It is computed as:
+  $$
+  \text{Access Time} = \text{Seek Time} + \text{Rotational Latency Time}
+  $$
+- **Seek Time:** The time required to move the disk arm to the target cylinder. Average seek time over random requests is roughly half of the maximum seek time, typically ranging from 4 to 10 milliseconds.
+- **Rotational Latency:** The time spent waiting for the target sector to rotate under the head. On average, this is half of a full rotation. For a 10,000 RPM disk, a full rotation takes 6 ms, making average rotational latency 3 ms.
+- **Data-Transfer Rate:** The speed at which data is read from or written to the disk. Outer tracks have longer tracks and contain more sectors, allowing maximum transfer rates of 50 to 200 MB/s, while inner tracks support lower rates (e.g., 30 MB/s).
+- **Block:** The logical unit of database storage allocation, typically 4 to 16 Kilobytes (KB) containing multiple physical sectors. Databases transfer data between disk and memory in whole block units.
+- **Access Patterns:** **Sequential access** requests consecutive blocks on adjacent tracks, minimizing seek times and rotational latency. **Random access** requests blocks scattered across the disk, requiring a seek and rotational wait for each block, which drastically reduces throughput. Disk performance under random access is measured in **IOPS** (I/O Operations Per Second), typically ranging from 50 to 200 IOPS for hard drives.
+- **Mean Time to Failure (MTTF):** A statistical measure of disk reliability. While vendors claim MTTFs of 500,000 to 1,200,000 hours, actual disk lifespans are roughly 5 years, with failure rates rising sharply as disks age.
+
+## Flash Memory
+
+NAND flash memory is the dominant semiconductor technology used for SSD storage. It provides significantly faster random access speeds than magnetic disks, with latency ranging from 20 to 100 microseconds.
+
+### The Flash Write and Erase Constraint
+
+While reading flash memory requires fetching a single **page** (typically 4,096 bytes), writing is more complex:
+
+1. **No Direct Overwrites:** A page must be cleared before it can be written to.
+2. **Erase Blocks:** Erasing cannot be performed on individual pages. It must be executed on a coarse group of pages called an **erase block** (typically 256 KB to 1 MB, containing 128 to 256 pages). An erase operation is relatively slow, taking 2 to 5 milliseconds.
+3. **Wear Limits:** Flash blocks degrade after repeated erase cycles (typically failing after 100,000 to 1,000,000 erases).
+
+### Flash Translation Layer (FTL)
+
+To hide these constraints from operating systems and databases, SSDs run a software layer called the **Flash Translation Layer (FTL)**:
+
+- **Logical-to-Physical Mapping:** FTL maps logical page numbers to dynamic physical locations. When a logical page is updated, FTL writes the new data to a pre-erased physical page, marks the old physical page as deleted, and updates an in-memory **translation table**.
+- **Garbage Collection:** Blocks with many deleted pages are periodically read, any surviving active pages are copied to a fresh block, and the entire block is erased.
+- **Wear Leveling:** To prevent physical blocks from wearing out prematurely, the FTL transparently tracks erase cycles. It assigns infrequently changed data ("cold data") to blocks with high erase counts and frequently modified data ("hot data") to blocks with low erase counts.
+
+### Performance and Storage Class Memory
+
+- **Parallelism (Queue Depth):** SSDs support parallel random access requests. While a single-threaded queue (QD-1) yields ~10,000 random reads per second, multi-threaded queues (QD-32) over NVMe PCIe interfaces can exceed 350,000 IOPS.
+- **Storage Class Memory (SCM):** Advanced non-volatile technologies (like Intel's 3D-XPoint) that bridge the gap between volatile main memory and NAND flash. SCM allows direct, byte-addressable read/write operations without the coarse page-read or block-erase constraints of flash memory.
+- **Hybrid Drives:** Storage devices that combine high-capacity magnetic platters with a small flash memory cache to store hot, read-heavy blocks.
+
+## RAID: Redundant Arrays of Independent Disks
+
+Using a large number of disks in a system introduces risks of mechanical failure while presenting opportunities for performance acceleration. **RAID** (Redundant Arrays of Independent Disks) is a family of storage-organization techniques designed to exploit parallelism and introduce data redundancy to improve reliability.
+
+### Improvement of Reliability via Redundancy
+
+If the MTTF of a single disk is 100,000 hours, an array of 100 independent disks has an aggregate MTTF of only 1,000 hours (about 42 days). Redundancy prevents this high failure rate from causing data loss.
+
+- **Mirroring (RAID 1):** Every logical write is executed on two separate physical disks. If one disk fails, the data is read from the surviving mirror. Data is lost only if the second disk fails during the **mean time to repair (MTTR)** of the first disk.
+- **Independent Failures Assumption:** Mathematically, mirroring increases safety exponentially (e.g., up to 57,000 years). However, real-world events like power surges, thermal spikes, or mechanical wear can cause correlated drive failures.
+
+### Improvement in Performance via Parallelism
+
+- **Data Striping:** Splitting data across multiple disks to read and write in parallel.
+- **Bit-level Striping:** Spreading the individual bits of a byte across disks. It requires all heads to rotate and seek in unison for every access, which limits random I/O concurrency. It is not used in practical systems.
+- **Block-level Striping:** Distributing logical blocks across $n$ disks. Logical block $i$ is assigned to disk $(i \bmod n) + 1$, using the $\lfloor i/n \rfloor$ physical block of that disk. This allows multiple small blocks to be read in parallel from different disks (concurrency) or a single large file to be streamed across all $n$ disks in parallel (high throughput).
+
+### RAID Levels
+
+Practical systems use specific, standardized RAID levels:
+
+- **RAID Level 0 (Nonredundant Striping):** Uses block-level striping across disks without storing redundant data. It provides high performance but offers zero fault tolerance—if one disk fails, all data on the array is lost.
+- **RAID Level 1 (Mirrored Disks):** Uses block-level striping combined with mirroring. Often called RAID 10 or 1+0 when nested, it offers high read throughput, excellent write performance (no parity computation), and can survive a single disk failure per mirrored pair.
+- **RAID Level 5 (Distributed Parity):** Blocks and parity are distributed across all $N+1$ disks. For a set of $N$ blocks, a **parity block (P)** is computed using the exclusive-OR (XOR) operation:
+
+$$
+\text{Parity Block Bit } i = B_1[i] \oplus B_2[i] \oplus \dots \oplus B_N[i]
+$$
+
+If any single disk fails, its missing blocks are mathematically reconstructed by XORing the surviving data blocks and the parity block. Distributing parity prevents the parity disk from becoming a write bottleneck.
+
+- **RAID Level 6 (P + Q Redundancy):** Extends RAID 5 by storing two different error-correcting codes (e.g., Reed-Solomon codes) across all disks. RAID 6 requires $N+2$ disks and can tolerate up to two simultaneous disk failures.
+
+### Hardware vs. Software RAID
+
+- **Software RAID:** Implemented directly within the operating system kernel. It consumes CPU cycles and is susceptible to inconsistencies if a power failure occurs mid-write, requiring a slow post-crash scan of all disks to resynchronize parity.
+- **Hardware RAID:** Managed by a dedicated controller card containing a physical processor and non-volatile RAM (NVRAM). NVRAM records in-flight writes before committing them to disk, preventing inconsistencies from power losses. Hardware RAID controllers can also perform background **scrubbing** (proactively reading all sectors to detect and repair latent failures/bit rot) and support **hot swapping** (replacing a failed disk on a running system, triggering an immediate background rebuild).
+
+## Disk-Block Access Optimizations
+
+To reduce the physical bottleneck of disk access (especially random seeks on magnetic disks), databases and operating systems utilize several block access optimization techniques:
+
+- **Buffering:** Storing blocks read from disk in main memory buffers. Future requests for the same blocks are served instantly from memory, avoiding physical disk I/O entirely.
+- **Read-ahead:** When a block is requested, the system pre-emptively reads subsequent consecutive blocks from the same track into memory. This is highly effective for sequential access patterns but provides no benefit for random access.
+- **Disk-Arm Scheduling (Elevator Algorithm):** The disk controller reorders physical read/write requests to minimize arm movement. The **elevator algorithm** moves the head in one direction (e.g., from the innermost track to the outermost), servicing all pending requests along the way, before reversing direction and servicing requests on the way back.
+- **File Organization and Extents:** To minimize fragmentation (where sequential blocks become scattered across a disk over time), files are allocated in large, contiguous sequences of blocks called **extents**. Reading an extent requires only one seek, rather than one seek per block.
+- **Non-volatile Write Buffers (NVRAM):** Update-intensive systems can suffer from write latency because updates must be written to non-volatile storage to survive crashes. By using NVRAM (battery-backed RAM or flash-based write buffers), write operations are written directly to the buffer and acknowledged as complete immediately. The disk controller then writes the buffered data to disk in the background using optimized scheduling algorithms.
+
+## Summary
+
+### Key Takeaways
+
+- **Storage Hierarchy:** Storage media represents a fundamental trade-off: higher tiers (caches, RAM) offer near-zero access latencies but are volatile and expensive, while lower tiers (disks, tapes) are cheap and non-volatile but suffer from mechanical access bottlenecks.
+- **Physical Disk Mechanics:** Hard disks are bound by physical physics. Accessing a block requires moving a physical arm (seek time) and waiting for a platter to spin (rotational latency), which makes random access patterns orders of magnitude slower than sequential access.
+- **NAND Flash Engineering:** SSDs eliminate mechanical components but introduce a physical write constraint: blocks must be erased before pages can be written. The Flash Translation Layer (FTL) hides this by managing logical mappings, garbage collection, and wear leveling.
+- **RAID Reliability and Parallelism:** RAID systems improve reliability and speed. RAID 1 provides fast writes and simple mirroring; RAID 5 balances capacity and performance via distributed parity, but suffers from a random write penalty; RAID 6 adds extra fault tolerance by using P+Q redundancy to survive dual-disk failures.
+- **I/O Optimizations:** Operating systems and database engines minimize random disk seeks by utilizing buffering, read-ahead prefetching, elevator disk scheduling, contiguous extent file layouts, and NVRAM write-back caching.

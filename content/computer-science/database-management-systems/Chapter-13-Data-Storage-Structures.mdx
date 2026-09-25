@@ -1,0 +1,160 @@
+export const metadata = {
+	title: "Database Storage and File Organization",
+	description:
+		"An in-depth exploration of database storage architecture, record and block organization, file structures, system catalogs, buffer management, replacement strategies, column-oriented storage, and main-memory database optimizations.",
+	order: 4,
+	draft: false,
+	tags: [
+		"computer science",
+		"databases",
+		"storage systems",
+		"file organization",
+		"buffer management",
+		"columnar storage",
+	],
+};
+
+## Introduction
+
+Did you know that even the fastest CPU in the world is held hostage by the speed of retrieving data from persistent storage? Since databases deal with records (often tiny) and physical storage media deals only in blocks (often large), how a database bridges this divide dictates the entire system's speed. In this lesson, we will uncover how databases map, organize, cache, and optimize data storage at a deep, technical level.
+
+### Learning Objectives
+
+- Learn how records—both fixed and variable length—are mapped onto physical disk blocks.
+- Analyze different file organizations, including heap, sequential, partitioned, and multitable clustering.
+- Detail the architecture of the system catalog and data-dictionary storage.
+- Master the database buffer manager, block pinning, buffer locking, and replacement policies.
+- Evaluate the trade-offs of row-oriented vs. column-oriented storage.
+- Explore the optimizations that define main-memory database architectures.
+
+## Database Storage Architecture
+
+Persistent data is stored on non-volatile media, typically magnetic disks or Solid-State Drives (SSDs). Both are block-structured devices, meaning they read and write data in fixed-size units called blocks. In contrast, database systems deal with logical records, which are typically much smaller than physical blocks.
+
+Most database systems use operating system files as an intermediate layer. Operating system files abstract some details of physical blocks, but to ensure high performance and guarantee failure recovery, the database engine must remain directly aware of physical block structures.
+
+To access or update data, the CPU requires it to be resident in main memory (volatile storage). For databases larger than main memory, the system uses a dedicated memory region called the database buffer to fetch blocks from non-volatile storage, update them, and write them back. For analytical processing, data can be organized column-by-column rather than row-by-row (column-oriented storage). If the entire database can fit in memory, the system can utilize main-memory database architectures, bypassing typical disk-based structures.
+
+## File Organization
+
+A database is mapped into multiple operating system files residing permanently on disk. Each file is logically partitioned into fixed-length units called blocks (typically 4 to 8 kilobytes by default). We enforce two primary physical boundaries:
+
+- No record can be larger than a block. (Large objects like images are stored separately with a pointer in the record).
+- Each record must be entirely contained within a single block. This restriction prevents the cost of multiple block accesses to read a single record.
+
+**Fixed-Length Records** When records have a fixed size, we can easily calculate their positions. However, two problems arise: block boundary mismatches and deletion management.
+
+- **Boundary Mismatches:** If block size is not a multiple of the record size, some records would cross block boundaries. To prevent this, we allocate only as many records as can fit entirely in the block, leaving the remaining bytes unused.
+- **Deletion Management:** If a record is deleted, moving all subsequent records to fill the gap is highly expensive. Moving only the final record of the file to fill the gap reduces overhead but still requires block writes. The optimal approach is a **free list**: the file header stores the address of the first deleted record, which in turn stores the address of the next deleted record, forming a pointer chain of available space.
+
+**Variable-Length Records** Variable-length records occur due to variable-length fields (e.g., varchar), repeating fields (arrays), or multiple record types in one file.
+
+- **Record Representation:** Consists of an initial fixed-length part followed by variable-length data. Fixed-length attributes are allocated their exact byte size. Variable-length attributes are represented in the initial part by a 4-byte pair: (offset, length). The offset points to where the data starts in the record; length indicates its size in bytes. A **null bitmap** (often stored at the start) uses 1 bit per attribute to denote if a field is null, saving storage space.
+- **Slotted-Page Structure:** This is the standard method for organizing variable-length records within a block. The block header contains: the number of record entries, the end of free space pointer, and an array containing the location and size of each record. Records are allocated starting from the _end_ of the block backward. Free space is kept contiguous between the header array and the final record. If a record is deleted, its entry is marked deleted (size set to -1), and records before it are shifted to consolidate free space. Crucially, pointers to records point to the header entry (indirection), allowing record movement within the block without breaking external pointers.
+
+**Storing Large Objects** Large objects, such as Binary Large Objects (blobs) or Character Large Objects (clobs), can span multiple megabytes or gigabytes. Databases store these large objects separately from the primary short attributes of a record. The primary record merely stores a logical pointer to the object. Large objects are stored either as files managed by the DB or inside B+-tree file organizations. Storing very large files inside databases can cause extremely large database backup dumps. Alternatively, storing files externally in an OS file system risks integrity violations (dangling pointers) and bypasses database authorization controls, unless tightly integrated (e.g., Oracle SecureFiles).
+
+## Organization of Records in Files
+
+A relation is represented physically by organizing its records in files using one of several strategies:
+
+**Heap File Organization** Records are placed anywhere in the file where space is available, without ordering. To locate free space efficiently, databases use a **free-space map** (typically an array with one entry per block). Each entry tracks the free-space fraction $f$. In PostgreSQL, this entry is 1 byte, and the value is divided by 256 to determine the fraction. If 3 bits are used, the value is divided by 8. To avoid slow linear scans over large files, databases implement **second-level free-space maps** (and higher), where 1 entry stores the maximum free-space value among 100 entries of the main map. The map is written to disk periodically, and is fully recomputed via periodic scans to correct inaccuracies.
+
+**Sequential File Organization** Records are stored physically in sorted order based on a **search key** to permit fast sequential processing. Records are chained together by pointers in search-key order. To handle insertions, the database finds the logical predecessor record. If space exists in that block, the record is inserted. Otherwise, it is placed in an **overflow block**, and pointers are adjusted. Over time, overflow blocks degrade physical sequentiality, requiring costly periodic file reorganization.
+
+**Multitable Clustering File Organization** Instead of storing each relation in a separate file, records of multiple relations are stored in the _same_ physical block. This is called clustering on a **cluster key** (e.g., placing `instructor` records alongside the corresponding `department` record with matching `dept_name`). This speeds up natural joins by fetching pre-joined records in a single block read. However, it slows down queries that only target a single relation (e.g., `select * from department`), as fewer records of that single relation fit in one block. Oracle supports this via the `create cluster` command.
+
+**Table Partitioning** This involves splitting a relation into smaller, physically separate relations based on attribute values (e.g., transaction records partitioned by `year`). Query optimizers perform partition pruning, translating queries to only scan the relevant partition (e.g., only accessing `transaction_2019` for a 2019 query). This reduces administrative overhead and permits storing different partitions on different physical media (e.g., archiving old years on magnetic disk while active years reside on SSDs).
+
+## Data-Dictionary Storage
+
+A database system must store metadata ('data about data') in a centralized structure called the **data dictionary** or **system catalog**. This includes:
+
+- Relation names, attribute names, domains, and attribute lengths.
+- View names and their definitions.
+- Integrity constraints (such as primary and foreign key definitions).
+- User authentication data (passwords, default schemas, permissions).
+- Storage details (physical file names, storage organizations, block locations).
+- Index metadata (index name, indexed attributes, index type).
+
+To simplify architecture, the data dictionary is stored as relations inside the database itself. This schema is often denormalized to ensure rapid metadata retrieval.
+
+**The Bootstrap Problem** To read any table, the database must first consult `Relation_metadata` to find its storage organization and location. However, to read `Relation_metadata`, the database must already know where `Relation_metadata` itself is stored. This circular dependency is resolved by hardcoding the physical location and storage structure of the core schema metadata relation directly into the database engine code. At startup, the database reads these core dictionary blocks directly from the hardcoded location and loads them into memory.
+
+## Database Buffer and Management Mechanics
+
+Since databases are often larger than available main memory, the database buffer manager acts as an intermediary. It allocates a portion of main memory (the buffer) to store copies of disk blocks.
+
+When a block is requested:
+
+1. If the block is in the buffer, the manager returns its memory address.
+2. If not, the manager allocates space in the buffer. If no space is free, it evicts an existing block.
+3. If the evicted block has been modified (is 'dirty'), it is written back to disk.
+4. The manager reads the requested block from disk into the newly freed buffer slot and returns its address.
+
+**Buffer Pinning** To prevent an active block from being evicted while a process is reading or writing to it, the process executes a **pin** operation, which increments the block's pin count. The buffer manager is prohibited from evicting any block with a pin count $> 0$. Once the process completes its task, it executes an **unpin**, decrementing the count.
+
+**Shared and Exclusive Locks on Buffer Blocks** To prevent concurrent processes from accessing inconsistent block states (e.g., reading a block while another process is moving records during compaction), the buffer manager implements locks:
+
+- **Shared Locks:** Multiple processes can hold shared locks to read a block simultaneously.
+- **Exclusive Locks:** Only one process can hold an exclusive lock to write/update a block. No other processes can hold shared or exclusive locks on that block during this time.
+
+These locks are acquired _after_ pinning a block and must be fully released _bef\_\_ore_ unpinning the block.
+
+**Block Output and Forced Output** Dirty blocks are written back to disk continuously by background processes rather than waiting for eviction. However, crash recovery systems prohibit writing a block to disk while an active update is in progress (enforced by requiring a shared lock to write a page to disk). A **forced output** is an immediate write to disk used during transactions commits to ensure durability.
+
+## Buffer-Replacement Strategies and Write Recovery
+
+Operating systems rely on the Least Recently Used (LRU) policy for page replacement, assuming past access predicts future access. Databases, however, can predict future access patterns because they analyze query plans before execution.
+
+**Advanced Database Replacement Strategies**
+
+- **Toss-Immediate Strategy:** Used when a block is known to not be needed again. For example, during a join, once the final tuple of an `instructor` block has been processed, that block is immediately marked for eviction, freeing space.
+- **Most Recently Used (MRU) Strategy:** During a join operation (like a nested-loop join), the inner relation (`department`) is repeatedly scanned. When processing of a `department` block is completed, that block will not be accessed again until _all_ other `department` blocks are processed. Thus, the most recently used block is the _last_ one to be re-referenced, making MRU the optimal eviction choice.
+- **Priority Pinning:** Frequently accessed structures like index blocks or data dictionary blocks are assigned higher residency priority by the buffer manager.
+
+**Reordering of Writes and Recovery** Both database buffers and OS file systems reorder write operations to minimize physical disk-arm movement. If a crash occurs during reordering, data structures can become corrupted (e.g., updating a pointer to a new node before the node itself is physically written to disk).
+
+To prevent this, modern file systems use **journaling (log disks)**. Every write is written sequentially to a dedicated log disk first. Sequential log disk writes are fast because they eliminate seek times. The actual writes to the primary disk location are performed later in a reordered fashion. If a crash occurs, the system reads the log disk on restart, completes any pending writes, and resumes quickly without needing slow, full file system consistency checks. Databases implement similar write-ahead logging (WAL) protocols to ensure consistency.
+
+## Column-Oriented Storage
+
+Traditional databases use **row-oriented storage**, where all attributes of a tuple are stored together in a single record. **Column-oriented storage** (columnar storage) stores each attribute of a relation separately, with values of the same attribute from successive tuples stored consecutively on disk.
+
+**Advantages for Analytical Queries**
+
+- **Reduced I/O:** Queries analyzing specific columns (e.g., summing salaries) only fetch the files/stripes for that specific column, completely bypassing irrelevant attributes.
+- **Improved CPU Cache Performance:** Consecutive bytes in memory contain data from the same attribute, allowing full utilization of a CPU cache line and eliminating bandwidth waste.
+- **Improved Compression:** Storing uniform data types consecutively yields extremely high compression ratios. This reduces storage footprints on disk and allows more data to fit in main memory.
+- **Vector Processing:** Modern CPUs can apply operations (like comparisons or mathematical operations) in parallel to arrays of attributes in a single instruction cycle.
+
+**Drawbacks for Transaction Processing**
+
+- **Tuple Reconstruction Cost:** Rebuilding an entire row requires retrieving attributes from multiple separate column files, resulting in high overhead for point queries.
+- **Update/Delete Cost:** Modifying or deleting a single row in a highly compressed columnar layout requires decompressing, modifying, and re-compressing entire blocks of sequential attributes.
+- **Decompression Cost:** Traditional columnar files must be read from the beginning to decompress. To address this, systems write data in **stripes** (e.g., 250 MB stripes in ORC files), starting compression afresh every 10,000 values and keeping an index of where each block of values begins to allow skipping.
+
+**Hybrid Row/Column Stores** Systems like SAP HANA support hybrid designs. Transactions are written to a row store and later migrated to a column store for analytical queries once they are unlikely to be modified.
+
+## Storage Organization in Main-Memory Databases
+
+When a database can fit entirely in main memory, the system can bypass the buffer manager entirely. This eliminates the CPU overhead of checking whether a block is in memory and translating logical block IDs into physical memory locations.
+
+**Main-Memory Optimizations**
+
+- **Direct Pointer Representation:** Pointers stored in records or index entries point directly to physical memory addresses rather than logical block and slot IDs. Accessing a record is reduced to direct memory pointer traversal.
+- **Eliminating Slotted-Page Overhead:** To avoid the translation step of slotted-page headers, records are allocated directly in memory at fixed locations. To prevent memory fragmentation from repeated insertions and deletions, these databases use specialized memory allocators or perform periodic, non-blocking memory compaction.
+- **In-Memory Columnar Arrays:** In-memory columnar systems store columns as contiguous physical arrays. To support dynamic data appends without copying the entire array to a larger contiguous memory region, the column is divided into multiple physical arrays linked together by an **indirection table**. The system calculates indices using simple offset math through this indirection table.
+
+## Summary
+
+### Key Takeaways
+
+- **Block Constraints:** Records are mapped onto fixed-size disk blocks. To optimize retrieval speed, databases enforce boundaries so records do not cross physical blocks.
+- **Variable Layouts:** Variable-length records rely on offset/length headers and the slotted-page structure to permit record movement and compaction through indirection.
+- **FSM and Clustering:** Heap files use hierarchical free-space maps to locate space without linear scans. Sequential files use chain pointers and overflow blocks, while multitable clustering stores related tables in the same block to pre-join data.
+- **System Catalog:** The data dictionary is stored as relations inside the database, bootstrapping itself via physical locations hardcoded in the database engine.
+- **Buffer Management:** The buffer manager acts as virtual memory, utilizing pinning (pin counts $> 0$) and page-level locks (shared/exclusive) to manage block updates and evictions safely.
+- **Eviction Policies:** Databases bypass simple LRU in favor of query-aware strategies like Toss-Immediate and MRU (optimal for nested-loop scans).
+- **Row vs. Columnar:** Row-oriented designs are optimized for transaction processing (fast point lookups/updates). Column-oriented designs (using formats like ORC with stripes) optimize analytical queries through vectorization, better compression, and reduced I/O.
+- **In-Memory Engines:** Main-memory databases bypass buffer managers and slotted pages, utilizing direct memory pointer traversal and indirection tables for column arrays.
