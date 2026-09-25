@@ -1,0 +1,274 @@
+export const metadata = {
+	title: "Database Indexing and Index Structures",
+	description:
+		"A comprehensive introduction to database indexing, covering ordered and hash indices, B+-Trees, index maintenance, composite and covering indices, write-optimized structures, bitmap indices, and specialized spatial and temporal indexing techniques.",
+	order: 14,
+	draft: false,
+	tags: [
+		"computer science",
+		"databases",
+		"indexing",
+		"B+-trees",
+		"hashing",
+		"LSM-trees",
+		"query optimization",
+	],
+};
+
+## Introduction
+
+Searching a database of 100 million records without an index is like reading a 10,000-page book line-by-line just to find a single word. Indexing turns this slow linear scan into a lightning-fast look-up that takes milliseconds, but it introduces a major trade-off: every update can trigger a complex chain reaction of structural reorganizations. This lesson provides an exhaustive, technical deep dive into database index structures, maintenance algorithms, and hardware-specific optimizations.
+
+### Learning Objectives
+
+- Explain the architectural differences between dense, sparse, clustering, and secondary ordered indices.
+- Trace the internal split, coalesce, and redistribution mechanics of B+-Trees during inserts and deletes.
+- Compare traditional B+-Trees with write-optimized alternatives (LSM-Trees and Buffer Trees) and Hashing.
+- Analyze advanced multi-key indexing techniques, including composite keys, covering indices, and bitmaps.
+- Evaluate specialized structures designed for flash storage, in-memory architectures, spatial data, and temporal datasets.
+
+## Basic Concepts of Indexing
+
+Many queries reference only a small fraction of the records in a file. Reading every disk block to find a few matching tuples is highly inefficient. To solve this, databases associate auxiliary structures called **indices** with data files.
+
+An index is built on a **search key**, which is an attribute or a set of attributes used to look up records in a file. Note that this term differs from the logical design terms like _primary key_ or _candidate key_.
+
+Database system designers evaluate indexing techniques based on five critical metrics:
+
+- **Access types:** The types of access supported efficiently (e.g., exact match, range queries).
+- **Access time:** The time taken to find a specific data item or set of items during a search.
+- **Insertion time:** The time to insert a new data item, including finding its position and updating the index structure.
+- **Deletion time:** The time to delete an item, including finding it and rebalancing the index structure.
+- **Space overhead:** The additional persistent storage occupied by the index.
+
+Indices generally fall into two primary categories:
+
+1. **Ordered Indices:** Maintain search-key values in sorted order.
+2. **Hash Indices:** Distribute search-key values uniformly across a range of buckets using a mathematical hash function.
+
+## Ordered Indices: Dense, Sparse, and Multilevel
+
+To provide fast sequential and random access, ordered indices store search keys in sorted order, mapping each key to record pointers.
+
+**Clustering vs. Nonclustering Indices**
+
+- **Clustering Index (Primary Index):** An index whose search key defines the physical sequential order of the records in the data file. The physical data file is sorted on this search key. A file can have only one clustering index. Files organized sequentially with a clustering index are called **index-sequential files**.
+- **Nonclustering Index (Secondary Index):** An index whose search key specifies an order different from the physical sequential order of the file.
+
+**Dense and Sparse Indices** An index entry consists of a search-key value and a record pointer (disk block identifier and offset).
+
+- **Dense Index:** An index entry appears for _every_ search-key value in the file. In a dense clustering index, the entry points to the first record with that value. In a dense nonclustering index, the entry must store a list of pointers to all records with that search-key value.
+- **Sparse Index:** An index entry appears for only _some_ of the search-key values. Sparse indices can _only_ be used if the relation is physically sorted on the search key (i.e., it is a clustering index). To find a record, the system locates the index entry with the largest search key that is less than or equal to the target key, then scans the data file sequentially from that pointer.
+- **The Trade-Off:** Sparse indices require significantly less space and impose lower maintenance overhead. A practical trade-off is creating a sparse index with **one index entry per disk block**. This minimizes block accesses during a search while keeping index size minimal.
+
+**Multilevel Indices** If a relation is extremely large, even its index file can grow to occupy thousands of disk blocks. Performing a binary search on a 10,000-block index requires up to $\lceil \log_2(10000) \rceil = 14$ random, non-sequential disk I/O operations. To address this, we treat the index as a sequential file and build a sparse **outer index** on top of it (the **inner index**). This process can be repeated recursively, yielding a **multilevel index** that drastically reduces disk reads.
+
+## Index Maintenance and Secondary Indices
+
+Any database modification (insert, delete, or update) requires updating all associated indices. Record updates are modeled as a deletion of the old record followed by an insertion of the new one.
+
+**Insertion Algorithms**
+
+- **Dense Indices:** If the search-key value is not present in the index, insert a new index record at the appropriate sorted position. If it is present, either append the new record pointer to the existing entry's pointer list (for nonclustering indices) or place the data record sequentially after existing matches (for clustering indices).
+- **Sparse Indices:** If a new disk block is created, insert the first search-key value of the new block into the index. If the inserted record has the minimum search-key value in its block, update the sparse index entry pointing to that block.
+
+**Deletion Algorithms**
+
+- **Dense Indices:** If the deleted record was the sole record with that search key, remove the index entry. Otherwise, update the pointer list (for nonclustering) or update the index entry to point to the next record if the deleted record was the first occurrence of that key.
+- **Sparse Indices:** If the index does not contain the key, no action is needed. If the deleted record was the only record with that search key, replace the index entry with the next search-key value (unless it already has an entry, in which case delete it). If the entry pointed directly to the deleted record, update it to point to the next record with the same search key.
+
+**Secondary Indices** Because secondary indices point to records that are not physically sorted by the secondary search key, secondary indices **must be dense**, containing a pointer to every single record in the file.
+
+If the secondary key is nonunique, pointers in the index do not point to records directly; instead, they point to a **bucket** containing record pointers. This introduces an extra level of indirection and random I/O. Furthermore, scanning a file sequentially in secondary-key order is extremely slow because successive records are scattered across different physical disk blocks, requiring a new block read for almost every record.
+
+## B+-Tree Index Files: Structure and Queries
+
+The main disadvantage of index-sequential file organization is that performance degrades as the file grows due to overflow blocks. Frequent reorganizations are costly. The **B+-Tree index structure** solves this by maintaining a balanced tree despite arbitrary insertions and deletions.
+
+**B+-Tree Structural Properties**
+
+- Every path from the root of the tree to a leaf is of the same length (balanced).
+- Each nonleaf node (excluding the root) has between $\lceil n/2 \rceil$ and $n$ children, where $n$ is a fixed parameter called the fanout.
+- The root has between $2$ and $n$ children (unless the tree consists of a single node).
+- A typical node contains up to $n-1$ sorted search-key values $K_1, K_2, \dots, K_{n-1}$ and $n$ pointers $P_1, P_2, \dots, P_n$.
+
+**Leaf Node Structure** For a leaf node, pointers $P_i$ ($1 \le i < n$) point directly to file records with search key $K_i$. The final pointer $P_n$ points to the next leaf node in search-key order. This chaining allows highly efficient sequential scans of the file.
+
+**Nonleaf (Internal) Node Structure** Nonleaf nodes form a sparse multilevel index over the leaves. For an internal node with $m$ pointers:
+
+- $P_1$ points to a subtree containing search keys $< K_1$.
+- $P_i$ ($2 \le i < m$) points to a subtree containing search keys $\ge K_{i-1}$ and $< K_i$.
+- $P_m$ points to a subtree containing search keys $\ge K_{m-1}$.
+
+**Querying a B+-Tree** To find a search-key value $v$, we start at the root and traverse down:
+
+1. Find the smallest $i$ such that $K_i \ge v$.
+2. If $K_i = v$, set the current node to the subtree pointed to by $P_{i+1}$.
+3. If $K_i > v$, set the current node to the subtree pointed to by $P_i$.
+4. If no such $K_i$ exists, set the current node to the subtree pointed to by $P_m$.
+5. Repeat until a leaf node is reached, then check if $v$ exists in the leaf.
+
+**Range Queries** To find all keys in the range $[lb, ub]$, traverse the tree to find the first leaf node containing a key $\ge lb$. Then, traverse sequentially across the leaf nodes using the $P_n$ pointers until a key $> ub$ is encountered.
+
+**Complexity and Node Sizing** With a typical disk block size of 4KB, a search key of 32 bytes, and pointers of 8 bytes, the fanout $n$ is roughly 100. For a file of 1 million records, a lookup requires only $\lceil \log_{\lceil n/2 \rceil}(1,000,000) \rceil = \lceil \log_{50}(1,000,000) \rceil = 4$ node accesses. Since the root is almost always cached in memory, finding a record requires 3 or fewer disk page reads. This is far more efficient than binary trees, which are thin and tall, requiring about 20 random block reads for 1 million records.
+
+## B+-Tree Updates and Complexity
+
+Insertions and deletions must maintain node balance and the pointer occupancy constraints ($[\lceil n/2 \rceil, n]$ children for internal nodes, $[\lceil (n-1)/2 \rceil, n-1]$ keys for leaves).
+
+**B+-Tree Insertion Mechanics**
+
+1. Find the leaf node $L$ where the new key-pointer pair $(K, P)$ belongs.
+2. If $L$ has fewer than $n-1$ keys, insert $(K, P)$ in sorted order.
+3. If $L$ is full ($n-1$ keys), split $L$ into two leaf nodes, $L$ and $L'$.
+   - Copy all $n$ key-pointer pairs to a temporary sorted buffer.
+   - Keep the first $\lceil n/2 \rceil$ pairs in $L$ and copy the remaining pairs to $L'$.
+   - Insert the smallest key of $L'$ and a pointer to $L'$ into the parent node.
+4. If the parent node is also full, it must be split.
+   - Unlike leaf splits, when splitting a nonleaf node, the middle search key is _moved up_ directly to its parent rather than being duplicated in the right split node.
+5. Recursively split up the tree. If the root splits, create a new root with two children, increasing tree height by 1.
+
+**B+-Tree Deletion Mechanics**
+
+1. Find the leaf node $L$ containing the entry to be deleted. Remove the entry and shift remaining entries left.
+2. If $L$ has too few entries (fewer than $\lceil (n-1)/2 \rceil$ values):
+   - **Redistribution:** If an adjacent sibling has extra entries, borrow an entry. Update the parent's separating key.
+   - **Coalescing (Merging):** If the sibling cannot spare an entry, merge $L$ with its sibling. This requires deleting the separating entry from the parent node.
+3. If a parent node becomes underfull (fewer than $\lceil n/2 \rceil$ pointers), recursively apply redistribution or merging up the tree.
+4. If the root is left with only one child, delete the root and make its sole child the new root, decreasing tree height by 1.
+
+**Complexity and Occupancy**
+
+- Worst-case I/O complexity for both insertions and deletions is proportional to tree height: $O(\log_{\lceil n/2 \rceil}(N))$.
+- Under random insertions, average node occupancy is approximately $2/3$ full (67%). Under sorted insertions, however, nodes are only 50% full (since splits always occur at the rightmost boundary).
+
+## B+-Tree Extensions and Variations
+
+Several architectural variants extend B+-Tree performance:
+
+**B+-Tree File Organization** Instead of storing pointers to data records in leaf nodes, the leaf nodes of a **B+-Tree file organization** store the _actual data records_. This eliminates a layer of indirection but increases leaf node size. Space utilization is critical here, so databases often involve more sibling nodes in redistribution (e.g., merging 3 nodes into 2) to guarantee a higher space occupancy of $2/3$ or $3/4$ of node capacity.
+
+**Secondary Indices and Record Relocation** In a B+-Tree file organization, splitting a leaf node moves physical data records. If secondary indices stored physical pointers to these records, every leaf split would require updating thousands of secondary index pointers.
+
+- **The Solution:** Secondary indices store the **primary key value** of the record instead of a physical pointer. While this doubles the lookup cost (first search the secondary index, then search the primary B+-Tree), it completely decouples secondary indices from physical record relocation.
+
+**Indexing Strings** Strings have variable lengths and can be quite long.
+
+- Variable-length keys require nodes to split based on physical space boundaries rather than key counts.
+- **Prefix Compression:** To maximize fanout, nonleaf nodes store only the minimum prefix of a string needed to distinguish between subtrees (e.g., storing "Silb" instead of "Silberschatz" to separate "Silas" and "Silver").
+
+**Bulk Loading** Inserting 100 million records one-at-a-time into an index larger than memory causes random disk reads and writes for almost every insert. To avoid this, **bulk loading** is used:
+
+1. Create a temporary file of index entries.
+2. Sort the file on the search key.
+3. Build the B+-Tree bottom-up by packing leaf nodes sequentially, then constructing parent levels over them. This reduces I/O from millions of random operations to a fast, sequential pass.
+
+**B-Tree Index Files** In a standard B-Tree, search keys appear only once, even in nonleaf nodes. Nonleaf nodes must therefore store record pointers alongside search keys. This reduces nonleaf node fanout, resulting in taller trees. Because B+-Trees have a higher fanout and simpler, sequential leaf scans, they are preferred over B-Trees in database systems.
+
+## Hardware-Specific Indexing: Flash and Main Memory
+
+Traditional indexing assumes magnetic disk media. Modern SSDs and main-memory databases alter these design assumptions.
+
+**Indexing on Flash Storage (SSDs)**
+
+- SSDs provide extremely fast random reads (20 to 100 microseconds per page).
+- However, flash storage cannot perform in-place updates. Modifying a page requires a copy-on-write of the entire page to a new physical location. Old pages must be erased in large blocks, which is slow (2 to 5 milliseconds).
+- **B+-Tree Adjustments:** Node sizes are shrunk to match flash page sizes to avoid multi-page writes. Bottom-up bulk loading is highly beneficial because it minimizes page writes, reducing expensive block erase cycles.
+
+**Indexing in Main Memory** When data resides entirely in memory, disk I/O ceases to be the bottleneck. Instead, CPU cache misses dictate performance.
+
+- Modern CPUs transfer data between main memory and cache in **cache lines** (typically 64 bytes). Reading from memory on a cache miss takes 50 to 100 nanoseconds, compared to 1 to 2 nanoseconds from cache.
+- **Cache-conscious B+-Trees:** Designed with small node sizes that fit exactly within a single cache line. This minimizes cache misses during node traversal.
+- For hybrid disk/memory databases, large physical nodes can contain internal tree structures scaled to cache-line sizes to optimize both disk page reads and in-memory cache hits.
+
+## Hash Indices
+
+Hashing maps search-key values to specific storage units called **buckets** via a mathematical hash function $h(K)$.
+
+**Static Hashing** In static hashing, the number of buckets is fixed. To insert a record with search key $K_i$, we compute $h(K_i)$ to find the bucket address and append the record.
+
+- **Overflow Chaining (Closed Addressing):** If a bucket becomes full, a **bucket overflow** occurs. The database allocates an **overflow bucket** and chains it to the main bucket via a linked list.
+- **Skew and Hashing Quality:** Skew occurs when many records hash to the same bucket. To minimize skew, hash functions must be uniform and random. The optimal number of buckets is calculated as $(n_r/f_r) * (1 + d)$, where $n_r$ is the record count, $f_r$ is bucket capacity, and $d$ is a safety fudge factor (typically $0.2$).
+- **Limitations:** Static hashing fails if the database size changes significantly. Too many records lead to long overflow chains and slow lookups. Too few records waste space. Furthermore, **hash indices do not support range queries**; they only support exact match equality lookups.
+
+**Dynamic Hashing** To handle dynamic data growth without expensive full-index rebuilds, databases use dynamic hashing schemes like **linear hashing** or **extendable hashing**, which split buckets incrementally as the database grows.
+
+## Multiple-Key Access and Index Creation
+
+Many queries filter on multiple attributes (e.g., `where dept_name = 'Finance' and salary = 80000`). Databases can evaluate this in three ways:
+
+1. **Multiple Single-Key Indices:** Use an index on `dept_name` to get pointers, use an index on `salary` to get pointers, and perform an **intersection** of the pointer sets before fetching records.
+2. **Composite Search Key:** Create a single index with a key containing multiple concatenated attributes, such as `(dept_name, salary)`. Keys are sorted in **lexicographic order**: $(a_1, a_2) < (b_1, b_2)$ if $a_1 < b_1$, or ($a_1 = b_1$ and $a_2 < b_2$).
+   - Useful for exact match queries on both attributes.
+   - Useful for range queries on the first attribute, or an exact match on the first attribute and a range query on the second.
+   - Ineffective if the first attribute uses a comparison operator (e.g., `dept_name < 'Finance'`).
+3. **Covering Indices:** Nonclustering indices that store the values of additional non-key attributes directly in the index entry along with the record pointer. This allows some queries to be answered entirely from the index, eliminating the need to read data blocks from disk.
+
+**SQL Index Management** While not part of the formal SQL standard, most databases support standard commands to manage indices:
+
+- Create a non-unique index: `create index dept_index on instructor (dept_name);`
+- Create a unique constraint index: `create unique index student_id_idx on student (ID);`
+- Drop an index: `drop index dept_index;`
+
+Databases automatically create indices on primary keys. However, database administrators should manually create indices on foreign keys, as foreign keys are heavily used in join operations.
+
+## Write-Optimized Index Structures
+
+B+-Trees suffer from poor random write performance. If an index exceeds memory size, inserting records in an order different from the index's sort order requires a random page read and write for every single insert. On a 10ms magnetic disk, this limits throughput to 100 writes per second. Write-optimized structures resolve this bottleneck.
+
+**Log-Structured Merge (LSM) Trees** An LSM-Tree consists of a cascade of B+-Trees: an in-memory tree $L_0$ and several on-disk trees $L_1, L_2, \dots, L_k$ of increasing sizes.
+
+- **Insertion:** New records are appended sequentially to a log and inserted into the in-memory tree $L_0$. No random disk writes occur.
+- **Compaction (Merging):** When $L_0$ fills up, its entries are merged sequentially with the leaf level of the disk-based $L_1$ tree using a bottom-up build process. This sequential merge repeats down the levels ($L_i$ to $L_{i+1}$) when size thresholds are exceeded.
+- **Deletions and Updates:** Handled by inserting a special placeholder record called a **deletion entry** (or tombstone) or an **update entry**. These entries propagate down during merges, resolving duplicates and deleting matching historical keys.
+- **Lookups:** Lookups must search $L_0, L_1, \dots, L_k$ and merge results, prioritizing newer entries. **Bloom filters** are used to quickly detect if a key is absent from a level, preventing unnecessary disk reads.
+
+**Buffer Trees** An alternative approach that attaches a write buffer to every internal node of a B+-Tree.
+
+- **Insertion:** Records are inserted directly into the root node's buffer.
+- **Propagation:** When an internal node's buffer fills up, its sorted records are pushed one level down to the appropriate child node's buffer. If a leaf node buffer fills, records are inserted permanently into the leaf, triggering standard splits if needed.
+- This amortizes the cost of writing a child node over many buffered records, significantly speeding up write throughput while keeping reads faster than in multi-level LSM-Trees.
+
+## Bitmap Indices
+
+Bitmap indices are specialized indices designed for high-performance querying on multiple keys where attributes have a small number of distinct values (low cardinality).
+
+**Structure of a Bitmap Index** To use a bitmap, records must be sequentially numbered. A bitmap is an array of bits. A bitmap index on attribute $A$ contains one bitmap for each distinct value $v_j$ of $A$.
+
+- If the record at sequence $i$ has value $v_j$ for attribute $A$, the $i$-th bit of the bitmap for $v_j$ is set to 1.
+- All other bits in that bitmap are set to 0.
+
+**Query Evaluation via Bitwise Operations** Bitmaps are exceptionally powerful when combining queries with logical operators. Consider a query: `where gender = 'f' and income_level = 'L2'`.
+
+1. Retrieve the bitmap for `gender = 'f'` (e.g., `01101`).
+2. Retrieve the bitmap for `income_level = 'L2'` (e.g., `01000`).
+3. Perform a bitwise **AND** operation: `01101 AND 01000 = 01000`.
+4. Read only the records whose matching bit is set to 1.
+
+Modern hardware can execute bitwise operations across large bitmaps in nanoseconds. However, bitmaps are only efficient for low-cardinality attributes; high-cardinality fields (like names or primary keys) would yield sparse bitmaps that waste massive amounts of memory.
+
+## Indexing Spatial and Temporal Data
+
+Traditional B+-Trees are designed for one-dimensional ordered data. Spatial and temporal data involve multiple coordinates or intervals, requiring multidimensional index designs.
+
+**Spatial Indexing** Spatial data includes points (coordinates) and regions (polygons). Queries include **range queries** (find objects within an area) and **nearest-neighbor queries** (find the closest object to a point).
+
+- **k-d Trees:** A binary tree where each level partitions space along a single dimension, cycling through dimensions at each successive level. Partitions are chosen to split point sets evenly.
+- **k-d-B Trees:** Extends the k-d tree to support multiple child nodes per page, making it suitable for secondary storage.
+- **Quadtrees:** Divides a two-dimensional space into four equal quadrants at each internal node.
+- **R-Trees:** A balanced tree index designed for spatial regions (bounding boxes). Each node in an R-Tree represents a bounding box containing its child nodes or leaf geometries. R-Trees store only a single copy of each object and are the industry standard for spatial database engines.
+
+**Temporal Indexing** Temporal data tracks when facts are valid, associating each tuple with a valid time interval $[start\_time, end\_time]$. Current facts have an $end\_time$ of infinity.
+
+- **R-Tree Mapping:** Temporal intervals can be treated as two-dimensional spatial objects (value dimension vs. time interval dimension). However, an infinite end time yields extremely large bounding boxes that degrade R-Tree search performance.
+- **The Solution:** Split data into two indices. Store active records (where $end\_time = \infty$) in a B+-Tree sorted by $(value, start\_time)$. Store historical records with closed intervals in a spatial R-Tree or a specialized interval B+-Tree.
+
+## Summary
+
+### Key Takeaways
+
+- **Index Trade-Offs:** Indices dramatically accelerate queries at the cost of write overhead, extra storage, and structural reorganizations.
+- **Ordered Indexes:** Clustering indices align with the physical order of records, whereas secondary indices must be dense and are decoupled from physical storage via logical record identifiers (primary keys).
+- **B+-Trees:** Balanced, fat, and short tree structures that guarantee $O(\log(N))$ search, insert, and delete complexity. Leaf nodes are sequentially chained to allow fast range scans.
+- **Write-Optimized Structures:** LSM-Trees and Buffer Trees solve the random write bottleneck of B+-Trees on disk and flash storage by buffering and sequentially merging modifications.
+- **Advanced Indexing:** Bitmap indices utilize bit-level operations for fast multi-key queries on low- cardinality fields. Spatial and temporal databases require specialized multidimensional coordinate partitions (k-d trees, R-Trees).
