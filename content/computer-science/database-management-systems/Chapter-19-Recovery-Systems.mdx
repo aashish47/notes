@@ -1,0 +1,253 @@
+export const metadata = {
+	title: "Database Recovery",
+	description:
+		"A technical deep dive into database recovery, covering failure classification, log-based recovery, write-ahead logging, checkpointing, buffer management, remote backups, logical undo, ARIES, and main-memory recovery.",
+	order: 3,
+	draft: false,
+	tags: [
+		"databases",
+		"recovery",
+		"WAL",
+		"ARIES",
+		"checkpointing",
+		"logging",
+		"fault tolerance",
+	],
+};
+
+## Introduction
+
+What happens if a database server experiences a physical power outage or a head crash right in the middle of a massive financial transfer? How do systems guarantee that your bank account balance never gets stuck in a half-updated, corrupted state?
+
+In database design, maintaining consistency in the face of inevitable hardware and software failures is one of the most critical challenges. This lesson breaks down the exact algorithms and protocols database engines use to guarantee atomicity and durability.
+
+### Learning Objectives
+
+- **Classify system failures** and understand how storage hierarchies are built to survive them.
+- **Master log-based recovery mechanisms**, including transaction undo/redo protocols and checkpointing.
+- **Evaluate buffer management policies** (such as steal/no-steal and force/no-force) and their impact on recovery performance.
+- **Deconstruct advanced recovery frameworks**, specifically logical undo operations and the industry-standard ARIES algorithm.
+
+## Failure Classification
+
+To design effective recovery algorithms, we must first classify the types of failures a system can encounter. Different failure modes require distinct mitigation strategies.
+
+- **Transaction Failure:** A transaction fails to complete its normal execution. This can be caused by a **logical error** (such as bad input, data not found, number overflow, or resource limits being exceeded) or a **system error** (such as a database deadlock, requiring the system to abort and roll back the transaction so it can be reexecuted later).
+- **System Crash:** A hardware malfunction, operating system bug, or database software crash causes the loss of volatile storage (main memory/RAM), halting transaction processing. Under the **fail-stop assumption**, we assume that these bugs halt the system but do not corrupt the contents of non-volatile storage (disks).
+- **Disk Failure:** A disk block loses its contents due to a physical head crash or failure during a data-transfer operation. Recovery from a disk failure relies on external redundancies, such as RAID arrays or off-site archival backups on tapes or DVDs.
+
+Recovery algorithms consist of two distinct parts: active operations performed during normal transaction processing to ensure sufficient log information is saved, and reactive operations performed after a failure to restore database consistency, transaction atomicity, and durability.
+
+## Storage Structures and Data Access
+
+Data storage media vary by speed, capacity, and resilience against failure. To manage recovery, database systems split storage into three conceptual categories: volatile storage (fast, loses data on power loss), non-volatile storage (slower, survives power loss, but susceptible to physical failure), and stable storage (a theoretical storage medium that survives any failure).
+
+**Stable-Storage Implementation** Because stable storage cannot exist physically, systems approximate it by replicating information across multiple non-volatile media with independent failure modes. A common local approach is RAID 1 (disk mirroring), which maintains identical copies of each block on separate drives. For disaster recovery (e.g., surviving fires or floods), systems copy blocks to a remote backup site over a network.
+
+When writing a logical block to stable storage, the system must protect against failure during the data transfer itself, which can result in successful completion, partial failure (corrupting the target block), or total failure (leaving the target block untouched). To ensure safety, the system executes a dual-write protocol:
+
+1. Write the data to the first physical block.
+2. Once the first write completes successfully, write the same data to the second physical block.
+3. Mark the stable write complete only after both physical writes succeed.
+
+If a crash occurs mid-write, the system compares the two blocks during recovery. If one block is corrupted (detected via stored block checksums), its contents are replaced with the valid block. If both are uncorrupted but have differing contents, the first block is overwritten with the contents of the second, or vice versa, ensuring the write operation is atomic (it either succeeds completely or has no effect).
+
+**Data Access Mechanics** The database on disk is partitioned into fixed-length units called blocks. Transactions cannot update data directly on disk; instead, blocks must be moved into memory first.
+
+- `input(B)` transfers the physical block `B` from disk to a main memory buffer block.
+- `output(B)` transfers the buffer block `B` back to disk, replacing the physical block.
+
+When transaction $T_i$ reads a data item $X$, it copies $X$ to its private work area as $x_i$. When it performs `write(X)`, it updates $X$ within the main memory buffer block. A database system performs a **force-output** when it immediately issues `output(B)` to disk after a write, but typically, buffer managers delay disk writes to accumulate updates and minimize physical I/O overhead.
+
+## Log-Based Recovery and Atomicity
+
+To ensure atomicity when a system crash occurs mid-transaction, database systems write database modification records to a stable sequential log before making any changes to the actual database on disk.
+
+**Structure of Log Records** An update log record describes a single database write and has four fields:
+
+- **Transaction Identifier:** Unique ID of the transaction that performed the write.
+- **Data-Item Identifier:** Unique ID (block number and offset) of the item written.
+- **Old Value:** The value of the data item before the write (used for **undo** operations).
+- **New Value:** The value of the data item after the write (used for **redo** operations).
+
+This record is written as `<Ti, Xj, V1, V2>`. Additionally, special transactional markers are logged:
+
+- `<Ti start>`: Transaction $T_i$ has begun.
+- `<Ti commit>`: Transaction $T_i$ has successfully committed.
+- `<Ti abort>`: Transaction $T_i$ has aborted.
+
+_Note on Alternatives:_ While text editors use a shadow-copy scheme (creating an entirely new copy of a file and atomically updating a pointer upon saving), database systems avoid this because copying large databases is prohibitively expensive, and shadow paging behaves poorly under concurrent transaction workloads.
+
+**Database Modification Techniques** When modifying a database, systems can use one of two main strategies:
+
+- **Immediate-Modification Technique:** Database updates can be written to disk buffers and disk blocks while the transaction is still active. The log records containing both old and new values allow the system to perform physical undos if the transaction aborts, or physical redos if a crash occurs after commit.
+- **Deferred-Modification Technique:** The system defers all database writes until the transaction commits. Active transactions store updates in private memory. This eliminates the need to store old values in the log, but it increases memory overhead.
+
+**Concurrency and Recovery** To prevent rollback operations from accidentally overwriting the updates of concurrent transactions, recovery engines impose a critical rule: **If a transaction modifies a data item, no other transaction can modify that same data item until the first transaction commits or aborts.** This rule is strictly enforced by concurrency control mechanisms like strict two-phase locking (strict 2PL), snapshot isolation, or validation-based concurrency control.
+
+**Transaction Commit and Log Replay** A transaction is officially committed the moment its `<Ti commit>` log record is safely written to stable storage. During restart recovery after a crash, the system scans the log to categorize transactions:
+
+- **Undo:** Transaction $T_i$ must be undone if the log contains `<Ti start>` but lacks both `<Ti commit>` and `<Ti abort>`.
+- **Redo:** Transaction $T_i$ must be redone if the log contains `<Ti start>` and either `<Ti commit>` or `<Ti abort>` (redoing an aborted transaction is safe because its compensation log records are also replayed, simplifying the recovery pass).
+
+**Checkpointing** Scanning the entire log from the beginning of time during a recovery pass is highly inefficient. To address this, the system periodically performs **checkpoints**:
+
+1. Stop all active transaction updates.
+2. Flush all log records currently in main memory to stable storage.
+3. Flush all modified buffer blocks to disk.
+4. Write a `<checkpoint L>` log record to stable storage, where $L$ is a list of all transactions active at the time of the checkpoint.
+
+During recovery, the system only needs to scan backward to find the last checkpoint. Only transactions in $L$ or those that started after the checkpoint need to be evaluated for undo or redo operations, allowing older log records to be safely pruned.
+
+## Recovery Algorithms and Commit Optimizations
+
+Let's formalize the precise recovery steps taken during both normal execution and restart recovery after a crash.
+
+**Transaction Rollback (Normal Operation)** When a transaction $T_i$ aborts during normal operation, the system rolls it back by scanning the log backward:
+
+1. For every update record of $T_i$ of the form `<Ti, Xj, V1, V2>`:
+   - Write the old value $V1$ back to the data item $Xj$.
+   - Write a special redo-only **Compensation Log Record (CLR)** of the form `<Ti, Xj, V1>` to the log. CLRs require no undo fields because we never undo a rollback operation.
+2. When the `<Ti start>` record is reached, stop the scan and write `<Ti abort>` to the log.
+
+**Recovery After a System Crash** When restarting after a system crash, the recovery engine runs a two-phase protocol:
+
+**1. The Redo Phase (Repeating History):** The system replays the updates of _all_ transactions, scanning forward from the last checkpoint record to the end of the log. This reconstructs the exact physical state of the database at the moment of the crash.
+
+- Initialize the `undo-list` to the list $L$ found in the checkpoint record.
+- If an update record `<Ti, Xj, V1, V2>` or a CLR `<Ti, Xj, V2>` is found, rewrite the new value $V2$ to $Xj$.
+- If a `<Ti start>` record is found, add $T_i$ to the `undo-list`.
+- If a `<Ti commit>` or `<Ti abort>` record is found, remove $T_i$ from the `undo-list`.
+- At the end of this phase, the `undo-list` contains only active, uncommitted transactions at the time of the crash.
+
+**2. The Undo Phase:** The system rolls back all incomplete transactions in the `undo-list` by scanning the log backward from the end.
+
+- If a log record belongs to a transaction in the `undo-list`, perform the undo action and write a corresponding CLR to the log.
+- When the `<Ti start>` record of transaction $T_i$ is found, write a `<Ti abort>` record to the log and remove $T_i$ from the `undo-list`.
+- Terminate when the `undo-list` is empty.
+
+**Optimizing Commit Processing: Group Commit** Forcing the log buffer to disk for every individual transaction commit introduces significant disk write latency (taking 5 to 10 milliseconds on hard disks). Under **group commit**, the system delays writing log records until either a short period has elapsed or several transaction commits are queued. It then flushes a batch of commit records to stable storage in a single physical write. This drastically increases throughput (e.g., jumping from 100 commits/sec to over 1000 commits/sec on hard disks, and up to 100,000 commits/sec on high-speed flash storage).
+
+## Buffer Management
+
+To optimize physical I/O, database systems buffer data blocks in main memory. Managing these buffers requires strict coordination with the recovery engine to ensure that uncommitted modifications are never written to disk in a way that violates durability.
+
+**Log-Record Buffering and Write-Ahead Logging (WAL)** Instead of writing log records directly to disk, systems write them to a volatile log buffer in memory. To maintain durability guarantees, the system must enforce the **Write-Ahead Logging (WAL)** rule:
+
+- **The WAL Rule:** Before a modified buffer block of data is output to non-volatile disk storage, all log records containing the undo information for updates in that block must first be flushed to stable storage.
+
+Additionally, a transaction is not considered committed until its `<Ti commit>` record is written to stable storage, and all log records for that transaction must precede the commit record on stable storage. Writing the log buffer to disk is known as a **log force**.
+
+**Database Buffering Policies** When designing database buffer pools, two independent architectural choices must be made:
+
+- **Steal vs. No-Steal Policy:** Under a **steal policy**, the buffer manager can evict a modified buffer block and write it back to disk even if the transaction that updated the block has not committed yet. Under a **no-steal polic\*\***y\*\*, uncommitted blocks must be pinned in memory until commit. Most enterprise databases use a _steal policy_ to accommodate transactions that modify more data than can fit in memory.
+- **Force vs. No-Force Policy:** Under a **force policy**, the system must force-output every block modified by a transaction to disk before committing. Under a **no-force policy**, a transaction can commit as long as its log records are on stable storage; the updated data blocks can remain in volatile memory and be written to disk later. Enterprise systems use a _no-force policy_ to minimize disk I/O overhead.
+
+To safely write out a data block from memory to disk under a steal/no-force architecture, the system uses short-term locks called **latches** to prevent transactions from updating a block while it is being written. This ensures that the WAL rule is not violated mid-transfer.
+
+**Fuzzy Checkpointing** Halting all transaction updates to write checkpoints can freeze the system. To avoid this, systems use **fuzzy checkpointing**:
+
+1. The system writes a checkpoint record and records a list of modified buffer blocks, but allows transactions to continue updates.
+2. The modified blocks are slowly flushed to disk in the background.
+3. The system stores the location of the checkpoint record in a fixed position on disk (`last-checkpoint`) only _after_ all blocks in that list have been successfully written to disk. This ensures checkpoint durability without halting active transactions.
+
+## Failure with Loss of Non-Volatile Storage
+
+If a physical disk failure occurs (e.g., a total drive failure), both the database blocks and local log files on disk may be lost. To recover from this, systems use database dumping techniques.
+
+An **archival dump** copies the entire database to an off-site stable storage medium (like magnetic tape or cloud storage) periodically (e.g., once a day). During a simple dump, transaction processing is halted, and the system flushes all logs, writes all modified buffers to disk, and copies the entire database file.
+
+To restore from disk failure:
+
+1. Load the most recent database dump into a new disk system.
+2. Scan the archival log files forward from the time of the dump to redo all committed transactions.
+
+Because physical disk layouts might change during system upgrades, databases also support an **SQL dump**, which writes out the SQL Data Definition Language (DDL) and insert statements required to programmatically recreate the database.
+
+## High Availability and Remote Backup Systems
+
+To provide high availability and survive environmental disasters, systems replicate transaction processing across physically separated locations: a **primary site** that processes transactions and a **remote backup site** (or secondary site) that mirrors the primary.
+
+Synchronization is maintained by continuously transmitting log records from the primary to the remote backup. If the primary site fails, the remote backup site takes over after executing local recovery actions based on the logs it received.
+
+**Designing Remote Backup Systems**
+
+- **Failure Detection:** Independent communication paths (network connections, phone lines) are maintained to distinguish primary site failures from simple network outages.
+- **Transfer of Control:** Control can be transferred to the backup site manually or automated via a high-availability proxy or shared IP routing.
+- **Hot-Spare Configuration:** In a hot-spare setup, the backup site continually processes redo log records as they arrive. If the primary fails, the backup only needs to roll back uncommitted transactions, making takeover almost instantaneous.
+- **Durability Levels (One-Safe vs. Two-Safe):** To optimize commit times, database administrators choose from three synchronization safety modes:
+  - **One-Safe:** A transaction commits as soon as its commit record is written to stable storage at the _primary_ site. If the primary fails before sending the log to the backup, updates can be lost, requiring manual intervention to resolve conflicts.
+  - **Two-Very-Safe:** A transaction commits only after its commit record is written to stable storage at _both_ the primary and backup sites. If either site goes down, transaction processing halts, prioritizing safety over availability.
+  - **Two-Safe:** Works like two-very-safe if both sites are active. If the backup site goes down, the primary reverts to one-safe mode, allowing transactions to continue committing.
+
+## Early Lock Release and Logical Undo Operations
+
+For high-traffic index structures like B+-trees, holding lock resources until a transaction commits can severely bottleneck concurrent workloads. Instead, database engines release locks early using specialized index concurrency control algorithms.
+
+However, releasing locks early introduces a major challenge: **physical undos are no longer possible**. If transaction $T_1$ inserts an entry into a B+-tree page, and transaction $T_2$ subsequently inserts an entry that shifts $T_1$'s data on the same page, the system cannot roll back $T_1$ by physically restoring the page's original byte state. Doing so would overwrite $T_2$'s valid updates. Instead, $T_1$ must be undone using a **logical undo operation** (e.g., executing a programmatic delete to undo the insert).
+
+**Logical Logging Mechanics** To handle logical undos, systems write two types of logs:
+
+- **Physical Logging:** Logs the raw byte-level old and new values. Used exclusively for _redo_ passes because physical log records are idempotent (applying them multiple times yields the same result).
+- **Logical Logging:** Logs abstract logical operations. Before an index operation begins, the system writes a `<Ti, Oj, operation-begin>` record, where $Oj$ is a unique operation ID. During execution, it writes physical logs for raw updates. When the operation ends, it writes an operation-end log record containing the logical undo instruction: `<Ti, Oj, operation-end, U>`, where $U$ represents the logical undo parameters.
+
+**Transaction Rollback with Logical Undo** During rollback, the system scans backward:
+
+1. If it encounters a completed logical operation (identified by an `operation-end` record), it executes the logical undo operation $U$ and writes physical log records of the updates performed during the logical undo.
+2. Once the logical undo completes, it writes a `<Ti, Oj, operation-abort>` record.
+3. The backward scan then skips all physical log records of $T_i$ until it reaches the matching `<Ti, Oj, operation-begin>` record. This prevents the system from performing physical undos on completed logical operations.
+
+If the system crashes before the logical operation finishes (lacking an `operation-end` record), the recovery engine simply rolls back the partial changes using standard physical logging.
+
+## The ARIES Recovery Method
+
+The **ARIES** (Algorithm for Recovery and Isolation Exploiting Semantics) recovery method is the state-of-the-art framework implemented in modern enterprise database systems.
+
+**Key ARIES Data Structures**
+
+- **Log Sequence Number (LSN):** Every log record is assigned a unique, monotonically increasing LSN.
+- **PageLSN:** Every database page stores the LSN of the last log record that updated it. During recovery, if a log record has an $LSN \le PageLSN$, the update is already reflected on disk and is skipped, ensuring physical idempotency.
+- **PrevLSN:** Each log record stores the LSN of the transaction's previous log record, allowing the system to traverse a transaction's history backward without reading the entire log.
+- **DirtyPageTable:** A table maintained in memory that lists all dirty pages in the buffer pool. For each page, it stores a `RecLSN` (Recovery LSN), which is the log record LSN that first dirtied the page in memory.
+- **UndoNextLSN:** Stored in Compensation Log Records (CLRs), this field tracks the next LSN that needs to be undone for a rolling-back transaction, allowing the system to skip already-aborted operations during recovery.
+
+**The Three ARIES Recovery Passes** When restarting after a crash, ARIES executes three sequential passes over the log:
+
+**1. The Analysis Pass:**
+
+- Locates the last checkpoint record and reads in the `Dirty``PageTable` and active transaction list.
+- Scans forward to the end of the log.
+- If an active transaction commits or aborts, it is removed from the active transaction list. New active transactions are added to the list.
+- Finds the minimum `RecLSN` across all pages in the `DirtyPageTable`. This LSN is designated as the **RedoLSN**, marking the exact point in the log where the redo pass must start.
+
+**2. The Redo Pass (Repeating History):**
+
+- Scans forward from the `RedoLSN` to replay all log updates (including those of transactions that will ultimately be rolled back).
+- An update is skipped if the page is not in the `DirtyPageTable`, or if the log record's $LSN < RecLSN$ in the table.
+- If these checks pass, ARIES fetches the page from disk. If the page's actual $PageLSN \ge$ the log record's LSN, the update is skipped. Otherwise, the update is replayed, and the page's $PageLSN$ is updated to the log record's LSN.
+
+**3. The Undo Pass:**
+
+- Scans backward from the end of the log to roll back all transactions that were still active at the end of the analysis pass.
+- For each undone operation, a CLR is written, and its `UndoNextLSN` is populated. If a recovery crash occurs mid-rollback, ARIES uses the `UndoNextLSN` to resume the rollback without repeating completed undo steps.
+
+## Recovery in Main-Memory Databases
+
+Main-memory databases store all data in volatile memory to enable extremely fast read and write access. However, because memory is volatile, recovering database state after a power loss requires unique optimizations.
+
+**Main-Memory Recovery Optimizations**
+
+- **Index Reconstruction:** Because indices can be rebuilt rapidly in memory once the raw data is loaded, main-memory databases do not write index update records to the stable log. This drastically reduces logging overhead during normal execution.
+- **Redo-Only Logging:** Some systems perform _redo-only_ logging. They construct periodic checkpoints that do not contain uncommitted data (either by preventing uncommitted writes or creating multiple versions of records). During recovery, the system simply reloads the last checkpoint and plays the redo logs forward.
+- **Parallel Recovery:** Because main-memory recovery requires loading the entire database state before any transactions can execute, recovery speed is critical. Modern systems partition both the data and logs across multiple CPU cores, allowing recovery passes to run in parallel.
+- **Non-Volatile RAM (SCM):** Emerging Storage Class Memory (SCM) or Non-Volatile RAM (NVRAM) provides byte-addressable access at RAM-like speeds, but survives power failures. For systems running on NVRAM, redo logging can be entirely omitted, as updates are instantly durable.
+
+## Summary
+
+### Key Takeaways
+
+- **Failure Modes:** Systems must survive transaction logical/system failures (aborted and rolled back), system crashes (loss of volatile RAM under the fail-stop assumption), and disk failures (loss of non-volatile blocks, requiring archival dumps or RAID configurations).
+- **Logging Mechanics:** Modern database durability relies on Write-Ahead Logging (WAL). Undo log records store old values to revert aborted transaction changes, and redo log records store new values to replay committed updates during crash recovery.
+- **Buffer Management Trade-offs:** Enterprise databases typically combine a _steal policy_ (allowing uncommitted memory buffers to be written to disk to free space) with a _no-force policy_ (allowing transactions to commit without forcing data blocks to disk, relying on stable log writes instead).
+- **ARIES Framework:** ARIES is the gold standard for database recovery, leveraging Log Sequence Numbers (LSNs) and a three-pass algorithm (Analysis, Redo/Repeating History, and Undo) to minimize crash recovery time and optimize logging overhead.
+- **Logical Undo Operations:** High-concurrency operations on index structures like B+-trees require logical logging and compensation operations (such as inserting and subsequently deleting) because physical byte-level rollbacks would overwrite concurrent updates.

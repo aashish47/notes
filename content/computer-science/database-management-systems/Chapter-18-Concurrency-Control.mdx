@@ -1,0 +1,259 @@
+export const metadata = {
+	title: "Concurrency Control",
+	description:
+		"A technical deep dive into database concurrency control, covering lock-based, timestamp-based, validation-based, and multiversion protocols, deadlock handling, snapshot isolation, phantom prevention, and advanced index and main-memory optimizations.",
+	order: 2,
+	draft: false,
+	tags: [
+		"databases",
+		"concurrency control",
+		"locking",
+		"deadlocks",
+		"timestamp ordering",
+		"snapshot isolation",
+		"multiversioning",
+	],
+};
+
+## Introduction
+
+Imagine two users attempting to book the very last seat on a flight at the exact same millisecond. Without rigorous concurrency control, the system might issue tickets to both users, leaving one stranded at the gate. Concurrency control is the engine under the hood of database systems that ensures multiple transactions can execute simultaneously without corrupting data or exposing inconsistent states.
+
+In this lesson, you will master the mechanics of concurrency control through a detailed, technical deep-dive into the protocols that power modern database systems. By the end of this lesson, you will be able to:
+
+- Explain the operations of lock-based, timestamp-based, and validation-based concurrency-control protocols.
+- Analyze deadlock prevention, detection, and recovery strategies within a database manager.
+- Understand multiversion schemes, snapshot isolation, and the causes of anomalies like write skew.
+- Navigate weak levels of consistency, key-value indexing protocols, and specialized main-memory optimizations.
+
+## Lock-Based Protocols
+
+To ensure transaction isolation, systems must control access to data items. Lock-based protocols enforce mutual exclusion by requiring transactions to hold locks on data items before accessing them.
+
+**Lock Modes and Compatibility** There are two primary locking modes:
+
+1. **Shared (S)**: If a transaction holds a shared lock on item 'Q', it can read 'Q' but cannot write to it. Multiple transactions can hold shared locks on 'Q' simultaneously.
+2. **Exclusive (X)**: If a transaction holds an exclusive lock on item 'Q', it can both read and write 'Q'. Only one transaction may hold an exclusive lock on 'Q' at any time.
+
+Lock compatibility is represented as a matrix. Shared mode is compatible with shared mode, but exclusive mode is incompatible with both shared and exclusive modes. If a requested lock is incompatible with currently held locks, the requesting transaction must wait until the conflicting locks are released.
+
+**Granting of Locks and Starvation** When a transaction requests a lock, the concurrency-control manager grants it immediately if no other transaction holds an incompatible lock. However, a naive granting scheme can lead to starvation. For example, if transaction T1 holds a shared lock, T2 requests an exclusive lock (and waits), and T3 requests a shared lock, granting the shared lock to T3 keeps T2 waiting. To avoid starvation, a lock manager grants a lock request only if:
+
+- No other transaction holds a conflicting lock.
+- No prior lock request is already waiting for the same data item.
+
+**The Two-Phase Locking (2PL) Protocol** 2PL ensures conflict serializability by requiring that lock and unlock requests occur in two distinct, sequential phases:
+
+1. **Growing Phase**: The transaction may acquire locks but cannot release any.
+2. **Shrinking Phase**: The transaction may release locks but cannot acquire any new ones.
+
+The moment a transaction releases its first lock, it transitions from the growing to the shrinking phase. The point in time where a transaction obtains its final lock is its **lock point**; transactions can be serialized according to their lock points.
+
+To prevent cascading rollbacks (where aborting one transaction forces multiple others to abort because they read uncommitted data), systems use variants of 2PL:
+
+- **Strict 2PL**: Requires that all exclusive-mode locks be held until the transaction commits.
+- **Rigorous 2PL**: Requires that all locks (both shared and exclusive) be held until the transaction commits.
+
+Lock conversions allow more concurrency. A transaction can upgrade a shared lock to an exclusive lock during the growing phase, or downgrade an exclusive lock to a shared lock during the shrinking phase.
+
+**Implementation of Locking** A lock manager is implemented via a **lock table**—a hash table indexed by data item names. For each locked data item, the table maintains a linked list of records representing outstanding requests, in the order of their arrival. Granted requests are marked, and waiting requests follow them in the queue.
+
+**Graph-Based Protocols** Prior knowledge of access patterns allows for non-2PL protocols. The **tree protocol** is a graph-based scheme restricted to exclusive locks on a tree-structured database graph. A transaction Ti can lock a node Q only if Ti already holds a lock on Q's parent (the first lock may be placed anywhere). Nodes can be unlocked at any time, but once unlocked, they cannot be relocked. The tree protocol is deadlock-free, though transactions may have to lock nodes they do not actually access.
+
+## Deadlock Handling
+
+A system enters a **deadlock** state when a set of transactions are in a cyclic wait, each holding a resource needed by another in the set. Databases must either prevent deadlocks or detect and recover from them.
+
+**Deadlock Prevention** Deadlocks can be prevented by ordering lock requests or using transaction rollbacks:
+
+- **Pre-declaration**: Transactions acquire all required locks before starting. This is often impractical due to unpredictable data access patterns and low resource utilization.
+- **Ordered Locking**: Enforcing a global total or partial order on all data items. Transactions can only request locks in a sequence consistent with this ordering.
+- **Timestamp-Based Preemption**: Assigning unique timestamps when transactions begin. If Ti requests a lock held by Tj, the system uses two main preemptive schemes:
+  1. **Wait-Die**: Nonpreemptive. If Ti is older than Tj (smaller timestamp), Ti is allowed to wait. If Ti is younger, Ti rolls back ('dies').
+  2. **Wound-Wait**: Preemptive. If Ti is older than Tj, Ti preempts the lock and wounds Tj, forcing it to roll back. If Ti is younger, Ti is allowed to wait.
+- **Lock Timeouts**: A simple preventive measure where a transaction waiting for a lock times out after a set duration, rolls back, and restarts. Setting the timeout window requires a difficult trade-off between unnecessary rollbacks and prolonged deadlock wait times.
+
+**Deadlock Detection** If prevention is not used, the system periodically runs a detection algorithm on a directed **wait-for graph** G = (V, E). The vertices V represent transactions, and a directed edge Ti -> Tj indicates that Ti is waiting for Tj to release a lock. A deadlock exists if and only if the wait-for graph contains a cycle.
+
+**Deadlock Recovery** When a cycle is detected, the database manager must recover by rolling back one or more transactions:
+
+1. **Selection of a Victim**: Choosing which transaction to abort based on minimum cost factors (e.g., execution time spent, locks held, remaining steps).
+2. **Rollback**: This can be a total rollback (abort and restart) or a partial rollback (rolling the transaction back only as far as necessary to release the deadlocking lock).
+3. **Starvation Avoidance**: Ensuring that the same transaction is not continuously selected as a victim by factoring the number of times it has been rolled back into the cost metric.
+
+## Multiple Granularity
+
+Locking individual tuples is highly precise but computationally expensive for large scans. Conversely, locking an entire relation reduces lock overhead but destroys concurrency for fine-grained updates. **Multiple granularity locking** resolves this by grouping data items into a tree-structured hierarchy (e.g., Database -> Area -> File -> Record).
+
+**Intention Lock Modes** When a transaction locks a node, it implicitly locks all of its descendants in the same mode. To avoid searching the entire tree to detect conflicts, the system introduces **intention locks**. These are acquired on all ancestors of a target node before locking the target node explicitly:
+
+- **Intention-Shared (IS)**: Indicates that explicit shared-mode locking is occurring at a lower level of the tree.
+- **Intention-Exclusive (IX)**: Indicates that explicit locking (shared or exclusive) is occurring at a lower level.
+- **Shared and Intention-Exclusive (SIX)**: The entire subtree rooted at this node is locked explicitly in shared mode, and explicit exclusive-mode locking is occurring at lower levels.
+
+**The Multiple-Granularity Locking Protocol** To lock a node Q, a transaction Ti must observe these structural rules:
+
+- It must follow lock-compatibility rules (e.g., IS is compatible with IX, but IX is incompatible with S).
+- It must lock the root first, in any mode.
+- It can lock Q in S or IS mode only if the parent of Q is locked in IX or IS mode by Ti.
+- It can lock Q in X, SIX, or IX mode only if the parent of Q is locked in IX or SIX mode by Ti.
+- It must follow 2PL behavior (no locks can be acquired if any have been released).
+- It can unlock Q only if none of Q's children are currently locked by Ti.
+
+Thus, locks are acquired in a top-down (root-to-leaf) fashion and must be released in a bottom-up (leaf-to-root) fashion.
+
+## Insert Operations, Delete Operations, and Predicate Reads
+
+Introducing insert and delete operations complicates concurrency control because transactions can interact with data items that do not yet exist, or are in the process of being destroyed.
+
+**Deletion and Insertion**
+
+- **Deletion**: A delete operation conflicts with read, write, and other delete operations on the same data item. Under 2PL, a transaction must acquire an exclusive lock on an item before deleting it. Under timestamp-ordering, a delete is rejected and the transaction rolled back if its timestamp is smaller than the item's read or write timestamp.
+- **Insertion**: An insert operation creates a new item and initializes its value. It is treated like a write. Under 2PL, the transaction is granted an exclusive lock on the newly created item. Under timestamp-ordering, the item's read and write timestamps are initialized to the timestamp of the inserting transaction.
+
+**Predicate Reads and the Phantom Phenomenon** Consider a transaction T1 that reads all instructor records where the department is 'Physics'. Concurrently, T2 inserts a new instructor record in the 'Physics' department and commits. If T1 re-reads the data, it will find a new "phantom" tuple that was not there before.
+
+This is the **phantom phenomenon**. It occurs when a query performs a predicate read (selecting a set of tuples satisfying a predicate) and a concurrent transaction inserts or updates a tuple that matches that predicate. Because the phantom tuple did not exist when T1 started, tuple-level locking fails to detect the conflict.
+
+**Index-Locking Protocol** To prevent phantoms without locking the entire relation (which kills concurrency), databases employ the index-locking protocol:
+
+- Transactions must find tuples via an index (a relation scan is treated as scanning all index leaf nodes).
+- A transaction performing a lookup must obtain a shared lock on all index leaf nodes it accesses.
+- A transaction inserting, deleting, or updating a tuple must obtain exclusive locks on all index leaf nodes affected by the change.
+- This converts the abstract predicate conflict into a concrete lock conflict on the index leaf nodes.
+
+## Timestamp-Based Protocols
+
+Unlike lock-based protocols which resolve conflicts at execution time, timestamp-based protocols pre-determine a serializability order using unique timestamps assigned when transactions begin.
+
+**Timestamps** Each transaction Ti is assigned a unique timestamp TS(Ti) via the system clock or a logical counter. Each data item Q has two associated timestamps:
+
+- **W-timestamp(Q)**: The largest timestamp of any transaction that successfully executed a write on Q.
+- **R-timestamp(Q)**: The largest timestamp of any transaction that successfully executed a read on Q.
+
+**The Timestamp-Ordering Protocol** This protocol ensures that any conflicting operations are executed in timestamp order.
+
+If transaction Ti issues a read(Q):
+
+- If TS(Ti) < W-timestamp(Q), then Ti is attempting to read an overwritten value. The read is rejected, and Ti is rolled back.
+- If TS(Ti) >= W-timestamp(Q), the read is executed, and R-timestamp(Q) is set to max(R-timestamp(Q), TS(Ti)).
+
+If transaction Ti issues a write(Q):
+
+- If TS(Ti) < R-timestamp(Q), the value Ti is producing was needed previously. The write is rejected, and Ti is rolled back.
+- If TS(Ti) < W-timestamp(Q), Ti is attempting to write an obsolete value. The write is rejected, and Ti is rolled back.
+- Otherwise, the write is executed, and W-timestamp(Q) is set to TS(Ti).
+
+**Thomas' Write Rule** Thomas' Write Rule is a modification that increases concurrency by ignoring obsolete write operations instead of rolling back the transaction.
+
+If Ti issues a write(Q) and TS(Ti) < W-timestamp(Q):
+
+- If TS(Ti) >= R-timestamp(Q), the write is simply ignored. Because no active transaction with a timestamp between TS(Ti) and W-timestamp(Q) can read this value, the write is obsolete and can be safely bypassed. This allows schedules that are view-serializable but not conflict-serializable.
+
+## Validation-Based Protocols
+
+In workloads dominated by read-only transactions, conflicts are rare. Pessimistic schemes like locking or timestamp ordering introduce unnecessary management overhead. **Validation-based protocols** (also known as optimistic concurrency control) allow transactions to execute without any locking, validating them only at commit time.
+
+**Transaction Phases** Each transaction executes through up to three distinct phases:
+
+1. **Read Phase**: The transaction reads data from the database but performs all writes to private, temporary local variables. No actual database updates occur.
+2. **Validation Phase**: The system performs a validation test to determine if committing the transaction would violate serializability. If validation fails, the transaction is aborted and its local workspace is discarded.
+3. **Write Phase**: If validation succeeds, local updates are copied directly to the database. Read-only transactions skip this phase.
+
+**The Validation Test** To serialize transactions, we assign each transaction Ti a validation timestamp, ValidationTS(Ti), at the start of its validation phase. For Ti to pass validation, for all transactions Tk where ValidationTS(Tk) < ValidationTS(Ti), one of the following two conditions must hold:
+
+- **Condition 1**: FinishTS(Tk) < StartTS(Ti). Tk completed its write phase before Ti even began its read phase.
+- **Condition 2**: StartTS(Ti) < FinishTS(Tk) < ValidationTS(Ti), and the write set of Tk does not intersect with the read set of Ti. This ensures that Tk's writes do not alter the data that Ti read, and since Tk finishes its write phase before Ti starts validation, their write phases do not overlap.
+
+Because updates are kept private until commit, validation-based schemes are naturally free from cascading rollbacks, though long transactions may suffer from starvation under high conflict rates.
+
+## Multiversion Schemes
+
+Pessimistic and optimistic protocols force transactions to wait or roll back when a read-write conflict occurs. **Multiversion schemes** resolve this by keeping old versions of data items. When a transaction issues a read, the system selects an appropriate historical version, ensuring that reads never block writes, and writes never block reads.
+
+**Multiversion Timestamp Ordering** Each data item Q has a sequence of versions < Q1, Q2, ..., Qm >. Each version Qk maintains three fields:
+
+- Content: The actual data value.
+- W-timestamp(Qk): The timestamp of the transaction that created Qk.
+- R-timestamp(Qk): The largest timestamp of any transaction that successfully read Qk.
+
+When transaction Ti issues a read(Q), the system returns the content of the version Qk whose W-timestamp is the largest write timestamp less than or equal to TS(Ti). The R-timestamp of Qk is updated to max(R-timestamp(Qk), TS(Ti)).
+
+When Ti issues a write(Q):
+
+- If TS(Ti) < R-timestamp(Qk) (where Qk is the version with the largest write timestamp < = TS(Ti)), Ti is attempting to write a value that should have been read by a younger transaction. Ti is rolled back.
+- If TS(Ti) = W-timestamp(Qk), the system overwrites the content of Qk.
+- Otherwise, a new version Ql is created with W-timestamp and R-timestamp set to TS(Ti).
+
+**Multiversion Two-Phase Locking (MV2PL)** MV2PL separates read-only transactions from update transactions to combine the benefits of locking and multiversioning:
+
+- **Update Transactio** **ns**: Perform rigorous 2PL. They acquire shared locks to read the latest version and exclusive locks to write. Writing creates a new version with a timestamp of infinity.
+- **Read-Only Transactions**: Assigned a start timestamp equal to the current value of a global transaction counter (ts-counter). They read historical versions matching their timestamp using the multiversion timestamp-ordering rule, without acquiring any locks.
+- **Commit Processing**: When an update transaction Ti commits, it assigns its created versions a timestamp of ts-counter + 1, increments ts-counter, and releases its locks.
+
+## Snapshot Isolation
+
+Many enterprise relational databases use **Snapshot Isolation (SI)**. Conceptually, SI provides each transaction Ti with a private snapshot of the database taken at its start time, StartTS(Ti). Ti reads only from this snapshot, completely isolated from concurrent updates.
+
+**Validation Steps for Update Transactions** SI keeps all updates in a transaction's private workspace. At validation, the system assigns a CommitTS(Ti) and checks for write-write conflicts against concurrent transactions. Two main validation policies are used:
+
+- **First Committer Wins**: The system checks if any concurrent transaction has already written an update to any data item that Ti intends to write. If a concurrent update is found, Ti aborts; otherwise, Ti commits and writes its updates.
+- **First Updater Wins**: The transaction requests a write lock when attempting an update. If a concurrent transaction holds the lock, the requesting transaction waits. If the lock holder commits, the waiting transaction aborts. If the lock holder aborts, the waiting transaction acquires the lock and proceeds.
+
+**Serializability Issues and Solutions** Snapshot isolation does _not_ guarantee serializability because it allows **write skew**. Consider two variables, A and B, representing checking and savings balances, with a constraint that A + B >= 0. Initially, A = 100 and B = 200.
+
+- T1 reads A and B, and withdraws 200 from A (A becomes -100), checking that A + B >= 0 (-100 + 200 = 100).
+- Concurrently, T2 reads A and B, and withdraws 200 from B (B becomes 0), checking that A + B >= 0 (100 + 0 = 100).
+- Under SI, both read their private snapshots. Since they update disjoint variables, both commit. The final database state has A = -100 and B = 0, violating the constraint A + B >= 0. This is write skew.
+
+**Serializable Snapshot Isolation (SSI)** SSI resolves write skew by tracking read-write conflicts. A read-write conflict edge exists from T1 to T2 if T1 reads a version of an object and T2 subsequently overwrites it. If the transaction manager detects a transaction that has both an incoming and an outgoing read-write conflict edge, it aborts one of the transactions to prevent a non-serializable cycle.
+
+## Weak Levels of Consistency in Practice
+
+To maximize performance and concurrency, applications often run at isolation levels weaker than full serializability.
+
+**Degree-Two Consistency** Degree-two consistency prevents dirty reads (reading uncommitted data) but does not guarantee serializability or repeatable reads. Under this protocol, shared locks can be released at any time, but exclusive locks must be held until the transaction commits or aborts. A transaction can read the same data item twice and observe different values if a concurrent transaction updated it in between. Degree-two consistency is the implementation foundation of the SQL 'Read Committed' isolation level.
+
+**Cursor Stability** Cursor stability is a specialized form of degree-two consistency designed for programs that iterate over tuples using cursors. It locks the tuple currently pointed to by the cursor in shared mode. Once the cursor advances to the next tuple, the shared lock on the previous tuple is released. Any modified tuples are locked in exclusive mode and held until the transaction commits.
+
+**Concurrency Control Across User Interactions** For long-running transactions involving human interaction (e.g., airline seat selection), traditional locking would block other users for minutes or hours. Instead, databases employ **optimistic concurrency control without read validation**:
+
+- The schema includes a version number attribute for each tuple.
+- A transaction reads a tuple and its version number, performing updates in a local workspace.
+- At commit time, the transaction checks if the tuple's version number in the database matches the version number read initially.
+- If they match, the update is executed and the version number is incremented by 1. If they do not match, the transaction aborts.
+
+## Advanced Topics in Concurrency Control
+
+Modern and high-performance database engines require specialized, advanced techniques to manage indices, main-memory operations, and semantically complex transactions.
+
+**Online Index Creation** Creating an index on a massive table can take hours. To avoid locking the relation during this time, databases perform online index creation:
+
+1. The system takes a snapshot of the relation and builds the index using the snapshot.
+2. Concurrent updates occurring during the build are written to an update log.
+3. Once the index build is complete, the log is applied to the index.
+4. The system briefly acquires a shared lock on the relation to apply any final logged updates and updates the relation's metadata.
+
+**Concurrency in Index Structures** Standard locking on index structures creates major bottlenecks. Databases release index locks early using specialized protocols:
+
+- **Crabbing Protocol**: When traversing down a B+-tree to search for a key, the algorithm locks the parent node in shared mode, locks the child node in shared mode, and immediately releases the parent lock (hand-over-hand locking). During insertions, exclusive locks are used and propagate upward only if a node split is required.
+- **B-link Trees**: Every internal and leaf node maintains a pointer to its right sibling. This allows search operations to traverse to the right if a concurrent node split occurs, reducing lock contention by holding locks on only one node at a time.
+- **Next-Key Locking**: To prevent the phantom phenomenon with fine-grained index locks, lookups and inserts lock not only the target key value but also the next-key value in the index, blocking inserts within the scanned range.
+
+**Main-Memory Databases and Latch-Free Structures** In main-memory databases, where disk I/O is eliminated, lock management becomes the main bottleneck. Systems use **latch-free (lock-free) data structures** implemented via atomic **Compare-and-Swap (CAS)** CPU instructions. CAS(var, oldval, newval) checks if 'var' equals 'oldval' and, if so, updates it to 'newval' in a single CPU cycle. If a concurrent update changed 'var', CAS fails, and the operation retries.
+
+To prevent the **ABA problem** (where a pointer is deleted, reinserted, and falsely matches 'oldval'), systems append a counter to the pointer and perform double compare-and-swap operations.
+
+**Semantic Operations Concurrency** We can increase concurrency by locking abstract operations rather than read/write actions. For example, an `increment(v, n)` operation updates a value without making it visible to the transaction. An **increment lock** is compatible with other increment locks (since addition is commutative) but incompatible with shared and exclusive locks. If a transaction rolls back, a **compensating operation** (e.g., subtracting 'n') is executed to undo the change.
+
+## Summary
+
+This lesson has systematically dissected database concurrency-control mechanisms, traversing the spectrum from traditional pessimistic locking to modern latch-free memory structures:
+
+- **Lock-Based Protocols**: Employs shared and exclusive locks. Two-Phase Locking (2PL) guarantees conflict serializability, while Strict and Rigorous 2PL prevent cascading rollbacks.
+- **Deadlock Handling**: Resolved via prevention (Wait-Die, Wound-Wait, ordered locking) or periodic detection via wait-for graphs followed by victim selection and rollback.
+- **Multiple Granularity**: Implements hierarchical locking using intention locks (IS, IX, SIX) to allow coarse and fine-grained locking to coexist.
+- **Phantom Phenomenon**: Solved by locking index leaf nodes (Index-Locking Protocol) or next-key locking to prevent concurrent inserts from appearing in predicate read ranges.
+- **Timestamp and Validation Protocols**: Timestamp-ordering pre-determines serialization order, while validation-based (optimistic) protocols defer checks to commit time.
+- **Multiversioning & Snapshot Isolation**: Multiversioning ensures reads never block writes. Snapshot isolation isolates transactions using historical snapshots, but is vulnerable to write skew unless Serializable Snapshot Isolation (SSI) is applied.
+- **Advanced Optimizations**: In-memory systems use atomic Compare-And-Swap (CAS) instructions to implement latch-free data structures, while B-link trees and crabbing protocols maximize index concurrency.

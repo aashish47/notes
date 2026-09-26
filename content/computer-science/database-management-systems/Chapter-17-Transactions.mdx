@@ -1,0 +1,192 @@
+export const metadata = {
+	title: "Database Transactions",
+	description:
+		"An in-depth introduction to database transactions, covering ACID properties, transaction states, concurrent schedules, conflict serializability, recovery, SQL isolation levels, and concurrency-control mechanisms.",
+	order: 1,
+	draft: false,
+	tags: [
+		"databases",
+		"transactions",
+		"ACID",
+		"concurrency control",
+		"serializability",
+		"isolation levels",
+	],
+};
+
+## Introduction
+
+Did you know that a simple bank transfer of $50 from your checking to your savings account actually involves several separate database operations? If the database system crashes halfway through, that $50 could vanish into thin air. Database systems prevent this digital magic trick using transactions to guarantee that operations are executed in an "all-or-nothing" fashion. This lesson provides an in-depth technical exploration of database transactions, exploring how systems maintain reliability and consistency even amidst hardware crashes and heavy concurrent user access.
+
+### Learning Objectives
+
+- **Analyze and define the core ACID properties** (Atomicity, Consistency, Isolation, and Durability) of database transactions.
+- **Trace transaction state transitions** and explain how the system manages transaction lifecycles and failures.
+- **Evaluate schedules for conflict serializability, recoverability, and cascadelessness** using precedence graphs.
+- **Compare SQL isolation levels** and their underlying concurrency control mechanisms, including locking, timestamps, and snapshot isolation.
+
+## The Transaction Concept and ACID Properties
+
+A transaction is a single logical unit of program execution that accesses and potentially updates various database items. Transactions are delimited by boundary statements such as `begin transaction` and `end transaction`. To preserve the integrity of data, a database system must enforce the **ACID properties**:
+
+- **Atomicity**: The "all-or-nothing" property. Either all operations of the transaction are reflected properly in the database, or none are. If a transaction fails mid-execution, any changes it made must be completely undone (rolled back).
+- **Consistency**: Execution of a transaction in isolation (without interference from other concurrent transactions) must preserve the structural and application-defined integrity of the database. It transforms the database from one consistent state to another.
+- **Isolation**: Even though multiple transactions run concurrently, the system guarantees that each transaction is unaware of other concurrently executing transactions. To each transaction, it appears that other transactions executed either entirely before or entirely after it.
+- **Durability**: Once a transaction completes successfully (commits), the changes it has made persist in the database, surviving even subsequent system crashes or power failures.
+
+## A Simple Transaction Model
+
+To understand transaction mechanics, we use a simplified model focusing on how data moves between disk storage and main memory. We restrict our data operations to two low-level instructions:
+
+- **read(X)**: Transfers the data item X from the database on disk to a local variable named X in the transaction's main-memory buffer.
+- **write(X)**: Transfers the value in the local variable X from the transaction's main-memory buffer to the data item X in the database.
+
+Consider transaction $T_i$, which transfers $50 from account A to account B:
+
+```
+T_i:
+read(A);
+A := A - 50;
+write(A);
+read(B);
+B := B + 50;
+write(B);
+```
+
+Let's map our ACID requirements directly to this simple model:
+
+- **Consistency**: The application constraint requires that the sum $A + B$ remains constant. If the database starts in a consistent state, executing $T_i$ to completion preserves this balance.
+- **Atomicity**: Suppose the system crashes after executing `write(A)` but before `write(B)`. Account A has lost $50, but B has not received it, resulting in an inconsistent state. To ensure atomicity, the database system maintains a **log** on disk of all write operations. If a failure occurs, the recovery system reads this log to restore the old values (undoing the partial changes).
+- **Durability**: Once the user is notified of a successful transaction, the updates must survive failures. This is guaranteed by either writing the updates to disk before committing, or by writing sufficient reconstruction information to the on-disk log.
+- **Isolation**: If another transaction reads A and B while $T_i$ is at its midpoint (after deducting A but before crediting B), it will calculate an incorrect sum. Concurrency-control systems prevent these intermediate, inconsistent states from being visible to concurrent transactions.
+
+## Storage Structure
+
+The implementation of atomicity and durability depends directly on the physical media where data is kept. Storage is classified into three categories:
+
+- **Volatile Storage**: Extremely fast random-access memory (e.g., main memory, cache). Information residing in volatile storage does not survive system crashes or power outages.
+- **Non-volatile Storage**: Slower than volatile storage but survives system crashes (e.g., magnetic disks, flash storage, SSDs). However, non-volatile storage media are still susceptible to physical damage or localized device failures.
+- **Stable Storage**: An idealized class of storage where information is theoretically never lost. It is closely approximated in real systems by replicating data across multiple independent non-volatile media (e.g., mirrored disks or RAID configurations) with independent failure modes, combined with careful write protocols.
+
+## Transaction States and Lifecycle
+
+To systematically manage executions and recovery, a database system models transactions as state machines. A transaction must be in one of the following states:
+
+- **Active**: The initial state. The transaction remains active while executing its instructions.
+- **Partially Committed**: Entered after the final statement of the transaction has been executed. At this point, the transaction has completed execution, but its updates may still reside temporarily in volatile main memory.
+- **Failed**: Entered after the system discovers that normal execution can no longer proceed due to hardware, logical, or concurrency errors.
+- **Aborted**: Entered after the transaction has been rolled back and the database restored to its state prior to the transaction's start. The system can then either restart the transaction (if the abort was due to a transient hardware/software failure) or kill it (if due to internal logical errors or invalid input).
+- **Committed**: Entered only after successful completion and when all update logs have been safely flushed to stable storage.
+
+Handling external actions during transaction execution requires special caution. For example, once cash is physically dispensed at an ATM, or an email is sent, the action cannot be undone by a database rollback. To manage this, systems either buffer external writes until after the transaction commits, or rely on **compensating transactions** (e.g., executing a deposit to reverse an erroneous cash withdrawal) if an active transaction must abort.
+
+## Concurrent Execution and Schedules
+
+Running transactions concurrently rather than serially (one at a time) offers critical performance benefits:
+
+- **Improved throughput and resource utilization**: While one transaction performs disk I/O, the CPU can process instructions for another transaction, maximizing hardware efficiency.
+- **Reduced waiting time**: Mixing long-running queries with short transactions concurrently avoids unpredictable delays and significantly reduces average response times.
+
+To trace concurrent operations, we use **schedules**. A schedule represents the chronological execution order of instructions across multiple concurrent transactions.
+
+- **Serial Schedules**: The instructions of each individual transaction appear grouped together. For $n$ transactions, there are $n!$ possible valid serial schedules. Serial schedules always guarantee database consistency, but they do not leverage concurrency.
+- **Concurrent Schedules**: The instructions of different transactions are interleaved. If the final state of a concurrent schedule is equivalent to the outcome of some serial schedule, the concurrent schedule is called **serializable**.
+
+## Serializability and Conflict Equivalence
+
+Rather than evaluating the complex mathematical or program logic of every transaction, database engines analyze serializability using simplified read and write operations. We focus on **conflict serializability**.
+
+Two consecutive instructions $I$ and $J$ belonging to different transactions $T_i$ and $T_j$ **conflict** if they access the same data item $Q$, and at least one of them is a write operation. Specifically:
+
+- $I = \text{read}(Q)$, $J = \text{read}(Q)$: No conflict. Their relative order does not affect the outcome.
+- $I = \text{read}(Q)$, $J = \text{write}(Q)$: Conflict. If $J$ executes first, $T_i$ reads a different value.
+- $I = \text{write}(Q)$, $J = \text{read}(Q)$: Conflict. The read is dependent on the write.
+- $I = \text{write}(Q)$, $J = \text{write}(Q)$: Conflict. The final value of $Q$ depends on which write executes last.
+
+If a schedule $S$ can be transformed into a schedule $S'$ by a series of swaps of consecutive, non-conflicting instructions, then $S$ and $S'$ are **conflict equivalent**. A schedule $S$ is **conflict serializable** if it is conflict equivalent to a serial schedule.
+
+To systematically test a schedule $S$ for conflict serializability, we construct a directed **precedence graph** $G = (V, E)$:
+
+- The vertices $V$ consist of all transactions in the schedule.
+- We draw a directed edge $T_i \to T_j$ if $T_i$ executes an instruction that conflicts with an instruction executed later by $T_j$. This occurs if:
+  1. $T_i$ executes `write(Q)` before $T_j$ executes `read(Q)`.
+  2. $T_i$ executes `read(Q)` before $T_j$ executes `write(Q)`.
+  3. $T_i$ executes `write(Q)` before $T_j$ executes `write(Q)`.
+
+If the precedence graph contains a directed **cycle**, the schedule is **not** conflict serializable. If it is acyclic, the schedule is conflict serializable, and a valid serial execution order can be determined via **topological sorting** of the graph.
+
+## Failure Recovery: Recoverable and Cascadeless Schedules
+
+Schedules must not only be serializable, but they must also allow the database to recover safely from transaction failures.
+
+### Recoverable Schedules
+
+Suppose transaction $T_j$ reads a data item that was written by an active transaction $T_i$. If $T_j$ commits, and then $T_i$ subsequently fails and aborts, the system must roll back $T_i$. However, because $T_j$ has already committed, its changes are durable and cannot be rolled back. This violates atomicity.
+
+To prevent this, we require **recoverable schedules**: if $T_j$ reads a data item previously written by $T_i$, the commit operation of $T_i$ must appear before the commit operation of $T_j$.
+
+### Cascadeless Schedules
+
+Even in a recoverable schedule, the abort of a transaction can trigger a chain reaction of rollbacks. Suppose $T_8$ writes a value read by $T_9$, which writes a value read by $T_{10}$. If $T_8$ fails, the system must abort and roll back $T_8$, $T_9$, and $T_{10}$. This phenomenon is called a **cascading rollback**.
+
+Because cascading rollbacks undo significant amounts of work, databases restrict schedules to **cascadeless schedules**. A cascadeless schedule is one where, for each pair of transactions $T_i$ and $T_j$ such that $T_j$ reads a data item previously written by $T_i$, the commit operation of $T_i$ must appear before the read operation of $T_j$. Every cascadeless schedule is also guaranteed to be recoverable.
+
+## SQL Transaction Isolation Levels
+
+While full serializability is ideal for database consistency, enforcing it strictly can limit concurrency and decrease performance. The SQL standard defines four transaction isolation levels, allowing developers to trade consistency for performance:
+
+- **Serializable**: Typically guarantees fully serializable execution.
+- **Repeatable Read**: Allows only committed data to be read. It also guarantees that if a transaction reads a data item twice, the value will not have changed. However, it does not prevent "phantom reads" (where a concurrent transaction inserts new rows matching a query's criteria between reads).
+- **Read Committed**: Allows only committed data to be read, but does not guarantee repeatable reads. Between two reads of a data item by $T_1$, another transaction $T_2$ may update the item and commit, causing $T_1$ to see different values.
+- **Read Uncommitted**: Allows "dirty reads," meaning a transaction can read data that has been modified by an active, uncommitted transaction. This is the lowest isolation level.
+
+All isolation levels, including Read Uncommitted, strictly **disallow dirty writes** (writing to a data item that has already been modified by an uncommitted transaction).
+
+In SQL, you can explicitly set the isolation level using: `set transaction isolation level <level_name>;`
+
+In JDBC, you can turn off automatic commits with `setAutoCommit(false)` and set the isolation level using: `connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);`
+
+## Concurrency Control Implementation Mechanisms
+
+To generate only acceptable (serializable, recoverable, and cascadeless) schedules, databases implement concurrency-control policies. Three primary paradigms exist:
+
+### Locking
+
+Transactions must acquire a lock on a data item before accessing it. There are two lock modes:
+
+- **Shared (S) locks**: Required for reading a data item. Multiple transactions can hold shared locks on the same item concurrently.
+- **Exclusive (X) locks**: Required for writing. Only one transaction can hold an exclusive lock, and no other locks (shared or exclusive) can exist on that item simultaneously.
+
+To guarantee serializability, systems use the **two-phase locking (2PL) protocol**. Under 2PL, a transaction must acquire locks during a "growing phase" and can only release locks during a "shrinking phase". Once a transaction releases a lock, it cannot acquire any new locks.
+
+### Timestamps
+
+The system assigns each transaction a unique timestamp when it begins. Every data item stores two timestamps: the `read-timestamp` (the timestamp of the youngest transaction that read the item) and the `write-timestamp` (the timestamp of the transaction that wrote the current value). The database uses these timestamps to force conflicting operations to execute in strict chronological order of transaction start times; out-of-order requests result in transaction aborts and restarts.
+
+### Multiple Versions and Snapshot Isolation
+
+In **snapshot isolation (SI)**, each transaction operates on its own consistent "snapshot" of the database, taken when the transaction begins. Readers never wait for writers, and writers never wait for readers.
+
+When a transaction $T$ attempts to commit, it succeeds only if no concurrent transaction has modified any data item that $T$ intends to update. If a conflict occurs, $T$ aborts. While highly performant, snapshot isolation can allow non-serializable anomalies, such as **write skew** (where concurrent transactions update separate but related data items, violating cross-record constraints). To prevent this, some advanced systems use **serializable snapshot isolation (SSI)** to detect and abort transactions that would create non-serializable dependency cycles.
+
+## Transactions in SQL: Phantom Phenomenon and Predicate Locking
+
+Our low-level model assumed transactions accessed static, predefined data items. In SQL, however, transactions query and modify sets of records using `where` clauses, and insert or delete rows. This introduces the **phantom phenomenon**.
+
+Suppose transaction $T_1$ runs a query to select all instructors with a salary greater than $90,000. While $T_1$ is active, transaction $T_2$ inserts a new instructor, "James", with a salary of $100,000 and commits. If $T_1$ runs the same query again, "James" appears as a "phantom" record. Even if $T_1$ had locked all existing instructor records, it could not have blocked the insertion of a new row.
+
+To prevent the phantom phenomenon and guarantee serializability in SQL, databases must use advanced mechanisms:
+
+- **Predicate Locking**: Rather than locking individual tuples, a transaction acquires a lock on a predicate (e.g., locking the condition `salary > 90000`). Any concurrent attempt to insert, update, or delete a record that satisfies this predicate will block.
+- **Index Locking**: Because predicate locking is computationally expensive to implement, systems approximate it by locking index pages or search-key values in the database index structures (e.g., locking the range of leaf nodes in a B+ tree index corresponding to salaries greater than $90,000).
+
+## Summary
+
+### Key Takeaways
+
+- **ACID guarantees reliability**: Atomicity ensures all-or-nothing execution; Consistency maintains integrity constraints; Isolation prevents concurrent interference; Durability makes committed updates permanent.
+- **The transaction lifecycle** is modeled using five states: Active, Partially Committed, Failed, Aborted, and Committed. A transaction is only terminated once it is committed or aborted.
+- **Schedules map concurrent operations**: Conflict serializability is verified using directed precedence graphs. If the graph contains no cycles, the schedule is conflict serializable.
+- **Recovery demands structure**: Nonrecoverable schedules can lead to lost data during rollbacks. To ensure safe recovery, databases enforce recoverable and cascadeless schedules (the latter of which avoids cascading rollbacks by restricting reads to committed data).
+- **SQL isolation levels trade off correctness for speed**: From highest to lowest, they are Serializable, Repeatable Read, Read Committed, and Read Uncommitted.
+- **Implementation strategies**: Databases implement isolation using Two-Phase Locking (2PL), Timestamps, or Snapshot Isolation (SI). Managing insertions and deletions requires index or predicate locking to prevent the phantom phenomenon.
