@@ -1,0 +1,187 @@
+export const metadata = {
+	title: "Query Processing",
+	description:
+		"A comprehensive guide to database query processing, covering query translation, cost estimation, selection, sorting, join algorithms, expression evaluation, pipelining, and modern in-memory and cache-conscious optimizations.",
+	order: 15,
+	draft: false,
+	tags: [
+		"databases",
+		"query processing",
+		"query optimization",
+		"joins",
+		"sorting",
+		"cost modeling",
+		"pipelining",
+		"in-memory databases",
+	],
+};
+
+## Introduction
+
+Did you know that a single declarative SQL query can be executed in thousands of different ways, with execution times ranging from milliseconds to hours? Query processing is the core computational engine of a database management system (DBMS), translating human-readable requests into highly optimized physical execution steps. This lesson breaks down exactly how database engines parse, cost, sort, join, and optimize data operations to retrieve your results at lightning speed.
+
+By completing this lesson, you will be able to:
+
+- Explain the three core phases of query processing: translation, optimization, and evaluation.
+- Calculate the costs of different selection, sorting, and join algorithms.
+- Compare materialized and pipelined strategies for executing complex relational expressions.
+- Describe modern in-memory, cache-conscious, and column-oriented processing optimizations.
+
+## Overview of Query Processing
+
+Query processing refers to the sequence of activities involved in extracting data from a database. It bridges the gap between high-level user queries and the physical storage layer. The three basic steps are:
+
+1. **Parsing and Translation**: Before query processing begins, the system translates a high-level query language like SQL into an internal representation. SQL is designed for human ease-of-use, but is poorly suited for internal system operations. Instead, the engine parses the SQL, checks its syntax, verifies relation and attribute names against the database schema, and converts it into an equivalent expression in the **extended relational algebra** (often represented as a parse tree). If the query references views, the translation phase replaces view names with their defining relational-algebra expressions.
+2. **Optimization**: A relational-algebra expression specifies _what_ data to retrieve, but not _how_ to retrieve it. For example, a select query can be evaluated either by scanning every row or by using an available index. The query optimizer explores different relational-algebra representations and physical algorithms, evaluates their estimated costs using database statistics, and selects a highly efficient **query-execution plan** (or evaluation plan). This plan is represented as an operator tree annotated with specific physical evaluation instructions, known as **evaluation primitives**.
+3. **Evaluation**: The query-execution engine takes the annotated evaluation plan, executes the specified primitive operations, and streams the results back to the user.
+
+## Measures of Query Cost
+
+To choose the best query-execution plan, the optimizer must estimate the cost of individual operations. While cost can be measured across multiple resource types (including CPU time, disk accesses, and network communication in distributed systems), disk I/O has historically dominated database costs due to the vast speed disparity between magnetic disks and main memory.
+
+With modern solid-state drives (SSDs) and large main memories, CPU costs are increasingly included in state-of-the-art cost models (like PostgreSQL's cost-per-tuple metrics). However, sequential block transfers and random I/O seeks remain crucial metrics.
+
+We estimate physical I/O cost using the following variables:
+
+- $t_T$: Time to transfer one block of data from storage to memory.
+- $t_S$: Storage latency (the seek time and rotational latency for magnetic disks, or read initiation overhead for SSDs).
+- $b$: The number of blocks transferred.
+- $S$: The number of random I/O accesses.
+
+Under this model, an operation that performs $b$ block transfers and $S$ random accesses takes:
+
+$$
+\text{Cost} = b \times t_T + S \times t_S \text{ seconds}
+$$
+
+Typically, write operations are significantly more expensive than reads (often double the cost on magnetic disks due to write-verification sweeps). To simplify calculations, cost models frequently measure performance purely in terms of total block transfers and disk seeks, ignoring the final write-to-disk step for query output unless specified otherwise.
+
+## Selection Operation
+
+The file scan is the lowest-level physical operator used to access data. We can implement selection operations using a variety of scan and index-based algorithms, each with its own cost profile:
+
+**A1: Linear Search**: The system scans every block of a relation, testing all records against the selection condition. This works on any file, regardless of indexing or sort order.
+
+- Cost: $t_S + b_r \times t_T$ (where $b_r$ is the number of blocks in relation $r$).
+- For equality searches on a key attribute, the scan can stop immediately when the record is found, reducing average cost to $t_S + (b_r / 2) \times t_T$.
+
+**A2: Clustering Index, Equality on Key**: If a clustering B+-tree index exists on a key attribute, we traverse the index to find the unique matching record.
+
+- Cost: $(h_i + 1) \times (t_T + t_S)$ (where $h_i$ is the B+-tree height). Since internal index nodes are typically cached in memory, $h_i$ can practically be treated as 1, yielding a cost of $2 \times (t_T + t_S)$.
+
+**A3: Clustering Index, Equality on Non-Key**: When looking up non-unique values with a clustering index, matching records are guaranteed to be stored consecutively on disk.
+
+- Cost: $h_i \times (t_T + t_S) + t_S + b \times t_T$ (where $b$ is the number of consecutive leaf blocks containing matching records).
+
+**A4: Secondary Index, Equality**:
+
+- On a key attribute, cost is identical to A2: $(h_i + 1) \times (t_T + t_S)$.
+- On a non-key attribute, matching records may be scattered across different disk blocks. In the worst case, fetching $n$ matching records requires reading $n$ distinct blocks: $(h_i + n) \times (t_T + t_S)$. This can easily exceed the cost of a simple linear search if $n$ is large.
+
+**A5 & A6: Comparisons (**$<, \le, >, \ge$**)**:
+
+- Using a clustering index (A5), we find the boundary point and scan sequentially. Cost is identical to A3.
+- Using a secondary index (A6), we scan index leaves for pointers and fetch matching records. To avoid the massive seek costs of fetching records in arbitrary physical order, database systems like PostgreSQL use a **bitmap index scan**. This hybrid approach finds all matching index entries, flags the corresponding block IDs in a memory-resident bitmap, and then reads only those flagged blocks sequentially.
+
+**Complex Selections**: Conjunctions (AND) can be processed by applying a single-index scan and filtering the retrieved records in memory (A7), using a composite index (A8), or intersecting lists of record identifiers (A9). Disjunctions (OR) can be resolved by unioning record identifier lists from multiple indexes (A10); however, if even one term lacks an index, the engine must resort to a full linear scan.
+
+## Sorting
+
+Sorting is a fundamental primitive in relational databases. It is required for explicit SQL `ORDER BY` clauses, and it acts as an enabling step for highly efficient merge-join and grouping operations.
+
+When a relation fits entirely in main memory, standard sorting algorithms like quicksort are used. However, databases frequently deal with relations larger than available memory, requiring **external sorting**. The standard approach is the **external sort-merge algorithm**:
+
+1. **Run Generation**: The engine reads $M$ blocks of the relation (the maximum size of the memory buffer) into memory, sorts them using an in-memory algorithm, and writes the sorted sub-relation out as a temporary "run" file ($R_i$). It repeats this until the entire relation has been processed into sorted runs.
+2. **Merge Phase**: The engine allocates one input buffer block for each of the $N$ run files, leaving one buffer block for output. It reads the first block of each run into memory, repeatedly selects the smallest tuple across all buffers, writes it to the output buffer, and evicts it. When an input buffer block becomes empty, the next block of that run is loaded. If the number of runs $N$ is larger than the available buffer space $M-1$, merging is performed in multiple consecutive passes.
+
+To minimize physical disk seeks during merging, databases can read and write data in larger chunks of $b_b$ blocks. The total number of block transfers required for an external sort-merge of relation $r$ (with $b_r$ blocks) is:
+
+$$
+\text{Transfers} = b_r \left( 2 \left\lceil \log_{\lfloor M/b_b \rfloor - 1} (b_r / M) \right\rceil + 1 \right)
+$$
+
+The corresponding number of disk seeks is estimated as:
+
+$$
+\text{Seeks} = 2 \lceil b_r / M \rceil + \lceil b_r / b_b \rceil \left( 2 \left\lceil \log_{\lfloor M/b_b \rfloor - 1} (b_r / M) \right\rceil - 1 \right)
+$$
+
+## Join Operation
+
+Joins are computationally expensive operations that pair tuples from an outer relation $r$ and an inner relation $s$ based on a join condition. Five physical join algorithms are widely used:
+
+**Nested-Loop Join**: For each tuple $t_r$ in $r$, scan every tuple $t_s$ in $s$ and output matches. It requires no indexes or sorting and works on any join condition.
+
+- Worst-case cost (when only 1 block of each fits in memory): $n_r \times b_s + b_r$ block transfers and $n_r + b_r$ seeks.
+- Best-case cost (both relations fit in memory): $b_r + b_s$ block transfers and 2 seeks.
+
+**Block Nested-Loop Join**: Instead of checking row-by-row, this algorithm loads chunks of the outer relation $r$ into memory and joins them against blocks of the inner relation $s$. Using $M-2$ blocks of memory to buffer the outer relation $r$ reduces cost significantly.
+
+- Cost: $\lceil b_r / (M - 2) \rceil \times b_s + b_r$ block transfers and $2 \lceil b_r / (M - 2) \rceil$ seeks.
+
+**Indexed Nested-Loop Join**: If an index exists on the join attribute of the inner relation $s$, we replace the inner loop's full file scan with an index lookup for each tuple in the outer relation.
+
+- Cost: $b_r (t_T + t_S) + n_r \times c$ (where $c$ is the cost of a single index selection on $s$).
+
+**Merge Join**: If both relations are sorted on the join attributes, the engine joins them in a single sequential pass, similar to the merge step of merge-sort. If the inputs are unsorted, they must be sorted first, adding sorting costs to the total.
+
+- Cost (already sorted): $b_r + b_s$ block transfers.
+
+**Hash Join**: This algorithm uses a hash function $h$ on the join attributes to partition both relations into matching buckets ($r_i$ and $s_i$).
+
+- **Build Phase**: The engine reads the smaller build relation (e.g., $s$), partitions it into buckets, and builds an in-memory hash index on each bucket.
+- **Probe Phase**: The engine reads the probe relation ($r$), partitions it using the same hash function, and probes the in-memory hash index of the corresponding $s_i$ bucket to find matches.
+- If partitions do not fit in memory, the engine applies **recursive partitioning**.
+- Cost (no recursive partitioning): $3(b_r + b_s) + 4n_h$ block transfers (where $n_h$ is the number of partitions).
+
+**Complex and Spatial Joins**: For non-linear, multi-dimensional query boundaries (such as overlapping regions on map data), standard hash and merge joins fail. In these scenarios, database engines rely on specialized multi-dimensional spatial indexes, such as R-trees or k-d trees, using indexed nested-loop joins.
+
+## Other Relational Operations
+
+Database systems adapt sorting and hashing primitives to implement other relational operations efficiently:
+
+- **Duplicate Elimination**: To evaluate `DISTINCT` operations, the engine can sort the relation (bringing duplicates adjacent to each other for easy removal) or partition it via hashing (building an in-memory hash table where redundant entries are discarded on insertion).
+- **Projection**: The engine extracts the requested columns from every tuple, creating an intermediate table that may contain duplicates. These duplicates are then removed using sorting or hashing.
+- **Set Operations (Union, Intersection, Set Difference)**: For sorted relations, the engine uses concurrent sequential scans to output distinct unioned, intersected, or subtracted tuples with $b_r + b_s$ transfers. For unsorted inputs, hash-based partitioning is applied, building an in-memory hash index on $r_i$ and probing with $s_i$ to filter results based on the target set operation.
+- **Outer Join**: Left, right, and full outer joins are evaluated by modifying merge or hash joins. For example, in a left outer join, if a tuple from the outer relation finds no match in the inner relation, it is padded with `null` values for all inner attributes and written to the output.
+- **Aggregation**: To evaluate `GROUP BY` and aggregation functions (such as `SUM`, `MIN`, `MAX`, `COUNT`, and `AVG`), the engine groups tuples using either sorting or hashing on the grouping attributes. Using **on-the-fly aggregation**, the engine keeps a running count or total for each group as tuples are read, updating values in-memory to avoid writing massive intermediate groups back to disk.
+
+## Evaluation of Expressions
+
+When evaluating an expression tree containing multiple relational operations, database engines use one of two execution models:
+
+**Materialization**: The engine evaluates operations from the bottom of the tree upward, writing the complete result of each intermediate operation to a temporary relation on disk. This temporary data is then read back to compute the next level. While conceptually simple, materialization incurs a massive I/O penalty for writing and reading intermediate results.
+
+**Pipelining**: The engine evaluates multiple operations concurrently. As an operator generates a tuple, it passes it directly to its parent operator without storing it on disk. Pipelining eliminates intermediate disk writes and begins returning results to the client almost instantly. Pipelines are implemented in two ways:
+
+- **Demand-driven (Pull-based)**: The parent operator repeatedly calls an `open()`, `next()`, and `close()` iterator interface on its children. Data is pulled up the tree on demand. This is highly popular and easy to implement.
+- **Producer-driven (Push-based)**: Operators run on separate threads, eagerly pushing output tuples into shared buffers for their parents to consume. This is highly efficient on modern multi-core processors, though more complex to synchronize.
+
+Some operations, such as sorting, are **blocking (inherently blocking)**. They cannot produce any output tuples until they have consumed all input tuples. However, blocking operators can still participate in pipelined stages by separating their execution into a pipelined input stage (e.g., run-generation) and a pipelined output stage (e.g., merging).
+
+**Continuous Streams**: In streaming systems (e.g., sensor networks), query engines run **continuous queries** using producer-driven pipelines. Since stream data is infinite, these engines execute aggregations over defined time windows (e.g., 1-minute tumbling windows), using cryptographic or system-defined "punctuations" (progress markers) to determine when a window is complete and ready to output.
+
+## Query Processing in Memory
+
+When database systems store data entirely in main memory, physical disk I/O ceases to be the primary performance bottleneck. Instead, optimization shifts focus toward minimizing CPU execution cycles, memory bus latency, and CPU cache misses.
+
+**Cache-Conscious Algorithms**: Modern CPU architectures use high-speed cache lines (typically 64 bytes) to transfer data between RAM and the processor. Reading from CPU cache is up to 100 times faster than reading from main memory. Databases optimize for this by using:
+
+- **Cache-sized runs in sorting**: The run size of sorting algorithms is restricted so that an entire run fits within the L3 CPU cache, preventing cache misses during the in-memory sort phase.
+- **Cache-sized partitioning in joins**: Hash-join relations are partitioned into sub-buckets that fit entirely inside the L3 cache, keeping both the build partition and its hash index localized within the CPU cache during the probe phase.
+- **Locality of attributes**: Arranging attributes that are frequently accessed together (like grouping keys and aggregation targets) consecutively in physical memory blocks.
+
+**Query Compilation**: Traditional database engines act as interpreters, executing general-purpose code for every tuple processed. This introduces severe overhead from metadata lookups and function call instructions. Modern main-memory databases compile query execution plans directly into native machine code (using tools like LLVM), eliminating interpreter loops and drastically improving speed.
+
+**Column-Oriented Storage**: Storing data by column rather than by row is highly effective for analytical workloads. It allows the database engine to load only the specific attributes needed for a query, maximizing cache efficiency and enabling the use of modern CPU vector-processing instructions (SIMD) to evaluate operations on multiple columns in parallel.
+
+## Summary
+
+Here is a quick recap of the vital concepts we covered:
+
+- **The Three Stages**: Query processing translates raw SQL to extended relational algebra, costs and optimizes the expression, and executes a physical plan of evaluation primitives.
+- **Cost Modeling**: We estimate physical execution cost by totaling block transfers ($b$) and random disk seeks ($S$) based on storage read/write performance variables.
+- **Selection & Sorting**: We utilize indexes to optimize scans. When files exceed buffer memory, external sort-merge generates sorted runs and merges them in sequential passes.
+- **Physical Joins**: Engines dynamically choose between Nested-Loop, Block Nested-Loop, Indexed Nested-Loop, Merge Join, and Hash Join based on sort orders and index availability.
+- **Execution Models**: Materialization writes intermediate steps to disk, while pipelining streams tuples directly between concurrent operators, avoiding I/O overhead.
+- **Main-Memory Optimizations**: Modern databases eliminate CPU bottlenecks using cache-conscious partition boundaries, column-oriented vector processing, and query plan compilation.

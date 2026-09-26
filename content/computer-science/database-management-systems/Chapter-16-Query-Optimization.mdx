@@ -1,0 +1,231 @@
+export const metadata = {
+	title: "Query Optimization",
+	description:
+		"A comprehensive guide to database query optimization, covering relational expression transformations, cardinality estimation, join-order selection, subquery decorrelation, materialized view maintenance, and adaptive optimization techniques.",
+	order: 16,
+	draft: false,
+	tags: [
+		"databases",
+		"query optimization",
+		"relational algebra",
+		"cardinality estimation",
+		"join ordering",
+		"materialized views",
+		"adaptive query processing",
+	],
+};
+
+## Introduction
+
+The execution cost difference between an optimal query-evaluation plan and a poor one can be several orders of magnitude. Why write slower queries when a relational database engine can mathematically redesign them on the fly? This lesson explores the structural, statistical, and algorithmic foundations of modern database query optimizers.
+
+### Learning Objectives:
+
+- Transform relational algebra expressions systematically using equivalence rules.
+- Estimate intermediate query result sizes and distinct value counts using catalog statistics and histograms.
+- Compare cost-based join-ordering algorithms using dynamic programming with heuristic search spaces.
+- Explain how database systems decorrelate nested subqueries into semijoins and anti-semijoins.
+- Implement incremental view maintenance formulas for joins, projections, and aggregations.
+- Understand advanced optimization paradigms including Top-K pruning, update safety (the Halloween problem), and adaptive run-time query processing.
+
+## Overview of Query Optimization
+
+Query optimization is the process of selecting the most efficient query-evaluation plan from many possible strategies. Users write declarative queries (such as SQL) specifying _what_ data they want, and the system determines _how_ to retrieve it efficiently.
+
+**The Optimization Process** Optimization operates at two primary levels:
+
+- **Logical Level:** The system transforms the original relational-algebra expression into an equivalent expression that is cheaper to execute (e.g., pushing down selection operations to reduce intermediate relation sizes).
+- **Physical Level:** The system selects a detailed execution strategy, defining which physical algorithms to use (e.g., hash join vs. merge join) and which indices to leverage.
+
+**Logical vs. Physical Transformations** Consider the query: _"Find the names of all instructors in the Music department alongside the titles of the courses they teach."_
+
+An initial logical expression might join the entire `instructor`, `teaches`, and `course` relations, only applying the selection `dept_name = "Music"` at the very end. This creates massive, unnecessary intermediate relations. By applying a logical transformation, we can push the selection down directly onto the `instructor` relation: only matching Music department instructors are joined.
+
+At the physical level, the optimizer builds an **evaluation plan**. This plan defines the coordination of operations, such as designating one join as a pipelined hash join and another as a merge join after sorting. In a **pipelined** execution, the output of one operator is sent directly to the next without writing intermediate results to disk. In a **materialized** execution, intermediate results are written to disk before being read by the consumer.
+
+## Transformation of Relational Expressions
+
+Two relational-algebra expressions are equivalent if, on every legal database instance, they generate the exact same set (or multiset, in SQL) of tuples. Order is ignored during equivalence checking.
+
+**Key Equivalence Rules** Optimizers use equivalence rules to rewrite query trees. Below are primary rules (where E represents expressions, theta represents predicates, and L represents attribute lists):
+
+- **Cascade of Selection (Rule 1):** Conjunctive selections can be separated into individual steps:
+  $$
+  \sigma_{\theta_1 \wedge \theta_2}(E) \equiv \sigma_{\theta_1}(\sigma_{\theta_2}(E))
+  $$
+- **Commutativity of Selection (Rule 2):** Selections can be reordered:
+  $$
+  \sigma_{\theta_1}(\sigma_{\theta_2}(E)) \equiv \sigma_{\theta_2}(\sigma_{\theta_1}(E))
+  $$
+- **Cascade of Projection (Rule 3):** In a sequence of projections, only the outermost projection is strictly required, provided its attributes are a subset of the inner ones:
+  $$
+  \Pi_{L_1}(\Pi_{L_2}(E)) \equiv \Pi_{L_1}(E)
+  $$
+- **Commutativity of Theta-Join (Rule 5):** Joins are commutative (ignoring physical attribute ordering, which can be corrected with a final projection):
+  $$
+  E_1 \bowtie_{\theta} E_2\equiv E_2 \bowtie_{\theta} E_1
+  $$
+- **Associativity of Join (Rule 6):** Natural joins and theta-joins are associative. This allows optimizers to restructure deep join trees:
+  $$
+  (E_1 \bowtie E_2) \bowtie E_3 \equiv E_1 \bowtie (E_2 \bowtie E_3)
+  $$
+- **Distribution of Selection over Joins (Rule 7):** If selection predicate $\theta_1$ only involves attributes from $E_1$:
+  $$
+  \sigma_{\theta_1}(E_1 \bowtie_{\theta} E_2) \equiv (\sigma_{\theta_1}(E_1)) \bowtie_{\theta} E_2
+  $$
+- **Distribution of Projection over Joins (Rule 8):** Projections can be pushed through joins by retaining the join attributes alongside the target projection attributes.
+
+**Enumeration of Equivalent Expressions** To find the lowest-cost plan, an optimizer must systematically generate equivalent expressions. Conceptively, the system starts with an expression set containing the initial query, then recursively matches subexpressions against its database of equivalence rules to generate and add new equivalent expressions.
+
+To prevent this search space from expanding indefinitely, practical optimizers utilize two techniques:
+
+1. **Shared Subexpressions:** Pointer-based representations ensure that identical subtrees are stored once in memory rather than copied.
+2. **Pruning:** Cost estimation is integrated directly into the generation loop to avoid exploring paths that are mathematically guaranteed to be suboptimal.
+
+## Estimating Statistics of Expression Results
+
+To calculate the expected cost of a query plan, the optimizer must estimate the sizes of the intermediate results generated by each operator.
+
+**Database Catalog Statistics** For each relation $r$, the database catalog maintains:
+
+- $n_r$: Total number of tuples in $r$.
+- $b_r$: Total number of physical blocks containing tuples of $r$.
+- $l_r$: Active size of a tuple in bytes.
+- $f_r$: Blocking factor (number of tuples of $r$ that fit into a single block).
+- $V(A, r)$: Number of distinct values appearing in $r$ for attribute $A$. If $A$ is a primary key, then $V(A, r) = n_r$.
+
+These statistics are updated periodically (often during low-load hours or via manual commands like `analyze` or `runstats`) rather than on every insert/update, to avoid run-time performance penalties.
+
+**Histograms and Value Distribution** Rather than assuming a uniform distribution of values, systems store histograms to record real-world data skew:
+
+- **Equi-width Histograms:** Divide the range of values into equal-sized intervals (e.g., ages 0-19, 20-39, 40-59).
+- **Equi-depth Histograms:** Adjust interval boundaries so that each bucket contains an equal number of tuples. This approach provides higher estimation accuracy for skewed data distributions.
+
+**Size Estimation Formulas**
+
+- **Selection size (Equality,** $\sigma_{A=a}(r)$**):** Without a histogram, assuming uniform distribution, the estimated size is:
+  $$
+  \frac{n_r}{V(A,r)}
+  $$
+- **Selection size (Inequality,** $\sigma_{A \le v}(r)$**):** Estimated using linear interpolation between the minimum and maximum values of $A$:
+  $$
+  n_r \cdot \frac{v - \min(A,r)}{\max(A,r) - \min(A,r)}
+  $$
+- **Conjunction Selection Selectivity:** Assuming predicate independence, the combined selectivity is the product of individual selectivities:
+  $$
+  n_r \cdot \prod_{i=1}^n \frac{s_i}{n_r}
+  $$
+- **Disjunction Selection Selectivity:** Calculated as:
+  $$
+  n_r \cdot \left( 1 - \prod_{i=1}^n \left(1 - \frac{s_i}{n_r}\right) \right)
+  $$
+- **Natural Join Size (**$r \bowtie s$ **over join attribute** $A$**):**
+  - If $A$ is a key in $r$ and a foreign key in $s$, the size is exactly $n_s$.
+  - If $A$ is a key for neither, the uniform distribution model yields two estimates; the optimizer conservatively chooses the lower of the two:
+    $$
+    \min\left( \frac{n_r \cdot n_s}{V(A,s)}, \frac{n_r \cdot n_s}{V(A,r)} \right)
+    $$
+
+**Estimating Distinct Values** To estimate distinct values of attribute $A$ in a selection, the system uses $\min(V(A, r), n_{\sigma(r)})$. For a join $r \bowtie s$, if $A$ originates entirely from $r$, the estimated distinct values are $\min(V(A, r), n_{r \bowtie s})$.
+
+## Choice of Evaluation Plans
+
+Finding the optimal join sequence is a primary objective for query optimizers. For $n$ relations, the number of structurally distinct join orders is:
+
+$$
+\frac{(2(n-1))!}{(n-1)!}
+$$ This search space grows exponentially: with $n=5$, there are 1,680 possible orders; with $n=10$, there are over 17.6 billion.
+
+**Cost-Based Join-Order Selection** Rather than evaluating all combinations, optimizers use a dynamic-programming algorithm. It relies on the principle of optimality: to find the best join order for a set of relations $S$, we split $S$ into two subsets, $S_1$ and $S - S_1$. If we have already computed and stored the optimal plan for these subsets, we can reuse those results.
+
+```
+procedure FindBestPlan(S)
+  if (bestplan[S].cost != infinity) return bestplan[S]
+  if (S contains only 1 relation)
+    set bestplan[S] based on the best access path (index scan or relation scan)
+  else
+    for each non-empty subset S1 of S
+      P1 = FindBestPlan(S1)
+      P2 = FindBestPlan(S - S1)
+      for each join algorithm A
+        cost = P1.cost + P2.cost + cost of A
+        if cost < bestplan[S].cost
+          bestplan[S].cost = cost
+          bestplan[S].plan = plan using A
+  return bestplan[S]
+```
+
+This algorithm runs in $O(3^n)$ time. It can be further optimized by ignoring partitions that generate Cartesian products.
+
+**Interesting Sort Orders** Some physical operators (like merge join) output sorted tuples. An output order is considered an **interesting sort order** if it can be utilized by a subsequent operation (e.g., a downstream join or a `group by` clause). The dynamic-programming algorithm keeps track of the best plan for each subset _for each interesting sort order_, ensuring that slightly more expensive join choices are preserved if they eliminate a downstream sorting step.
+
+**Heuristics and Search Space Reduction** To minimize optimization overhead, systems use heuristic constraints:
+
+- **Left-Deep Join Trees:** Optimizers like System R restrict their search to join trees where the right-hand child of every join is a base relation. This simplifies pipelining, as only one join input needs to be active in memory, reducing the search complexity from $O(3^n)$ to $O(n 2^n)$.
+- **Plan Caching:** Repeated queries are optimized once, and their physical plans are cached and reused for subsequent executions.
+
+**Optimizing Nested Subqueries** By default, SQL executes subqueries via **correlated evaluation**, evaluating the inner query once for every tuple in the outer query. This is highly inefficient.
+
+Optimizers attempt **decorrelation** by translating subqueries into physical join variants:
+
+- **Semijoin (**$r \ltimes_{\theta} s$**):** Returns tuples from $r$ that have at least one match in $s$, preserving the original duplicate count of $r$. Used to optimize `exists` and `in` clauses.
+- **Anti-semijoin (**$r \bar{\ltimes}_{\theta} s$**):** Returns tuples from $r$ that have no matches in $s$. Used to optimize `not exists` and `not in` clauses.
+
+## Materialized Views
+
+A materialized view is a view whose query result is computed and stored on disk. This speeds up reads for complex aggregate queries but requires maintenance when the underlying relations change.
+
+**Incremental View Maintenance** Instead of completely recomputing a materialized view from scratch, **incremental view maintenance** applies only the net changes (the differential) to the view.
+
+We represent the set of inserted tuples as $i_r$ and deleted tuples as $d_r$. Updates are treated as a delete followed by an insert.
+
+- **Joins (**$v = r \bowtie s$**):**
+  - When $i_r$ is inserted into $r$:
+
+
+$$
+
+{/* v*{new} = v*{old} \cup (i_r \bowtie s) */}
+
+$$
+
+- When $d_r$ is deleted from $r$:
+
+
+$$
+
+{/* v*{new} = v*{old} - (d_r \bowtie s) */}
+
+$$
+- **Projections (**$v = \Pi_A(r)$**):** Because distinct projections eliminate duplicates, deleting a tuple from $r$ does not guarantee that the projected value should be deleted (as other active rows may project to the same value). To handle this, the system maintains a **derivation count** for each unique projected value. Inserts increment this count; deletes decrement it. The value is removed from the view only when its count reaches zero.
+- **Aggregations (**$v = \, _G\gamma_{\text{sum}(B)}(r)$**):** For each group, the materialized view stores the calculated sum and a count of contributing tuples. When a tuple is deleted, its value is subtracted from the group's sum, and the group count is decremented. If the count reaches zero, the group's entry is deleted. This count mechanism prevents errors when the sum of a group happens to be zero, and allows the system to compute `avg` dynamically as $\text{sum} / \text{count}$.
+
+**Optimization Opportunities** An optimizer can rewrite a user's query to use an existing materialized view, even if the user didn't reference it directly. Conversely, if a materialized view lacks helpful indexes, the optimizer may choose to replace the view reference with its underlying query definition to leverage base indexes.
+
+## Advanced Topics in Query Optimization
+
+Modern query engines incorporate advanced techniques to optimize specific query patterns and execution bottlenecks.
+
+**Top-K Optimization** When queries require only the first $K$ records of a sorted output (e.g., via `limit K`), generating and sorting the entire relation is wasteful. Top-K optimization uses pipelined physical plans to stop execution as soon as $K$ matching records are generated. Alternatively, the optimizer can estimate a value threshold for the top $K$ records and inject a selective filter early in the plan.
+
+**Join Minimization** When queries are generated via complex logical views, they may contain redundant joins. If the join attribute is a non-null foreign key, the referenced table does not filter or duplicate any rows. The optimizer can drop this table from the join entirely, eliminating unnecessary physical lookups.
+
+**Optimization of Updates and the Halloween Problem** An update query can run into the **Halloween Problem** if it modifies an attribute used by the scan index. For example, if a query increases the salary of employees earning over $100,000 using a salary-based index scan, an updated tuple might be re-inserted further down the index and updated multiple times. To prevent this, the engine can split execution into distinct read and write phases (e.g., generating a list of target record IDs before applying updates), or verify that the index scan direction prevents re-scanning updated values.
+
+**Multiquery Optimization and Shared Scans** If several queries are submitted together, the optimizer can identify common subexpressions, evaluate them once, and cache the result. Similarly, **shared scans** allow multiple concurrent queries to read data from a single physical disk scan pipeline, avoiding redundant disk reads.
+
+**Parametric Query Optimization** Parameterized queries (e.g., using `where dept_name = ?`) are compiled into a family of plans. Rather than using a single plan, the engine stores a set of optimal plans for different parameter ranges and selects the best one at run time.
+
+**Adaptive Query Processing** Because cardinality estimates can be inaccurate, engines track real-time statistics during query execution. An **adaptive join** can dynamically switch between a nested-loops join and a hash join at run time if the actual outer input size differs significantly from the optimizer's estimate.
+
+## Summary
+
+### Key Takeaways:
+
+- **Dual-Level Optimization:** Optimizers systematically rewrite queries logically using equivalence rules before determining physical evaluation details like join algorithms and index usage.
+- **Statistical Foundations:** Size estimation relies on catalog statistics ($n_r, V(A,r)$) and histograms (equi-width and equi-depth) to evaluate the selectivity of predicates and joins.
+- **Search Space Management:** Dynamic-programming algorithms find the optimal join order in $O(3^n)$ time by tracking intermediate results and preserving interesting sort orders, while left-deep trees prune the search space to $O(n2^n)$ time.
+- **Physical Decorrelation:** engines convert correlated nested subqueries into semijoins and anti-semijoins to avoid nested-loop row evaluation.
+- **Incremental View Maintenance:** Materialized views are updated using mathematical differentials. Projections use duplicate counters, and aggregations track both sum and count to handle deletes safely.
+- **Operational Enhancements:** Advanced query engines leverage Top-K sorting limits, guard against the Halloween update loop, and dynamically adapt physical join strategies at run time.
+$$
