@@ -1,0 +1,213 @@
+export const metadata = {
+	title: "Advanced Indexing Structures",
+	description:
+		"A comprehensive guide to advanced database indexing, covering Bloom filters, LSM and stepped-merge indexes, bitmap indexes, spatial quadtrees and R-trees, static hashing, and extendable hashing.",
+	order: 24,
+	draft: false,
+	tags: [
+		"databases",
+		"advanced indexing",
+		"Bloom filters",
+		"LSM trees",
+		"bitmap indexes",
+		"spatial indexes",
+		"R-trees",
+		"hashing",
+	],
+};
+
+## Introduction
+
+Did you know that a database can tell you with 100% certainty if an item **is not** in a dataset, but can only tell you "probably" if it **is**? Welcome to the world of advanced indexing. Standard indexing structures like $B^+$-Trees are fantastic all-rounders, but specialized workloads—such as high-frequency writes, multi-key queries, spatial coordinates, or point lookups—require structures engineered to trade off space, write amplification, and query patterns.
+
+In this lesson, you will master:
+
+- **Probabilistic Filtering:** How Bloom Filters avoid unnecessary disk lookups with minimal memory.
+- **Write-Optimized Storage:** The mechanics of Log-Structured Merge (LSM) Trees and Stepped-Merge Indexes.
+- **Bit-Level Filtering:** Leveraging low-cardinality Bitmap Indices for ultra-fast logical operations.
+- **Spatial Indexes:** How Quadtrees and R-Trees navigate multi-dimensional geometric coordinates.
+- **Static & Dynamic Hashing:** The algorithms behind instant point lookups and Extendable Hash Tables.
+
+## Bloom Filters
+
+A **Bloom filter** is a space-efficient, probabilistic data structure used to check set membership. It is fundamentally a bitmap of size $m$ (typically a few times the number of elements $n$, e.g., $10n$).
+
+Mechanics of Operation
+
+1. **Initialization:** All $m$ bits in the bitmap are set to $0$.
+2. **Insertion:** When a value $v$ is added, it is processed by $k$ independent hash functions $h_1(v), h_2(v), \dots, h_k(v)$. The bits at these computed positions in the bitmap are set to $1$.
+3. **Querying:** To check if a value $v$ is in the set, the same $k$ hash functions are computed.
+   - If **even one** of the bits at these positions is $0$, the value is **definitely not** in the set (zero false negatives).
+   - If **all** checked bits are $1$, the value is **potentially** in the set.
+
+The Trade-off
+
+Because different values can hash to the same positions, a query may return a **false positive** (claiming a value is present when it is not). By choosing a bitmap size of $10n$ bits and $k = 7$ hash functions, the false positive rate drops to roughly 1%.
+
+## Log-Structured Merge (LSM) Trees and Variants
+
+$B^+$-Tree updates demand random disk I/O, which degrades performance under write-heavy workloads. The **Log-Structured Merge (LSM) Tree** replaces random I/O operations with sequential write operations.
+
+### LSM Tree Structure
+
+An LSM Tree is structured across multiple levels:
+
+- **Memory (**$L_0$**):** A standard in-memory tree (such as a $B^+$-Tree) where all inserts are initially buffered.
+- **Disk (**$L_1 \dots L_k$**):** On-disk $B^+$-Trees. The maximum capacity of level $L_{i+1}$ is typically set to $k$ times the size of $L_i$.
+
+### Insertion and Rolling Merges
+
+When $L_0$ fills, its leaf level is scanned sequentially and merged with the leaf level of $L_1$ on disk via a bottom-up build. The old $L_1$ is replaced by this newly merged, sequential, fully compacted tree, and $L_0$ is cleared.
+
+To prevent bulk merges from stalling normal write traffic, systems use a **rolling merge**. This continuously migrates a few pages from $L_i$ to $L_{i+1}$ sequentially, distributing the I/O load over time.
+
+### Handling Deletes and Updates
+
+LSM Trees do not perform in-place updates or deletions:
+
+- **Deletions:** An insert containing a special **deletion entry** (or "tombstone") is appended to $L_0$.
+- **Updates:** A new update entry with the latest value is inserted.
+- **Lookups:** Queries must search $L_0, L_1, \dots, L_k$ in order, merging matching keys. The lookup processes tombstone or update entries first, ensuring outdated records are filtered out. During subsequent background merges, matching deletion/update entries are physically combined and discarded.
+
+## The Stepped-Merge Index and Flash Storage
+
+The **stepped-merge index** is a prominent variation of the basic LSM Tree designed to lower write costs even further.
+
+### Insertion Algorithm
+
+Instead of maintaining a single tree at each level, the stepped-merge index permits up to $k$ separate, independent trees at each level $L_i$.
+
+- When the in-memory $L_0$ fills, it is flushed directly to disk as a separate $L_1$ tree. No immediate merging occurs.
+- Once $k$ trees accumulate at level $L_i$, they are collectively merged in a single sequential sweep to construct a single new tree at level $L_{i+1}$.
+
+This dramatically reduces **write amplification**—the total number of bytes written to disk relative to the logical size of the insert. A record is only written once per level, reducing write costs from roughly $k \log_k(I/M)$ operations to $2 \log_k(I/M)$.
+
+Lookup Operations Using Bloom Filters
+
+Because there are multiple independent trees at each level, lookups must search up to $k \times \log_k(I/M)$ trees. To avoid massive read overhead during point lookups:
+
+- A **Bloom filter** is stored in memory for every on-disk tree.
+- Before reading a tree from disk, the query checks its Bloom filter. If the filter returns 0, the disk seek for that tree is skipped.
+- Note that this optimization does not apply to **range lookups**, which must still read all physical trees.
+
+### LSM Trees for Flash Storage
+
+Flash memory does not support in-place updates; rewriting data requires erasing entire physical blocks, a highly expensive operation. Because LSM Trees convert random updates into sequential, block-aligned writes and minimize write amplification, they dramatically extend the lifespan and improve the performance of SSDs.
+
+## Bitmap Indices
+
+A **bitmap index** is a highly specialized index optimized for attributes that take on a small, fixed set of values (e.g., gender, states, or categorized income levels).
+
+### Bitmap Index Structure
+
+For an attribute $A$, a bitmap index contains one bit-vector (bitmap) for each distinct attribute value. Each bitmap has a length equal to the number of records in the relation.
+
+- If record $i$ holds value $v_j$ for attribute $A$, the $i$-th bit of the bitmap for $v_j$ is set to $1$.
+- Otherwise, the $i$-th bit is set to $0$.
+
+### Efficient Implementation of Bitmap Operations
+
+Bitmap indices are exceptionally fast for multi-key queries because database filters map to hardware-level logical bit operations:
+
+- **Intersection (\*\***AND\***\*):** To find records matching two attributes, the database computes a bitwise `AND` of their bitmaps. Computer CPUs can perform bitwise operations on 32-bit or 64-bit words in a single instruction cycle, processing 64 records at once.
+- **Union (\*\***OR\***\*):** Logical disjunction maps to bitwise `OR`.
+- **Negation (\*\***NOT\***\*):** Handles logical negations. To prevent deleted records or null values from falsely registering as $1$ during a negation, the resulting bitmap is intersected with an **existence bitmap** (where active records have a $1$ and deleted records have a $0$) and the complement of the **null-value bitmap**.
+
+### Bitmaps and $B^+$-Trees
+
+In $B^+$-Tree leaf nodes, the pointer list for highly frequent search keys can grow exceptionally large. If a key is highly common (e.g., appearing in more than 1 in 64 records), storing a compressed bitmap representation in the leaf node is much more space-efficient than storing a list of individual 64-bit record identifiers.
+
+## Indexing of Spatial Data
+
+Spatial data structures represent geographic coordinates, line segments, and polygons. Standard ordered indexes fail here because spatial data lacks a total, single-dimensional ordering.
+
+### Quadtrees
+
+A **quadtree** is a recursive space-partitioning structure.
+
+- The root node represents the entire target space.
+- If a node contains more than a predefined number of points, the space is divided into four equal-sized quadrants, and the node is given four children.
+- **PR Quadtrees** store points and divide space based on quadrant dimensions rather than point clustering. **Region Quadtrees** store raster/array data, terminating splits when all array values within a quadrant are uniform.
+
+### R-Trees
+
+An **R-tree** is a balanced index specifically built for spatial objects like polygons, paths, and points. Every node in an R-tree is associated with a axis-parallel **minimum bounding box (MBB)**:
+
+- **Leaf Nodes:** Store the actual spatial objects and their tightest bounding boxes.
+- **Internal Nodes:** Store pointers to child nodes along with an MBB that tightly encompasses all child bounding boxes.
+
+### Search and Insertion Operations on R-Trees
+
+- **Search:** Unlike standard trees, sibling bounding boxes in an R-Tree **may overlap**. A point or range query must follow _all_ child nodes whose bounding boxes intersect the target region, meaning search may explore multiple paths.
+- **Insertion:** The algorithm traverses down to find a leaf node. If no child MBB perfectly contains the object, the algorithm chooses the child requiring the least bounding box expansion (or minimum overlap). If a leaf node overflows, it splits into two nodes.
+- **Quadratic Split Heuristic:** Because finding the mathematically optimal split with minimum overlap is highly complex, the quadratic split heuristic is used. It first selects the two objects that would waste the most area if placed in the same node, assigns them to separate nodes, and then incrementally assigns the remaining objects based on which node's MBB would expand the least.
+
+## Static Hash Indices
+
+Hashing uses a hash function $h(K)$ to map search-key values directly to a fixed set of bucket addresses $B$.
+
+Hash Functions
+
+An ideal hash function exhibits two primary qualities:
+
+1. **Uniformity:** The function distributes search keys evenly across all possible buckets in the address space.
+2. **Randomness:** The assigned bucket is uncorrelated to any natural ordering of the keys (e.g., alphabetic sequence or length).
+
+A standard hash function for strings computes a polynomial rolling hash:
+
+$$
+s[0] \times 31^{n-1} + s[1] \times 31^{n-2} + \dots + s[n-1]
+$$
+
+computed modulo the total bucket count.
+
+Handling of Bucket Overflows
+
+Bucket overflows occur due to insufficient capacity or bucket skew (caused by duplicate keys or a non-uniform hash function). Overflows are handled via:
+
+- **Closed Addressing (Overflow Chaining):** When a bucket fills, additional records are placed in a linked list of overflow buckets. This is the preferred method for database systems.
+- **Open Addressing:** If a bucket is full, the record is placed in another pre-allocated bucket (e.g., the next sequential bucket via **linear probing**). Deletion under open addressing is highly complex, making it impractical for dynamic databases.
+
+### Limitations of Static Hashing
+
+Because the bucket space is fixed at creation, performance degrades with file growth due to long overflow chains. Periodically reorganizing the entire hash structure requires a complete, blocking rebuild, which halts all database transactions.
+
+## Dynamic Hashing and Comparison
+
+To resolve the limitations of static hashing, **Extendable Hashing** dynamically adjusts the hash function and bucket layout as the database grows and shrinks.
+
+### Data Structure
+
+Extendable hashing uses a hash function that generates large, $b$-bit binary values (typically 32 bits). Rather than creating $2^b$ buckets, it uses a **bucket address table** controlled by a global depth prefix of $i$ bits (where $0 \le i \le b$).
+
+- The directory table contains $2^i$ entries pointing to physical buckets.
+- Each physical bucket $j$ has an associated local depth prefix $i_j \le i$. The number of directory entries pointing to bucket $j$ is $2^{i - i_j}$.
+
+### Queries and Updates
+
+- **Lookup:** The system takes the first $i$ bits of $h(K)$ to find the index in the address table and follows its pointer to the target bucket.
+- **Insertion:** If bucket $j$ is full when trying to insert record $K$, a split occurs:
+  - **Case 1:** $i = i_j$ **(Global Depth Equals Local Depth):** The directory is too small to handle the split. The system increments global depth $i$ by 1, doubling the directory table. Every existing entry is replaced by two entries pointing to the same bucket. The target bucket is split into two, a new bucket $z$ is allocated, local depths $i_j$ and $i_z$ are set to the new $i$, and the records are rehashed and redistributed.
+  - **Case 2:** $i > i_j$ **(Global Depth is Greater than Local Depth):** The directory has enough entries to accommodate the split without doubling. A new bucket $z$ is allocated, and the local depths $i_j$ and $i_z$ are incremented by 1. The directory pointers are updated so that half of the entries previously pointing to $j$ now point to $z$. Records from the old bucket $j$ are rehashed and redistributed.
+
+Comparison of Ordered Indexing and Hashing
+
+| Feature               | $B^+$-Tree                     | Hashing (Extendable)                            |
+| --------------------- | ------------------------------ | ----------------------------------------------- |
+| **Access Type**       | Supports Range & Point Queries | Supports Point Queries Only                     |
+| **Worst-case Lookup** | $O(\log N)$                    | $O(1)$ (plus minor directory indirection)       |
+| **Graceful Growth**   | Yes, via low-cost node splits  | Yes, but directory doubling is expensive        |
+| **Duplicate Keys**    | Handles deletions efficiently  | Deletions with duplicates can degrade to linear |
+
+Because of their robust support for range queries and predictable deletion paths, disk-based systems overwhelmingly prefer $B^+$-Trees. Hash indexes are primarily restricted to fast, temporary, in-memory structures (like hash joins).
+
+## Summary
+
+### Key Takeaways
+
+- **Bloom Filters:** Probabilistic bitmaps that determine if an element is absent with 100% accuracy, reducing unnecessary disk lookups at a tiny memory cost.
+- **LSM Trees:** Highly optimized for write-heavy workloads; they convert random updates into sequential on-disk writes via rolling merges.
+- **Stepped-Merge Index:** An LSM tree variant that buffers multiple trees per level, lowering write amplification but requiring Bloom filters to sustain point lookup speeds.
+- **Bitmap Indices:** Ideal for low-cardinality attributes, translating multi-key filters into blindingly fast CPU bitwise instructions.
+- **Spatial Indexing:** Quadtrees recursively divide 2D space into equal quadrants, whereas R-Trees group coordinates and polygons inside hierarchical bounding boxes.
+- **Extendable Hashing:** A dynamic hashing structure that handles table growth gracefully through a split-on-demand bucket directory, avoiding massive global table rebuilds.

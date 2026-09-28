@@ -1,0 +1,228 @@
+export const metadata = {
+	title: "Database System Architectures",
+	description:
+		"A comprehensive guide to database system architectures, covering centralized, transaction-server, parallel, shared-memory, shared-disk, shared-nothing, distributed, and cloud-based database systems, along with performance, caching, concurrency, 2PC, NUMA, and containerization.",
+	order: 20,
+	draft: false,
+	tags: [
+		"databases",
+		"system architecture",
+		"distributed databases",
+		"parallel databases",
+		"cloud computing",
+		"shared nothing",
+		"transaction processing",
+	],
+};
+
+## Introduction
+
+Did you know that web-scale platforms manage hundreds of millions of concurrent users using databases distributed across thousands of physical machines—all while keeping your data perfectly consistent in milliseconds? How do these underlying system architectures handle such massive loads without collapsing?
+
+In this lesson, we will explore the foundational architectures of database systems, tracing their evolution from single centralized machines to massively parallel, globally distributed, and modern cloud-native systems.
+
+### Learning Objectives
+
+- **Compare** centralized, parallel, and distributed database architectures.
+- **Explain** the inner workings of transaction servers, lock managers, and client-side caching optimizations.
+- **Analyze** parallel system performance metrics (speedup, scaleup) and architectural models (shared memory, shared disk, shared nothing, and hierarchical).
+- **Evaluate** interconnection networks, cache coherency mechanisms, and the impact of non-uniform memory architectures (NUMA).
+- **Understand** wide-area distributed database challenges, Two-Phase Commit (2PC), and cloud computing service models (IaaS, PaaS, SaaS, and containers).
+
+## Overview of Database-System Architectures
+
+The architecture of a database system is highly dependent on the computer system on which it runs. Centralized databases, running on a single physical machine, were the earliest systems and remain widely used for single-user and enterprise-scale applications today.
+
+To address the limits of a single physical machine, parallel database systems emerged in the late 1980s. Driven today by web-scale applications, these systems execute tasks in parallel across hundreds to thousands of nodes to process petabytes of data and high-volume transaction workloads.
+
+In contrast to parallel databases, parallel data storage systems are designed primarily to store and retrieve data based on keys (e.g., key-value stores). They lack declarative query interfaces (like SQL) and have very limited support for multi-item transactions, but they can scale up to tens of thousands of machines—a scale most parallel databases cannot achieve.
+
+When data is generated and stored across physically separate locations, distributed database systems are used. Techniques developed for fault tolerance in distributed databases today also play a key role in ensuring high reliability and availability within modern parallel database clusters.
+
+## Centralized Database Systems
+
+Centralized database systems run on a single computer system. These systems fall into two main categories of use:
+
+- **Single-user systems:** Typically found on personal computers and smartphones. They feature a single processor (with one or more cores) and limited storage. These systems utilize embedded databases, which are linked to a single application program and lack highly concurrent access controls or complex crash-recovery systems.
+- **Multiuser systems (Servers):** Typically feature multiple disks, large memory pools, and multiple processors to serve remote users concurrently. These systems support full transactional properties and recovery guarantees.
+
+**Coarse-Grained vs. Fine-Grained Parallelism**
+
+Most general-purpose server hardware features coarse-grained parallelism, using a small number of multicore processors (typically 1 to 4 CPUs, with 4 to 8 cores each) sharing a single main memory pool. Operating systems on these machines support multitasking, allowing databases to run different queries concurrently on different cores to increase system throughput (transactions per second).
+
+In contrast, fine-grained parallel systems utilize a large number of processors and attempt to parallelize single, individual tasks (such as a single complex query) across multiple cores to reduce execution time.
+
+## Server System Architectures
+
+Multiuser database systems are designed as servers that process client requests. These server systems are categorized into two primary architectures:
+
+- **Transaction-Server Systems (Query-Server Systems):** Clients send query requests (such as SQL statements or API calls) to the server. The server executes the entire transaction locally and sends the final results back to the client. This is the most widely adopted architecture in enterprise applications.
+- **Data-Server Systems:** Clients interact with the server to read or update raw data blocks (like pages, tuples, or objects). The actual computation and query processing are executed on the client machines. These servers provide basic indexing and transactions to prevent data inconsistency if a client fails.
+
+## Transaction-Server Architecture
+
+A transaction-server system consists of multiple processes executing concurrently and accessing shared memory.
+
+**Database Processes**
+
+- **Server Processes:** Receive user queries, compile them, execute the query plans, and return results. They can map to a separate process per user session, a single process with multiple threads, or a hybrid architecture.
+- **Lock Manager Process:** Manages lock tables, grants/releases locks, and performs deadlock detection.
+- **Database Writer Process:** Continuously writes modified dirty buffer blocks back to physical disks.
+- **Log Writer Process:** Flushes log records from the shared log buffer to stable storage.
+- **Checkpoint Process:** Executes periodic checkpoints to limit crash-recovery time.
+- **Process Monitor Process:** Monitors the health of other database processes. If any process fails, it initiates recovery actions (such as aborting transactions active on the failed process) and restarts it.
+
+**Shared Memory Structures** All database processes share a single virtual memory space containing:
+
+- The **Buffer Pool** (cached disk pages).
+- The global **Lock Table**.
+- The **Log Buffer**.
+- The **Query Plan Cache** (allowing plans to be reused if the same query is executed again).
+
+**Mutual Exclusion and Latches** Because multiple processes concurrently read and write to shared memory structures, they must ensure mutual exclusion. This is achieved using operating system semaphores or low-overhead hardware atomic instructions supported by CPUs, such as **test-and-set** or **compare-and-swap**.
+
+Databases use these atomic hardware instructions to implement short-duration, low-overhead locks known as **latches**. To avoid the overhead of sending messages to the Lock Manager process, server processes directly update the lock table in shared memory by first acquiring a latch on the lock table, performing the update, and then releasing the latch. If a lock cannot be immediately acquired, the process may utilize operating system semaphores to wait for a notification from the lock release code, avoiding busy waiting.
+
+## Data Servers and Data Storage Systems
+
+Data-server systems were originally built to support object-oriented databases in computationally heavy environments, such as Computer-Aided Design (CAD) systems.
+
+If all CAD simulation processing were performed on a single database server, the server would quickly become overloaded. Instead, the data server ships data blocks to the client machines, allowing the client's local CPU to execute the heavy simulations. Once processing is complete, modified data items are stored back on the server.
+
+Historically, data servers used **page shipping**, sending physical database pages (which may contain multiple unrelated items) to clients. Modern parallel data storage systems have replaced page shipping with APIs that transfer smaller, logical **data items** (such as JSON/XML objects or tuples), keeping the physical storage layout hidden from client applications.
+
+## Caching at Clients
+
+Network round-trip latency (which is often milliseconds) is orders of magnitude slower than a local memory reference (which is under 100 nanoseconds). To reduce this latency, client-side applications utilize several optimization strategies:
+
+- **Prefetching:** When a client requests a specific data item, the server proactively sends additional items that are likely to be accessed in the near future, reducing subsequent network round trips.
+- **Data Caching:** Client machines cache retrieved data across transactions. However, this introduces the challenge of **cache coherency**: clients must verify with the server that cached data has not been updated or deleted by another client before reading it, unless the application tolerates stale data.
+- **Lock Caching:** If clients access mostly disjoint subsets of data, they can cache lock permissions on their local machines. If a local cache contains both the data item and the appropriate cached lock, the client can read or write without communicating with the server. If another client requests a conflicting lock, the server calls back the cached lock from the holding client.
+- **Adaptive Lock Granularity:** To minimize repeated lock requests, databases use multi-granularity locking (e.g., locking a whole page instead of individual tuples). If contention on that page increases, the server initiates **lock de-escalat\*\***ion\*\*, requesting the client to release the coarse page lock and acquire finer-grained tuple locks instead.
+
+## Parallel Systems and Performance Measures
+
+Parallel systems improve processing and input/output (I/O) speeds by executing operations simultaneously across multiple resources. These systems run in data centers, which house up to several hundred thousand servers (nodes) connected by high-speed networks.
+
+**Performance Metrics: Speedup and Scaleup**
+
+There are two main measures used to evaluate parallel database performance:
+
+- **Speedup:** Running a _fixed task_ in less time by increasing resources. It is defined as $TS / TL$, where $TS$ is the execution time on a small system and $TL$ is the execution time on a larger system with $N$ times the resources.
+  - _Linear Speedup_ occurs when the speedup is exactly $N$.
+  - _Sublinear Speedup_ occurs when speedup is less than $N$.
+  - _Superlinear Speedup_ (where speedup exceeds $N$) can occur if the larger system's memory allows data to fit entirely in cache or RAM, avoiding slow disk I/O.
+- **Scaleup:** The ability to handle _larger tasks_ in the same amount of time by proportionally increasing resources. Scaleup is defined as $TS / TL$, where $TL$ is the runtime of a task $N$ times larger running on $N$ times more resources.
+  - _Batch Scaleup:_ The database size increases, and the runtime of large batch tasks (like relation scans) is measured.
+  - _Transaction Scaleup:_ The transaction submission rate and database size grow proportionally. Transaction scaleup is highly suited for parallel databases because transactions can execute concurrently on separate nodes.
+
+**Factors Limiting Speedup and Scaleup**
+
+- **Sequential Computation (Amdahl's Law and Gustafson's Law):** A portion of any task must run sequentially. Amdahl's Law shows that if even 10% of a task is sequential, the maximum speedup is capped at 10, regardless of how many processors are added.
+- **Start-up Costs:** The overhead of initiating thousands of parallel processes can overshadow the actual execution time for short tasks.
+- **Interference:** Parallel processes compete for shared hardware resources, such as system buses, disks, or database locks, causing a slowdown.
+- **Skew:** Dividing a task into $N$ parts rarely results in perfectly equal portions. Because the slowest parallel step determines the overall execution time, a skewed distribution limits parallel performance.
+
+## Interconnection Networks
+
+Nodes in a parallel system communicate via physical networks. Several topologies have evolved over time:
+
+- **Bus:** All components share a single communication bus. It is used only within a single node because it does not scale.
+- **Ring:** Nodes are connected in a circle, with each node linked to two neighbors. A message can take up to $n/2$ hops on an $n$-node ring.
+- **Mesh:** Nodes are arranged in a grid. A 2D mesh connects each node to four neighbors. Mesh networks are used to connect cores within a CPU or processor socket, but are too slow for multi-server node connections due to high hop counts.
+- **Hypercube:** Nodes are numbered in binary and connected if their binary addresses differ by exactly one bit. Hop counts are capped at $\log(n)$, but this topology is no longer commonly used for server clustering.
+- **Tree-Like (Fat-Tree):** The standard topology used in modern data centers. Nodes in a rack connect to a Top-of-Rack (edge) switch. Edge switches connect to multiple aggregation switches, which in turn connect to core switches. This multi-path structure provides high bandwidth and fault tolerance.
+
+**Network Technologies and Latency Reduction** Common network standards include **Ethernet** (ranging from 1 Gbps to 100 Gbps), **Fiber Channel** (dedicated for storage area networks), and **Infiniband** (designed for high-throughput, low-latency communication under 1 microsecond).
+
+To minimize network latency, modern systems use **Operating System Bypass** (allowing applications to interface directly with network hardware) and **Remote Direct Memory Access (RDMA)**, which allows a node to read or write directly to a remote node's memory without CPU or OS intervention at the receiving end.
+
+## Parallel Database Architectures
+
+Parallel databases are designed around four primary memory and disk configurations:
+
+### **Shared Memory**
+
+All processors access a common main memory pool and shared disks. Communication between processes is extremely fast (under a microsecond) because it occurs via memory writes.
+
+- **NUMA (Non-Uniform Memory Architecture):** To avoid memory bus bottlenecks, modern multi-socket servers connect memory banks directly to specific CPUs. A processor can access its local memory very quickly, but must fetch remote memory (connected to other CPUs) via an interconnect, resulting in variable memory access speeds.
+- **Hyper-threading (Hardware Threads):** If a process blocks on a cache miss waiting to fetch data from memory, the CPU core immediately switches execution to another logical hardware thread on the same core, preventing idle CPU cycles.
+- **Cache Coherency and Memory Barriers:** Each CPU core has its own local caches (L1, L2). When a core updates a memory location, other cached copies must be invalidated. Because these invalidations are applied lazily in hardware, developers use **memory barrier instructions** (`sfence`, `lfence`, `mfence`) to force correct ordering of memory reads and writes across cores.
+- **The MESI Protocol:** A hardware-level locking protocol used to maintain cache coherency. It tracks cache line states as Modified, Exclusive, Shared, or Invalid. A read acquires a shared hardware lock, while a write acquires an exclusive hardware lock, immediately invalidating conflicting cache lines.
+
+### **Shared Disk**
+
+Each node has its own local processor and memory, but all nodes access a shared set of disks over a high-speed network. This architecture is called a cluster.
+
+- **SAN (Storage Area Network):** A high-speed network designed to connect large banks of storage devices to servers. SANs group physical disks into logical volumes, hiding physical storage layouts.
+- Shared-disk systems offer easy fault tolerance: if a node fails, another node can immediately access the disks and resume its tasks. However, the shared storage network interface can become an I/O bottleneck.
+
+### **Shared Nothing**
+
+Each node consists of a local CPU, memory, and local disks. Nodes do not share physical memory or disks; they communicate solely via network message passing. Shared-nothing architectures are highly scalable, supporting clusters of tens of thousands of nodes because local disk I/O does not compete over a centralized network.
+
+### **Hierarchical**
+
+This model combines the previous architectures. At the top level, the system is shared-nothing (consisting of independent nodes connected by a network). Locally, each individual node is a shared-memory system (such as a multi-socket, multicore server). This hierarchical model is the standard architecture for modern high-performance parallel database systems.
+
+## Distributed Systems
+
+In a distributed database system, the database is stored on physically separate nodes located at geographically distant sites, communicating over Wide-Area Networks (WANs).
+
+### **How Distributed Databases Differ from Shared-Nothing Parallel Databases**
+
+- **Geographic Latency:** WAN connections have lower bandwidth and much higher latency (up to hundreds of milliseconds due to speed-of-light delays and router queuing) compared to local data center networks.
+- **Disaster Recovery:** Distributed databases replicate data across different geographic regions so the system remains available even if an entire data center is destroyed by a natural disaster.
+- **Local Autonomy:** Distributed databases may be separately administered. A local transaction accesses only local data, while a global transaction requires coordinating with remote sites.
+
+### **Homogeneous vs. Heterogeneous Systems**
+
+- **Homogeneous Distributed Databases:** All nodes share a common global schema, run the same database software, and actively cooperate to execute transactions.
+- **Heterogeneous (Federated) Distributed Databases:** Separate, pre-existing databases with different schemas and software are linked together. They offer limited cooperation and preserve local administrative autonomy.
+
+**WAN Failures and Network Partitions** WAN connections are prone to link failures. A **network partition** occurs when the network splits, leaving groups of nodes active and running but unable to communicate with each other. This partition directly forces a trade-off between consistency and availability.
+
+## Transaction Processing in Parallel and Distributed Systems
+
+Ensuring transaction atomicity across multiple nodes requires specialized protocols to prevent a transaction from committing on one node while aborting on another.
+
+### **The Two-Phase Commit Protocol (2PC)**
+
+To guarantee global atomicity, 2PC relies on a coordinator node and participant nodes:
+
+- **Phase 1 (Prepare):** The coordinator asks all participant nodes if they are ready to commit. Each participant executes the transaction up to a partially committed state, writes its log records to stable storage, enters a _ready state_, and votes "yes" (or votes "no" if it must abort).
+- **Phase 2 (Commit/Abort):** If all participants vote "yes," the coordinator writes a commit record to its log and sends a commit message to all participants. If any node voted "no" or failed to respond, the coordinator sends an abort message. All participants must follow the coordinator's final decision.
+
+**Distributed Concurrency Control** Nodes must coordinate locking to prevent inconsistencies. While locks can be acquired locally at each node containing the data, deadlocks can occur across multiple nodes. This requires **global deadlock detection** algorithms. When databases are geographically separated and cannot coordinate via 2PC, they often utilize persistent messaging or workflow management systems instead.
+
+## Cloud-Based Services
+
+In the cloud computing model, applications and databases run on infrastructure managed by a third-party service provider. This model offers **elasticity**—the ability to dynamically provision or release computing resources to match varying demand.
+
+### **Cloud Service Models**
+
+- **Infrastructure-as-a-Service (IaaS):** Clients rent Virtual Machines (VMs) or containers. The client is responsible for installing, maintaining, and backing up the database software.
+- **Platform-as-a-Service (PaaS):** The service provider deploys and manages the database platform. This includes:
+  - _Cloud-Based Data Storage:_ Managed services to store and retrieve unstructured files or structured data items via APIs.
+  - _Database-as-a-Service (DBaaS):_ Fully managed SQL/NoSQL databases with declarative query interfaces.
+- **Software-as-a-Service (SaaS):** The service provider hosts the entire application (e.g., email, ERP), and clients access it directly via web or mobile interfaces.
+
+### **Virtual Machines vs. Containers**
+
+- **Virtual Machines (VMs):** A software-simulated computer managed by a host software layer called a hypervisor. Each VM runs a full guest operating system, which introduces high memory and CPU overhead.
+- **Containers:** Multiple containers run on a single host machine, sharing the same operating system kernel while isolating applications with their own file systems, libraries, and IP addresses. Containers are lightweight and start up quickly, making them highly suited for **microservices architectures**.
+
+Platforms like **Docker** package applications into containers, while orchestration platforms like **Kubernetes** automatically deploy, scale, and load-balance containerized applications across clusters.
+
+**Benefits and Limitations of Cloud Services** While cloud services eliminate up-front capital costs and simplify infrastructure management, they introduce security and legal risks. Because data is held by an external organization, a security breach at the cloud provider can expose sensitive data. Additionally, data replicated across international boundaries may fall under foreign legal jurisdictions and privacy laws.
+
+## Summary
+
+### Key Takeaways
+
+- **Centralized vs. Server Databases:** Centralized systems run on a single machine. Multiuser transaction servers divide work across background processes (database writer, log writer, checkpoint, process monitor) and access shared memory structures (buffer pool, lock table, log buffer) using low-overhead hardware latches.
+- **Caching Optimizations:** Client-side caching employs prefetching, data caching, lock caching, and adaptive lock de-escalation to reduce network round-trip latency.
+- **Parallel Performance:** Speedup measures task execution speed with increased resources, while scaleup measures the ability to handle larger tasks. Both are limited by sequential code (Amdahl's Law), startup overhead, resource interference, and data skew.
+- **Parallel Architectures:** Parallel databases utilize Shared Memory (NUMA with MESI cache coherency), Shared Disk (SAN clusters), Shared Nothing (highly scalable), or Hierarchical structures.
+- **Distributed Systems:** Geographically separated databases face high WAN latency and network partitions, requiring protocols like Two-Phase Commit (2PC) to guarantee transaction atomicity across nodes.
+- **Cloud Databases:** The cloud offers elasticity through IaaS, PaaS (DBaaS), and SaaS. Lightweight containers managed by Kubernetes have lower overhead than full Virtual Machines and are highly suited for microservices.

@@ -1,0 +1,169 @@
+export const metadata = {
+	title: "Parallel and Distributed Storage",
+	description:
+		"A comprehensive guide to parallel and distributed storage, covering data partitioning, skew mitigation, replication, consistency, distributed indexing, distributed file systems, and parallel key-value stores.",
+	order: 21,
+	draft: false,
+	tags: [
+		"databases",
+		"distributed storage",
+		"data partitioning",
+		"replication",
+		"distributed indexing",
+		"distributed file systems",
+		"key-value stores",
+		"LSM trees",
+	],
+};
+
+## Introduction
+
+Did you know that in a cluster of 100 commodity nodes, a hardware failure is expected to occur roughly every 18 days? In the world of modern internet-scale applications, hardware failure is not a rare anomaly—it is a daily certainty. To survive and scale under these conditions, databases must abandon single-system constraints and leverage parallel and distributed architectures. This lesson explores the core mechanisms that make modern distributed storage systems robust, elastic, and extraordinarily fast.
+
+### Learning Objectives
+
+By the end of this lesson, you will be able to:
+
+- Compare and evaluate horizontal partitioning strategies (Round-robin, Hash, and Range) for different query workloads.
+- Identify forms of partitioning skew and implement mitigation strategies like virtual nodes and dynamic tablet splitting.
+- Architect fault-tolerant systems using optimal replica placement, local/global indexing, and distributed file system principles.
+- Explain the storage models, index structures, and consistency trade-offs of parallel key-value stores.
+
+## Overview of Parallel and Distributed Storage
+
+Parallelism in database systems serves two fundamental scaling goals:
+
+- **Speedup:** Executing a given query faster by allocating more resources (processors and disks) to it.
+- **Scaleup:** Handling an increasing workload (more concurrent queries or larger datasets) without a corresponding increase in response time by scaling out the hardware.
+
+While high-performance storage solutions like RAID systems partition blocks across local disks to enable parallel I/O, they lack control over which database tuples are sent to which drive. Parallel database systems therefore operate at the level of individual tuples (horizontal partitioning) across a "shared-nothing" architecture. In a shared-nothing system, each node consists of its own processor, memory, and persistent storage, communicating solely over a high-speed network. The techniques used in these systems are also directly applicable to geographically distributed storage architectures.
+
+## Data Partitioning Strategies
+
+Horizontal partitioning divides the tuples of a relation across $n$ nodes ($N_1, N_2, \dots, N_n$) so that each tuple resides on exactly one node. This is orthogonal to vertical partitioning, which divides a relation's columns. There are three core partitioning strategies:
+
+- **Round-Robin:** Tuples are distributed sequentially. The $i$-th tuple fetched is sent to node $N_{((i-1) \bmod n) + 1}$. This guarantees a highly uniform data distribution across all nodes.
+- **Hash Partitioning:** One or more attributes are designated as partitioning attributes. A hash function maps these attributes to a node identifier in the range $[1, n]$. If $h(\text{attributes}) = i$, the tuple is stored on node $N_i$.
+- **Range Partitioning:** Contiguous attribute-value ranges are assigned to each node based on a partition vector $[v_1, v_2, \dots, v_{n-1}]$. For a partitioning attribute $A$ and tuple $t$ where $t[A] = x$:
+  - If $x < v_1$, the tuple goes to node $N_1$.
+  - If $v_i \le x < v_{i+1}$, the tuple goes to node $N_{i+1}$.
+  - If $x \ge v_{n-1}$, the tuple goes to node $N_n$.
+
+**Tuple Update Operations:**
+
+- **Insertion:** The system applies the partitioning strategy to route the new tuple to its correct destination.
+- **Deletion:** The tuple is located using the partitioning attribute (for round-robin, all partitions must be searched) and then deleted.
+- **Updates:** If an update changes a partitioning attribute in a hash or range-partitioned system, the tuple must be deleted from its original node and inserted into its new appropriate node.
+
+## Evaluating Partitioning Techniques
+
+No single partitioning strategy is ideal for all database workloads. The optimal choice depends on the mix of query types executed against the storage layer:
+
+- **Scanning the Entire Relation:** All three techniques support parallel sequential scans. If data is distributed evenly, a scan takes approximately $1/n$ of the time compared to a single-node system. Hash partitioning provides excellent random distribution for scans, provided the hash key is unique.
+- **Point Queries (e.g., matching a specific key value):**
+  - _Hash and Range Partitioning_ are highly efficient if the query targets the partitioning attribute. The system consults the hash function or partition vector to target a single node, bypassing the startup costs of multi-node execution.
+  - _Round-Robin_ requires searching all nodes, resulting in high overhead.
+- **Range Queries (e.g., finding values within a range):**
+  - _Range Partitioning_ is uniquely suited for range selections. The partition vector restricts the search to only the nodes containing the requested range.
+  - _Hash Partitioning_ cannot preserve physical proximity; because hashes randomize data, a range query forces a scan of all nodes.
+
+_Analogy:_ Think of range partitioning like an encyclopedia set (A-C on volume 1, D-F on volume 2). Finding names starting with 'E' only requires pulling volume 2. Hash partitioning is like scrambling the pages randomly based on a formula—finding names starting with 'E' requires checking every single book in the set.
+
+## Mitigating Skew in Partitioning
+
+Parallel databases lose performance when work is distributed unevenly. This imbalance is called **skew**, and it degrades the ideal $1/n$ parallel speedup because the system is throttled by its slowest, most overloaded node.
+
+There are two main types of skew:
+
+1. **Data Distribution Skew:** Some partitions contain significantly more physical tuples than others. This is caused by:
+   - _Attribute-value skew:_ A specific value occurs frequently in the partitioning attribute (e.g., a 'Country' column where 90% of customers are 'USA').
+   - _Partition skew:_ Badly chosen partition ranges (e.g., unevenly spaced ranges in range partitioning).
+2. **Execution Skew:** Partitions have equal sizes, but some are accessed far more frequently (e.g., partitioning by timestamp when most queries target only recent records, creating an I/O "hot spot").
+
+### Mitigation Strategies
+
+**Balanced Range-Partitioning Vectors:** Instead of arbitrarily guessing range boundaries, the database can sort the relation first and place boundary markers at exact $1/n$ intervals. To avoid the high I/O cost of sorting a massive dataset, systems construct a _histogram_ of the attribute values or utilize random sampling of disk blocks to approximate the distribution.
+
+**Virtual Node Partitioning:** The system maps data to a high number of "virtual nodes" (often several times larger than the physical node count). These virtual nodes are then distributed across the actual physical nodes (e.g., via round-robin allocation). If a range experiences skew, its tuples are split across multiple virtual nodes, which are processed by different physical hardware. This approach also allows for _elasticity_—when a new physical node is added, virtual nodes can be quickly migrated to it to balance the load.
+
+**Dynamic Repartitioning (Tablets):** Many modern parallel data stores split tables into units called _tablets_ (which act as virtual nodes). The master node tracks tablet sizes and partition ranges in a _partition table_. When a tablet becomes too large due to active writes, it dynamically splits into two tablets at its midpoint. Conversely, if a physical node becomes overloaded, tablets can be migrated to quieter servers, updating the partition table dynamically.
+
+## Data Replication and Consistency
+
+In a system with thousands of commodity servers, individual node failure is guaranteed. To ensure high availability and prevent data loss, partitions are replicated across multiple nodes (typically 2-way or 3-way replication).
+
+**Replica Placement Strategies:**
+
+- _Within a Data Center:_ High-bandwidth networks exist within a server rack, but racks can fail entirely due to switch or power supply failures. Therefore, databases typically place two replicas in the same rack for rapid internal copy, and a third replica on a completely different rack.
+- _Across Geographically Separated Data Centers:_ To protect against disasters (floods, earthquakes) or to provide low-latency reads to global users, replicas are placed in different data centers worldwide.
+- _Workload Dispersion:_ To avoid overwhelming a single backup server when a primary node fails, replicas of a single node's partitions are dispersed evenly across multiple different peer nodes.
+
+**Replica Update and Consistency Protocols:** When data is modified, all replicas must stay synchronized. This introduces consistency challenges:
+
+- **Master Replica Model:** One replica is designated as the master. All write and read requests go to this master, which propagates updates to the backup replicas. If the master fails, the partition table is updated to promote a healthy backup replica.
+- **Two-Phase Commit (2PC):** A protocol ensuring that write operations are executed atomically on all replicas or aborted entirely. If any replica is unreachable, the write cannot commit.
+- **Persistent Messaging (Eventual Consistency):** Updates are recorded as persistent messages. The messaging system guarantees that updates are eventually delivered to all replicas. Replicas might temporarily deviate, but they eventually converge.
+- **Consensus Protocols:** Protocols (like Paxos or Raft) that allow replica updates to commit as long as a majority of replicas agree, enabling progress even if some nodes are down.
+
+## Parallel Indexing: Local vs. Global
+
+To accelerate search queries in a partitioned database, indexing structures must also be partitioned. Indices are categorized as local or global:
+
+- **Local Index:** The index is built only on the tuples stored on that specific node. The index file resides on the same node as the corresponding data partition.
+  - _Pros:_ Simple to update and maintain during writes because changes are kept local.
+  - _Cons:_ A query on a non-partitioning attribute must be broadcast to every single node's local index, which severely limits scalability.
+- **Global Index:** The index spans data stored across multiple nodes. To scale, the global index itself must be partitioned across nodes.
+
+**Global Primary Index:** When the index attribute matches the partition attribute, the global index is simple: the master partition table serves as the high-level index to find the correct node, and the local index on that node finds the exact tuple.
+
+**Global Secondary Index:** When the query attribute does not match the partition attribute (e.g., the table is partitioned on `ID` but searched by `Name`), a global secondary index is required. This is achieved by creating an index relation ($rs_i$) containing the index attribute and the partitioning key (or primary key).
+
+_Step-by-step query execution with a Global Secondary Index:_
+
+1. A query requests record where `Name = 'Campbell'`.
+2. The query hashes or checks ranges on `'Campbell'` to find which node hosts that partition of the secondary index relation $rs_i$.
+3. The local index on that node is used to find the corresponding primary partitioning key (e.g., `ID = 101`).
+4. The system uses the partition table for `ID` to route a read request to the node storing `ID = 101` and retrieves the full tuple.
+
+## Distributed File Systems
+
+A Distributed File System (DFS) manages files across a cluster of machines while providing a unified, single-file-system view to clients. Unlike parallel key-value stores that manage billions of small records, distributed file systems are optimized to store moderate counts (millions) of massive files (ranging from megabytes to gigabytes).
+
+Examples include the proprietary Google File System (GFS) and the open-source Hadoop Distributed File System (HDFS).
+
+**Key Architectural Components:**
+
+- **NameNode (Metadata Master):** A single master server that manages the file system directory structure and tracks the locations of block replicas. To achieve high performance, the NameNode caches all file system metadata in main memory. To keep this memory size small, HDFS utilizes exceptionally large block sizes (typically 64 MB) to minimize the number of tracked blocks.
+- **DataNodes (Block Servers):** Commodity machines that store the raw physical blocks on their local file systems and execute read/write requests from clients.
+
+**Read and Write Mechanics:**
+
+- **Reading a File:** The client queries the NameNode for a file's block list and replica locations. The client then contacts the nearest DataNode containing a replica of the first block to stream the data, continuing sequentially for subsequent blocks.
+- **Writing a File (Write-Once-Read-Many):** The client contacts the NameNode to allocate blocks. The NameNode returns a list of target DataNodes for replicas. The client writes the block to the first DataNode, which pipelines it to the second, and so on. HDFS does not support arbitrary in-place updates of written blocks; files can only be appended to. This constraint drastically simplifies replica synchronization.
+
+## Parallel Key-Value Stores
+
+Web applications require systems that store billions of small records across thousands of servers with low latency and seamless elasticity. Since distributed file systems are poor at storing small files, and early parallel relational databases could not scale elastically on commodity hardware, parallel key-value stores were designed.
+
+**Data Representation and Schemas:** Key-value stores support basic functions: `put(table, key, value)` and `get(table, key)`. They offer varying degrees of structure:
+
+- _Wide-column stores_ (e.g., Google Bigtable, Apache HBase, Apache Cassandra) organize data as tables with flexible rows where columns can be dynamically added. They group columns into _column families_ that are physically stored together to optimize disk I/O.
+- _Document stores_ (e.g., MongoDB, Couchbase) store semi-structured JSON structures as values, enabling selection predicates on internal nested attributes.
+
+**Log-Structured Merge (LSM) Trees:** Because underlying distributed file systems are often append-only and do not allow random physical updates, key-value stores cannot use standard B+-Trees for indexing. Instead, they use Log-Structured Merge (LSM) Trees. The LSM Tree writes updates sequentially to an active in-memory buffer and a commit log. Periodically, these buffers are flushed to disk as sorted, immutable runs of files. These runs are consolidated in the background via a merge process.
+
+**Support for Transactions:**
+
+- Most key-value stores prioritize speed and elasticity over full ACID guarantees. They typically support atomic updates _only_ on single records (or single rows) and lack multi-row transactions.
+- To help developers implement lightweight concurrency, some stores offer an atomic **test-and-set** operation (e.g., `checkAndPut` in HBase). This allows updates to succeed only if the record's current version matches an expected version, enabling optimistic validation-based concurrency control.
+- Advanced systems like Google Spanner utilize two-phase commit and distributed consensus (Paxos) to guarantee full multi-node ACID transactions, but with increased latency overhead.
+
+## Summary
+
+### Key Takeaways
+
+- **I/O Parallelism and Partitioning:** Distributing data across multiple independent nodes using Round-robin, Hash, or Range partitioning is fundamental to database speedup and scaleup.
+- **Managing Skew:** Partition and execution skew can bottleneck a system. Virtual node partitioning, histograms, and dynamic tablet-splitting are vital to maintaining balanced, elastic workloads.
+- **Replication and Consistency:** Replication ensures fault tolerance. Trade-offs exist between strict write consistency (via Two-Phase Commit) and eventual consistency (via Persistent Messaging).
+- **Local vs. Global Indexing:** Local indices keep writes cheap but force slow broadcasts for non-partitioned searches. Global secondary indices utilize mapping tables ($rs_i$) to target queries at the cost of atomic multi-node updates.
+- **DFS vs. Key-Value Stores:** HDFS is designed for large, sequential, append-only files using a single metadata-tracking NameNode. Key-value stores handle massive numbers of small, flexible records using elastic partition tables and write-optimized LSM Trees.
