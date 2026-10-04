@@ -1,0 +1,170 @@
+export const metadata = {
+	title: "Sets, Functions, Sequences, and Cardinality",
+	description:
+		"An introduction to sets, set operations, functions, sequences, recurrence relations, summations, cardinality, countability, and uncountable sets in discrete mathematics.",
+	order: 2,
+	draft: false,
+	tags: [
+		"mathematics",
+		"discrete mathematics",
+		"sets",
+		"functions",
+		"sequences",
+		"cardinality",
+	],
+};
+
+## Introduction
+
+Did you know that the total number of fractions in existence is exactly the same size as the set of counting numbers, but the set of real numbers between 0 and 1 is strictly larger than both? Welcome to the foundational landscape of discrete mathematics, where simple collections of objects open the door to understanding algorithms, data structures, and the boundaries of computer computation.
+
+By the end of this lesson, you will be able to:
+
+- **Formulate and evaluate** sets, subsets, power sets, and Cartesian products using standard mathematical notation.
+- **Apply** set operations and verify set identities using direct proofs, membership tables, and bit string representations.
+- **Classify** functions as injective, surjective, or bijective, and calculate function inverses and compositions.
+- **Analyze** sequences, solve recurrence relations through iteration, and evaluate finite and infinite summations.
+- **Distinguish** between countable and uncountable infinite sets using Cantor's diagonalization argument and Hilbert's Grand Hotel model.
+
+## The Language of Sets and Subsets
+
+At the bedrock of discrete mathematics lies the concept of a **set**. Intuitively defined by Georg Cantor in 1895, a set is an unordered collection of distinct objects called **elements** or **members**. We write $a \in A$ to indicate that $a$ is an element of set $A$, and $a \notin A$ when it is not.
+
+There are two primary ways to describe sets:
+
+- **Roster Method:** Listing all members explicitly between curly braces. For example, the vowels in the English alphabet are written as $V = \{a, e, i, o, u\}$. Ellipses can be used for obvious patterns, such as $S = \{1, 2, 3, \dots, 99\}$.
+- **Set-Builder Notation:** Specifying the property $P$ that elements must satisfy: $\{x \mid x \text{ has property } P\}$. For instance, the odd positive integers under 10 are expressed as $O = \{x \in \mathbf{Z}^+ \mid x \text{ is odd and } x < 10\}$.
+
+Certain sets occur so frequently that they are assigned dedicated boldface symbols:
+
+- **N** = $\{0, 1, 2, 3, \dots\}$, the set of **natural numbers**.
+- **Z** = $\{\dots, -2, -1, 0, 1, 2, \dots\}$, the set of **integers**.
+- **Z+** = $\{1, 2, 3, \dots\}$, the set of **positive integers**.
+- **Q** = $\{p/q \mid p \in \mathbf{Z}, q \in \mathbf{Z}, \text{ and } q \neq 0\}$, the set of **rational numbers**.
+- **R**, the set of **real numbers**, and **C**, the set of **complex numbers**.
+
+We also frequently work with **intervals** on the real line. The **closed interval** $[a, b] = \{x \in \mathbf{R} \mid a \le x \le b\}$ includes its endpoints, whereas the **open interval** $(a, b) = \{x \in \mathbf{R} \mid a < x < b\}$ excludes them.
+
+It is crucial to distinguish between the **empty set** (or null set), denoted by $\emptyset$ or $\{\}$, which contains zero elements, and the **singleton set** $\{\emptyset\}$. A helpful mental model is to picture folders on a computer file system: $\emptyset$ is an empty folder, while $\{\emptyset\}$ is a folder containing a single item—which happens to be an empty folder!
+
+When every element of a set $A$ is also an element of set $B$, we say $A$ is a **subset** of $B$, written $A \subseteq B$. To prove $A \subseteq B$, you must show that if $x \in A$, then $x \in B$. To prove $A \nsubseteq B$, you only need a single counterexample: an $x \in A$ such that $x \notin B$. Every nonempty set $S$ has at least two subsets: $\emptyset \subseteq S$ (proved vacuously) and $S \subseteq S$. If $A \subseteq B$ but $A \neq B$, we call $A$ a **proper subset** of $B$, denoted $A \subset B$.
+
+To build more complex structures from a set $S$, we use two essential constructions:
+
+- **Power Set:** The power set $\mathcal{P}(S)$ is the set of all subsets of $S$. If $|S| = n$, then $|\mathcal{P}(S)| = 2^n$. For example, if $S = \{0, 1\}$, then $\mathcal{P}(S) = \{\emptyset, \{0\}, \{1\}, \{0, 1\}\}$.
+- **Cartesian Product:** Order matters in many computing tasks. An **ordered** $n$**-tuple** $(a_1, a_2, \dots, a_n)$ maintains strict order. The Cartesian product $A \times B = \{(a, b) \mid a \in A \land b \in B\}$ is the set of all ordered pairs. Note that $A \times B \neq B \times A$ unless $A = \emptyset$, $B = \emptyset$, or $A = B$. A subset $R \subseteq A \times B$ is called a **relation** from $A$ to $B$.
+
+## Set Operations and Computer Representations
+
+Just as basic arithmetic allows us to add and multiply numbers, set theory provides operations to combine sets in precise ways:
+
+- **Union (**$A \cup B$**):** The set containing elements that are in $A$, in $B$, or in both: $A \cup B = \{x \mid x \in A \lor x \in B\}$.
+- **Intersection (**$A \cap B$**):** The set containing elements in both $A$ and $B$: $A \cap B = \{x \mid x \in A \land x \in B\}$. Sets with no common elements ($A \cap B = \emptyset$) are called **disjoint**.
+- **Difference (**$A - B$ **or** $A \setminus B$**):** The set containing elements in $A$ but not in $B$: $A - B = \{x \mid x \in A \land x \notin B\}$.
+- **Complement (**$\overline{A}$**):** Given a universal set $U$, the complement of $A$ is $\overline{A} = U - A = \{x \in U \mid x \notin A\}$.
+
+When counting the total number of elements in a union of two finite sets, simply adding $|A| + |B|$ overcounts the elements residing in both sets. Correcting for this double-counting yields the fundamental **Principle of Inclusion-Exclusion**: $$|A \cup B| = |A| + |B| - |A \cap B|$$
+
+Set operations satisfy several universal laws (known as **Set Identities**), such as Domination, Idempotent, Commutative, Associative, Distributive, and **De Morgan's Laws**: $$\overline{A \cap B} = \overline{A} \cup \overline{B} \quad \text{and} \quad \overline{A \cup B} = \overline{A} \cap \overline{B}$$
+
+We can establish set identities using three primary techniques:
+
+1. **Subset Method:** Show that each side is a subset of the other (i.e., show $L \subseteq R$ and $R \subseteq L$).
+2. **Set Builder Nota\*\***tion & Logical Equivalences:\*\* Transform set definitions step-by-step using propositional logic equivalences.
+3. **Membership Tables:** Test all $2^n$ combinations of element membership across $n$ atomic sets using $1$ (belongs) and $0$ (does not belong), directly analogous to truth tables.
+
+In computer applications, sets drawn from a finite universal set $U = \{a_1, a_2, \dots, a_n\}$ can be stored efficiently as **bit strings** of length $n$. The $i$-th bit is set to $1$ if $a_i$ is in the subset, and $0$ otherwise. Under this representation:
+
+- The **Union** corresponds to a bitwise **OR**.
+- The **Intersection** corresponds to a bitwise **AND**.
+- The **Complement** corresponds to a bitwise **NOT**.
+
+When duplicate elements matter, we step outside ordinary sets into **multisets**. A multiset $P = \{m_1 \cdot a_1, m_2 \cdot a_2, \dots, m_r \cdot a_r\}$ assigns a **multiplicity** $m_i$ to each element. For multisets $P$ and $Q$, the union uses the maximum multiplicity $\max(m_P, m_Q)$, the intersection uses the minimum $\min(m_P, m_Q)$, and the difference uses $\max(m_P - m_Q, 0)$.
+
+## Functions: Mappings, Types, and Compositions
+
+A **function** $f$ from set $A$ to set $B$ (written $f: A \to B$) is an assignment of **exactly one** element of $B$ to each element of $A$. If $f(a) = b$, $A$ is the **domain**, $B$ is the **codomain**, $b$ is the **image** of $a$, and $a$ is a **preimage** of $b$. The **range** (or image of $f$) is the set of all actual outputs $\{f(a) \mid a \in A\}$, which is a subset of the codomain.
+
+Functions are categorized by how they map elements:
+
+- **One-to-One (Injective):** $f$ never maps two distinct domain elements to the same codomain element. That is, $f(a) = f(b) \implies a = b$. Functions that are strictly increasing ($x < y \implies f(x) < f(y)$) or strictly decreasing are always injective.
+- **Onto (Surjective):** Every element of the codomain $B$ is the image of at least one element of $A$. That is, $\forall y \in B, \exists x \in A \text{ such that } f(x) = y$.
+- **One-to-One Correspondence (Bijective):** $f$ is both injective and surjective. When domain and codomain sets $A$ and $B$ are finite, a function $f: A \to B$ can be bijective only if $|A| = |B|$.
+
+If $f: A \to B$ is a bijection, it is **invertible**. Its **inverse function** $f^{-1}: B \to A$ satisfies $f^{-1}(b) = a$ if and only if $f(a) = b$. If a function is not bijective, an inverse cannot be defined without restricting the domain or codomain.
+
+Given two functions $g: A \to B$ and $f: B \to C$, the **composition** $f \circ g: A \to C$ is defined by $(f \circ g)(a) = f(g(a))$. Note that composition is **not commutative** ($f \circ g \neq g \circ f$ in general), but applying a bijective function and its inverse in sequence yields the identity function: $(f^{-1} \circ f)(a) = a$.
+
+Two essential functions in algorithm analysis and discrete computing are:
+
+- **Floor Function (**$\lfloor x \rfloor$**):** Assigns to real number $x$ the largest integer $\le x$.
+- **Ceiling Function (**$\lceil x \rceil$**):** Assigns to real number $x$ the smallest integer $\ge x$.
+
+For example, to determine how many 53-byte ATM cells are needed to transmit $100$ bits of data, we calculate $\lceil 100/8 \rceil = 13$ bytes, demonstrating how ceiling functions model discrete container allocation in real-world engineering.
+
+Finally, mathematical models often encounter **partial functions** $f: A \to B$, which are defined only on a subset of $A$ (called the domain of definition). If $f$ is defined for all elements in $A$, it is a **total function**.
+
+## Sequences and Summations
+
+A **sequence** is a function from a subset of integers (usually $\{0, 1, 2, \dots\}$ or $\{1, 2, 3, \dots\}$) to a set $S$. We write $a_n$ to represent the image of integer $n$, and $\{a_n\}$ to denote the sequence itself.
+
+Two classic standard sequence types include:
+
+- **Geometric Progression:** Form $a, ar, ar^2, \dots, ar^n, \dots$, with initial term $a$ and common ratio $r$.
+- **Arithmetic Progression:** Form $a, a+d, a+2d, \dots, a+nd, \dots$, with initial term $a$ and common difference $d$.
+
+Finite sequences of characters or bits are called **strings**, and the string with zero characters is the **empty string** $\lambda$.
+
+Rather than explicit formulas, sequences are frequently defined recursively via a **recurrence relation**, which expresses $a_n$ using one or more preceding terms ($a_0, a_1, \dots, a_{n-1}$). Combined with **initial conditions**, a recurrence relation uniquely specifies a sequence.
+
+Famous recurrence examples include:
+
+- **Factorial Sequence:** $a_n = n \cdot a_{n-1}$ with $a_1 = 1$, yielding $a_n = n!$.
+- **Fibonacci Sequence:** $f_n = f_{n-1} + f_{n-2}$ with $f_0 = 0, f_1 = 1$.
+- **Compound Interest:** $P_n = (1 + r)P_{n-1}$ with initial deposit $P_0$.
+
+To convert a recurrence relation into a **closed formula**, we can use **iteration**. In **backward substitution**, we express $a_n$ in terms of $a_{n-1}$, then substitute $a_{n-1}$ with its expression in terms of $a_{n-2}$, stepping downward until hitting the initial condition. In **forward substitution**, we calculate $a_1, a_2, a_3$ from initial conditions upward to deduce the general pattern.
+
+When we need to add consecutive terms of a sequence, we use **summation notation**: $$\sum_{j=m}^{n} a_j = a_m + a_{m+1} + \dots + a_n$$ where $j$ is the **index of summation**, $m$ is the lower limit, and $n$ is the upper limit.
+
+Key summation closed forms include:
+
+- **Sum of Geometric Series:** $\sum_{k=0}^{n} a r^k = \frac{a r^{n+1} - a}{r - 1}$ (for $r \neq 1$).
+- **Sum of First** $n$ **Positive Integers:** $\sum_{k=1}^{n} k = \frac{n(n+1)}{2}$.
+- **Infinite Geometric Series:** $\sum_{k=0}^{\infty} x^k = \frac{1}{1-x}$ for $|x| < 1$.
+
+## The Horizon of Infinity: Cardinality and Uncountable Sets
+
+How do we measure the size of a set when its elements never end? Cantor established that two sets $A$ and $B$ have the **same cardinality** ($|A| = |B|$) if and only if there exists a **one-to-one correspondence (bijection)** between them.
+
+A set is called **countable** if it is finite or has the exact same cardinality as the set of positive integers $\mathbf{Z}^+$. When an infinite set is countable, its cardinality is written as $\aleph_0$ ("aleph null"). An infinite set is countable if and only if its elements can be listed in an infinite sequence $a_1, a_2, a_3, \dots$.
+
+Infinite sets exhibit mind-bending properties that defy finite intuition. Consider **Hilbert's Grand Hotel**, a hypothetical hotel with a countably infinite number of occupied rooms (Room 1, Room 2, Room 3, ...). When a new guest arrives, the hotel manager does not evict anyone; instead, the manager moves the guest in Room $n$ to Room $n+1$ for all $n \ge 1$. This vacates Room 1 for the newcomer, demonstrating that an infinite set can accommodate additions without changing its size class!
+
+Using explicit bijections, we can establish surprising countability results:
+
+- **Odd Positive Integers:** Map $f(n) = 2n - 1$ connects $\mathbf{Z}^+$ to odd positive integers.
+- **All Integers (Z):** We can list all integers in a single sequence by alternating signs: $0, 1, -1, 2, -2, 3, -3, \dots$.
+- **Rational Numbers (Q+):** By arranging all fractions $p/q$ in a 2D grid and tracing diagonals while bypassing fractions already listed in reduced form ($1/1, 1/2, 2/1, 3/1, 1/3, \dots$), we prove that $\mathbf{Q}^+$ is countable!
+
+Are all infinite sets countable? **No.** Georg Cantor proved that the set of real numbers $\mathbf{R}$ is **uncountable** using the famous **Cantor Diagonalization Argument**.
+
+Suppose the real numbers between 0 and 1 were countable and could be listed in a sequence $r_1, r_2, r_3, \dots$: $$r_1 = 0.d_{11}d_{12}d_{13}\dots$$ $$r_2 = 0.d_{21}d_{22}d_{23}\dots$$ $$r_3 = 0.d_{31}d_{32}d_{33}\dots$$
+
+Now construct a new real number $r = 0.d_1 d_2 d_3 \dots$ where $d_i = 4$ if $d_{ii} \neq 4$, and $d_i = 5$ if $d_{ii} = 4$. This new number $r$ differs from $r_1$ in the 1st decimal place, from $r_2$ in the 2nd place, and from $r_i$ in the $i$-th place. Thus, $r$ cannot be anywhere on the list! This contradiction proves that $\mathbf{R}$ is uncountable.
+
+Finally, the **Schröder-Bernstein Theorem** provides a powerful tool for proving cardinality equality: If $|A| \le |B|$ and $|B| \le |A|$, then $|A| = |B|$.
+
+This distinction between countable and uncountable sets has profound consequences for computer science. Because every computer program written in any language can be represented as a finite string of bits, the set of all computer programs is **countable**. However, the set of all functions from $\mathbf{Z}^+$ to $\{0, 1\}$ is **uncountable**. Therefore, there are infinitely more mathematical functions than there are computer programs—proving the existence of **uncomputable functions** that no computer can ever evaluate!
+
+## Summary
+
+Discrete mathematics provides the foundational language for computer science by organizing objects into sets, mapping relationships via functions, modeling discrete growth with sequences and recurrences, and uncovering the profound mathematical boundaries of infinity.
+
+### **Key Takeaways:**
+
+- **Sets & Operations:** A set is an unordered collection of distinct elements. Basic operations (union, intersection, difference, complement) can be represented using Venn diagrams, membership tables, logic proofs, or computer bit strings.
+- **Function Dynamics:** Functions assign exactly one output to each input. They are classified as injective (one-to-one), surjective (onto), or bijective (both). Only bijections possess true inverse functions.
+- **Sequences & Recurrences:** Discrete growth patterns are modeled as arithmetic or geometric progressions, or defined recursively. Iterative methods (forward and backward substitution) resolve recurrence relations into closed formulas.
+- **Summation Formulas:** Standard closed forms exist for sums of integers, geometric series, and polynomial powers, enabling rapid evaluation of algorithmic step counts.
+- **Cardinality & Uncomputability:** Infinite sets are countable ($\aleph_0$) if they can be placed in a bijection with $\mathbf{Z}^+$ (like $\mathbf{Z}$ and $\mathbf{Q}$). Uncountable sets like $\mathbf{R}$ are strictly larger, proving that uncomputable functions exist because computer programs are countable while functions are uncountable.

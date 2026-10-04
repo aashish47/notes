@@ -1,0 +1,245 @@
+export const metadata = {
+	title: "Mathematical Logic",
+	description:
+		"An introduction to propositions, logical connectives, conditional statements, logical equivalences, satisfiability, predicates, and quantifiers.",
+	order: 1,
+	draft: false,
+	tags: [
+		"mathematics",
+		"logic",
+		"propositional logic",
+		"predicate logic",
+		"quantifiers",
+	],
+};
+
+## Introduction
+
+Have you ever wondered how computers process complex reasoning, run bug-free software, or solve intricate puzzles in milliseconds? At the heart of computer science and mathematics lies **logic**—the formal framework that provides precise meaning to statements and eliminates ambiguity. Without logic, establishing software security, building artificial intelligence, or constructing mathematical proofs would be impossible.
+
+By the end of this lesson, you will be able to:
+
+- **Distinguish** between propositions and non-propositions and evaluate truth values using logical connectives.
+- **Formulate** conditional statements alongside their converse, inverse, contrapositive, and biconditional forms.
+- **Verify** logical equivalences, tautologies, and satisfiability using truth tables and algebraic laws.
+- **Translate** natural language sentences into formal logic using predicates and quantifiers.
+
+## The Building Blocks of Thought – Propositions and Logical Connectives
+
+To build a rigorous logical argument, we must begin with the fundamental unit of logic: the **proposition**. A proposition is a declarative sentence that is either **true (T)** or **false (F)**, but not both.
+
+Consider these declarative sentences:
+
+1. _"Washington, D.C., is the capital of the United States."_ — **True proposition (T)**
+2. _"1 + 1 = 2"_ — **True proposition (T)**
+3. _"Toronto is the capital of Canada."_ — **False proposition (F)**
+4. _"2 + 2 = 3"_ — **False proposition (F)**
+
+In contrast, non-declarative sentences or open expressions are **not propositions**:
+
+- _"What time is it?"_ (A question—neither true nor false)
+- _"Read this carefully."_ (A command)
+- _"x + 1 = 2"_ (Neither true nor false until a value is assigned to $x$)
+
+### Propositional Variables and Atomic Propositions
+
+We denote propositional variables using lowercase letters such as $p, q, r,$ and $s$. An **atomic proposition** is one that cannot be broken down into simpler propositions. To construct complex statements, we combine atomic propositions using **logical operators** (also called **connectives**).
+
+#### The Fundamental Operators
+
+1. **Negation (**$\neg p$ **or** $\bar{p}$**)** The negation of $p$ is the statement _"It is not the case that_ $p$_."_ It reverses the truth value of $p$.
+   - _Example:_ If $p$ is _"Michael's PC runs Linux,"_ then $\neg p$ is _"Michael's PC does not run Linux."_
+2. **Conjunction (**$p \land q$**)** The conjunction represents the statement _"_$p$ _and_ $q$_."_ It is **true only when both** $p$ **and** $q$ **are true**; otherwise, it is false.
+   - _Note:_ In English, words like _"but"_ function identically to _"and"_ in logic (e.g., _"The sun is shining, but it is raining"_).
+3. **Disjunction (**$p \lor q$**)** The disjunction represents _"_$p$ _or_ $q$_."_ Logic uses the **inclusive OR**: $p \lor q$ is **true if at least one of** $p$ **or** $q$ **is true**, and false only when both are false.
+4. **Exclusive OR (**$p \oplus q$**)** The exclusive OR (XOR) is true when **exactly one of** $p$ **and** $q$ **is true**, but false when both are true or both are false.
+   - _Example:_ _"A student can have soup or salad with dinner"_ implies you can choose one, but not both.
+
+### Truth Tables and Bit Operations
+
+A **truth table** displays the truth value of a compound proposition for every possible combination of truth values of its variables.
+
+|  $p$  |  $q$  | $\neg  p$ | $p \land q$ | $p \lor q$ | $p \oplus q$ |
+| :---: | :---: | :-------: | :---------: | :--------: | :----------: |
+| **T** | **T** |     F     |    **T**    |   **T**    |      F       |
+| **T** | **F** |     F     |      F      |   **T**    |    **T**     |
+| **F** | **T** |     T     |      F      |   **T**    |    **T**     |
+| **F** | **F** |     T     |      F      |   **F**    |      F       |
+
+In computer logic, truth values are represented as **bits**: `1` for True (**T**) and `0` for False (**F**). Bitwise operations apply `AND`, `OR`, and `XOR` bit-by-bit across equal-length bit strings.
+
+- **Example:** Bitwise `XOR` of `01 1011` and `11 0001` yields `10 1010`.
+
+## Implication and Equivalence – Conditional and Biconditional Statements
+
+Conditional statements are the backbone of mathematical proofs and programming logic. They express that a statement holds under a specific condition.
+
+### The Conditional Statement ($p \rightarrow q$)
+
+Let $p$ and $q$ be propositions. The **conditional statement** $p \rightarrow q$ is read _"If_ $p$_, then_ $q$_."_ Here, $p$ is the **hypothesis** (or premise) and $q$ is the **conclusion** (or consequence).
+
+**Key Rule:** $p \rightarrow q$ is **false only when** $p$ **is true and** $q$ **is false**. In all other cases, it is **true**.
+
+Think of $p \rightarrow q$ as a campaign contract: _"If I am elected (_$p$_), then I will lower taxes (_$q$_)."_
+
+- If the politician is elected ($p$ is T) and lowers taxes ($q$ is T), the promise is kept (**T**).
+- If elected ($p$ is T) but taxes are **not** lowered ($q$ is F), the promise is broken (**F**).
+- If the politician loses ($p$ is F), the contract is not broken, regardless of whether taxes change (**T**).
+
+Common natural language expressions for $p \rightarrow q$ include:
+
+- _"_$p$ _implies_ $q$_"_ | _"_$p$ _is sufficient for_ $q$_"_ | _"_$q$ _whenever_ $p$_"_
+- _"_$q$ _is necessary for_ $p$_"_ | _"_$p$ _only if_ $q$_"_ | _"_$q$ _unless_ $\neg  p$_"_
+
+### Related Conditional Statements
+
+Given a conditional statement $p \rightarrow q$, three related conditional statements can be formed:
+
+1. **Converse:** $q \rightarrow p$
+2. **Inverse:** $\neg  p \rightarrow \neg  q$
+3. **Contrapositive:** $\neg  q \rightarrow \neg  p$
+
+**Crucial Insight:** A conditional statement $p \rightarrow q$ and its **contrapositive** $\neg  q \rightarrow \neg  p$ **always share the exact same truth values**. However, the converse and inverse do **not** necessarily match the truth value of the original statement.
+
+_Example:_ Consider _"If it is raining, then the home team wins."_
+
+- **Contrapositive:** _"If the home team does not win, then it is not raining."_ (Logically equivalent)
+- **Converse:** _"If the home team wins, then it is raining."_ (Not equivalent)
+- **Inverse:** _"If it is not raining, then the home team does not win."_ (Not equivalent)
+
+### The Biconditional Statement ($p \leftrightarrow q$)
+
+The **biconditional statement** $p \leftrightarrow q$ is read _"_$p$ _if and only if_ $q$_"_ (or _"_$p$ _iff_ $q$_"_). It is **true when** $p$ **and** $q$ **have the same truth values**, and false otherwise.
+
+### Operator Precedence
+
+To minimize parentheses in complex expressions, logical operators follow a strict order of precedence:
+
+1. Negation ($\neg$)
+2. Conjunction ($\land$)
+3. Disjunction ($\lor$)
+4. Conditional ($\rightarrow$)
+5. Biconditional ($\leftrightarrow$)
+
+## Logical Equivalences and Satisfiability – The Algebra of Truth
+
+In mathematical arguments, replacing a complex statement with a simpler, logically equivalent statement is a essential technique.
+
+### Tautologies, Contradictions, and Contingencies
+
+- **Tautology:** A compound proposition that is **always true** regardless of variable values (e.g., $p \lor \neg  p$).
+- **Contradiction:** A compound proposition that is **always false** (e.g., $p \land \neg  p$).
+- **Contingency:** A compound proposition that is neither a tautology nor a contradiction (e.g., $p \rightarrow q$).
+
+Compound propositions $p$ and $q$ are **logically equivalent** ($p \equiv q$ or $p \iff q$) if $p \leftrightarrow q$ is a tautology.
+
+### Key Logical Equivalence Laws
+
+- **De Morgan's Laws:**
+  $$
+  \neg(p \land q) \equiv \neg p \lor \neg q
+  $$
+  $$
+  \neg (p \lor q) \equiv\neg p \land \neg q
+  $$
+- **Conditional-Disjunction Equivalence:**
+  $$
+  p \rightarrow q \equiv\neg p \lor q
+  $$
+- **Distributive Laws:**
+  $$
+  p \lor (q \land r) \equiv (p \lor q) \land (p \lor r)
+  $$
+  $$
+  p \land (q \lor r) \equiv (p \land q) \lor (p \land r)
+  $$
+- **Absorption Laws:**
+  $$
+  p \lor (p \land q) \equiv p
+  $$
+  $$
+  p \land (p \lor q) \equiv p
+  $$
+
+### Proving Equivalences Without Truth Tables
+
+Proving equivalences using truth tables requires $2^n$ rows for $n$ variables. For large $n$, algebraic manipulation using established equivalences is far more efficient.
+
+_Example:_ Show that $\neg(p \rightarrow q) \equiv p \land\neg q$.
+
+$$
+\begin{aligned}
+\neg(p \rightarrow q) &\equiv \neg(\neg p \lor q) && \text{via Conditional Equivalence} \\
+&\equiv \neg(\neg p) \land \neg q && \text{via De Morgan's Law} \\
+&\equiv p \land \neg q && \text{via Double Negation Law}
+\end{aligned}
+$$
+
+### Satisfiability (SAT)
+
+A compound proposition is **satisfiable** if there is at least one assignment of truth values to its variables that makes it true. If all assignments make it false, it is **unsatisfiable**.
+
+Real-world applications of satisfiability include:
+
+- $n$**-Queens Problem:** Placing $n$ chess queens on an $n \times n$ board so no two queens attack each other.
+- **Sudoku:** Modeling grid constraints as conjunctions of propositions to allow SAT solvers to solve puzzles in under 10 milliseconds.
+
+## Expanding Logic Beyond Fixed Truths – Predicates and Quantifiers
+
+Propositional logic cannot express assertions that apply to groups of objects, such as _"Every computer connected to the network is functioning properly."_ To express these mathematical assertions, we use **predicate logic**.
+
+### Predicates and Propositional Functions
+
+A predicate refers to a property or characteristic of a subject variable. In the statement _"_$x > 3$_"_, $x$ is the variable subject and _"is greater than 3"_ is the predicate.
+
+We denote this statement as $P(x)$, where $P$ is the **propositional function**. $P(x)$ becomes a proposition with a distinct truth value once $x$ is assigned a value:
+
+- For $P(x) = x > 3$: $P(4)$ is **True**, while $P(2)$ is **False**.
+- Multivariable predicates $Q(x, y) = x = y + 3$: $Q(3, 0)$ is **True**, while $Q(1, 2)$ is **False**.
+
+In computer programming, predicates define **preconditions** (valid input states) and **postconditions** (expected output states) to prove code correctness.
+
+### Quantifiers
+
+Quantification expresses the extent to which a predicate applies over a domain of discourse (the **domain**).
+
+1. **Universal Quantifier (**$\forall x P(x)$**)** States that $P(x)$ is **true for every value of** $x$ **in the domain**. A single **counterexample** (an element where $P(x)$ is false) refutes a universally quantified statement.
+   - _Example:_ $\forall x (x^2 \ge x)$ is **False** over real numbers (e.g., $x = 0.5$), but **True** over positive integers.
+2. **Existential Quantifier (**$\exists x P(x)$**)** States that there is **at least one element** $x$ **in the domain** for which $P(x)$ is true.
+   - _Example:_ $\exists x (x > 3)$ is **True** over real numbers because $x = 4$ satisfies it.
+3. **Uniqueness Quantifier (**$\exists! x P(x)$**)** States that there exists **one and only one** element $x$ in the domain such that $P(x)$ is true.
+
+### Negating Quantified Expressions
+
+Negating quantifiers flips the quantifier type and negates the inner predicate. These rules are known as **De Morgan's Laws for Quantifiers**:
+
+|       Negation        | Equivalent Statement  |                 When True?                 |                When False?                |
+| :-------------------: | :-------------------: | :----------------------------------------: | :---------------------------------------: |
+| $\neg \forall x P(x)$ | $\exists x \neg P(x)$ | There is an $x$ for which $P(x)$ is false. |       $P(x)$ is true for every $x$.       |
+| $\neg \exists x P(x)$ | $\forall x\neg P(x)$$ |       $P(x)$ is false for every $x$.       | There is an $x$ for which $P(x)$ is true. |
+
+_Example:_ Negating _"All Americans eat cheeseburgers"_ ($\forall x C(x)$) yields _"There is an American who does not eat cheeseburgers"_ ($\exists x \neg  C(x)$).
+
+Logic Programming (Prolog)
+
+In AI and automated reasoning, declarative languages like **Prolog** use predicate logic rules and facts to answer complex database queries:
+
+```
+instructor(chan, math273).
+enrolled(kevin, math273).
+teaches(P, S) :- instructor(P, C), enrolled(S, C).
+```
+
+Querying `?teaches(X, kevin)` leads Prolog to evaluate the logical assertions and return `X = chan`.
+
+## Summary
+
+Mathematical logic forms the rigorous foundation for all formal reasoning, software development, and circuit design. By moving from basic propositional connectives to predicate logic and quantifiers, we gain the tools to eliminate ambiguity and analyze complex systems systematically.
+
+### Key Takeaways
+
+- **Propositions** are declarative statements with fixed truth values (**T** or **F**).
+- **Connectives** ($\neg, \land, \lor, \oplus, \rightarrow, \leftrightarrow$) combine atomic propositions into compound expressions.
+- **Conditional Statements** ($p \rightarrow q$) are false _only_ when the hypothesis is true and the conclusion is false; a conditional statement is logically equivalent _only_ to its **contrapositive** ($\neg q \rightarrow\neg p$).
+- **Logical Equivalences** (such as De Morgan's Laws) allow complex propositions to be simplified algebraically without huge truth tables.
+- **Predicates & Quantifiers** ($\forall, \exists$) extend propositional logic to analyze properties over specified domains, forming the basis for logic programming and automated verification.
