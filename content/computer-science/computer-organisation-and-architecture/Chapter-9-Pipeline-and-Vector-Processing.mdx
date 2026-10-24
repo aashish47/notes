@@ -1,0 +1,188 @@
+export const metadata = {
+	title: "Parallel Processing and Pipelining",
+	description:
+		"An introduction to high-performance computer architecture, covering Flynn's Taxonomy, parallel processing, pipeline timing and speedup, arithmetic and instruction pipelines, pipeline hazards, RISC optimizations, vector processing, memory interleaving, supercomputers, and array processor architectures.",
+	order: 9,
+	draft: false,
+	tags: [
+		"computer architecture",
+		"parallel processing",
+		"pipelining",
+		"Flynn's taxonomy",
+		"pipeline hazards",
+		"RISC architecture",
+		"vector processing",
+		"memory interleaving",
+		"supercomputers",
+		"array processors",
+	],
+};
+
+## Introduction
+
+Imagine building a high-performance supercar entirely by hand, where a single worker completes one car before moving on to the next, versus deploying an automated industrial assembly line where multiple cars move simultaneously through specialized stations. Computer architecture underwent that exact high-speed evolution! By transitioning from rigid sequential processing to dynamic pipelining and vector processing, modern systems achieve extraordinary throughput capable of solving massive scientific and artificial intelligence workloads.
+
+In this lesson, you will master the foundational principles of high-performance computer design. By the end of this journey, you will be able to:
+
+- Classify parallel processing architectures using Flynn's Taxonomy and multi-functional unit models.
+- Calculate pipeline speedup ratios, throughput, and clock cycle timing dynamics.
+- Trace suboperations within floating-point arithmetic pipelines.
+- Identify instruction pipeline hazards—resource, data, and branch conflicts—and evaluate hardware and software resolution strategies.
+- Analyze RISC pipeline optimizations, including delayed load and delayed branch mechanisms.
+- Explain vector operations, matrix multiplication pipelines, memory interleaving, and supercomputer structures.
+- Compare the architectures and operational workflows of attached array processors and SIMD array processors.
+
+## Parallel Processing
+
+At its core, **parallel processing** refers to a broad class of memory and processor organizational techniques used to perform simultaneous data-processing tasks. The ultimate objective is to drastically increase the **throughput** of a computer system—measured as the total volume of processing accomplished during a given time interval. While sequential computers process instructions one after another, a parallel system executes concurrent operations, such as reading a new instruction from memory while the ALU executes the current one.
+
+Parallel processing can be implemented at varying levels of hardware complexity:
+
+- **Register Level:** Shift registers operate serially one bit at a time, whereas parallel-load registers transfer all bits of a computer word simultaneously.
+- **Functional Level:** Multiple execution units operate in parallel within a single CPU. For instance, a processor can separate execution into independent functional units—such as an adder-subtractor, integer multiplier, floating-point adder, floating-point multiplier, floating-point divider, logic unit, shift unit, and incrementer—all coordinated under a complex control unit.
+- **Processor Level:** Multiple independent processors operate concurrently across shared or distributed memory networks.
+
+To categorize these architectures, Michael J. Flynn introduced **Flynn's Taxonomy**, which classifies computers based on the number of concurrent instruction streams and data streams:
+
+- **SISD (Single Instruction Stream, Single Data Stream):** A conventional single-processor computer executing instructions sequentially, though it may contain internal pipelining or multiple functional units.
+- **SIMD (Single Instruction Stream, Multiple Data Stream):** A system with multiple processing units controlled by a single common control unit. All processors receive the exact same instruction simultaneously but operate on different data items.
+- **MISD (Multiple Instruction Stream, Single Data Stream):** A structure where multiple instructions operate on a single data stream. This organization is primarily of theoretical interest, as no commercial systems have been built using it.
+- **MIMD (Multiple Instruction Stream, Multiple Data Stream):** A computer system capable of processing multiple independent programs concurrently across multiple processors, encompassing most modern multiprocessor and multicomputer systems.
+
+Parallel processing is essential for computationally intensive domain applications, including numerical weather forecasting, computational aerodynamics, finite-element analysis, genetic engineering, medical tomography, and artificial intelligence.
+
+## Pipelining
+
+**Pipelining** is an operational technique that decomposes a sequential process into distinct suboperations, each executed in a dedicated segment operating concurrently with all other segments. Think of it as a computational assembly line: binary data flows through a series of processing stages separated by intermediate registers, allowing multiple distinct calculations to be underway at the exact same time.
+
+Each stage in a pipeline consists of an input register followed by a combinational circuit. The register holds the data isolated between stages, while the circuit performs the specific suboperation. A common clock pulse triggers all segment registers simultaneously, advancing data one stage down the pipe per clock tick.
+
+Consider a combined multiply-add operation over a data stream: $R5 \leftarrow (A_i \cdot B_i) + C_i$ for $i = 1, 2, \dots, 7$.
+
+- **Segment 1:** Loads inputs $R1 \leftarrow A_i$ and $R2 \leftarrow B_i$.
+- **Segment 2:** Performs multiplication $R3 \leftarrow R1 \cdot R2$ and loads $R4 \leftarrow C_i$.
+- **Segment 3:** Performs addition $R5 \leftarrow R3 + R4$.
+
+It takes three clock pulses to fill the pipeline and retrieve the very first output from $R5$. Thereafter, every single clock pulse delivers a new completed result, achieving continuous high-speed execution.
+
+To evaluate performance mathematically, let us analyze a $k$-segment pipeline executing $n$ tasks with a clock cycle time of $t_p$:
+
+- The first task requires $k \cdot t_p$ to pass through all $k$ segments.
+- The remaining $n - 1$ tasks emerge at the rate of one task per clock cycle, taking $(n - 1) \cdot t_p$.
+- **Total Pipelined Time (**$T_k$**):** $T_k = (k + n - 1) \cdot t_p$.
+- **Total Non-Pipelined Time (**$T_n$**):** If a equivalent non-pipelined circuit completes one task in time $t_n$, processing $n$ tasks takes $T_n = n \cdot t_n$.
+
+The **Speedup Ratio (**$S$**)** of a pipeline over a non-pipeline system is: $S = \frac{n \cdot t_n}{(k + n - 1) \cdot t_p}$
+
+As the number of tasks ($n$) becomes very large, $(k + n - 1)$ approaches $n$. The ratio reduces to: $S = \frac{t_n}{t_p}$
+
+If we assume a non-pipelined circuit takes time equal to the sum of all segments ($t_n = k \cdot t_p$), the speedup reduces to its theoretical maximum: $S_{max} = k$
+
+For example, if a 4-segment pipeline ($k = 4$) with $t_p = 20\text{ ns}$ processes $n = 100$ tasks, total pipelined time is $(4 + 99) \cdot 20\text{ ns} = 2060\text{ ns}$. An equivalent non-pipelined system with $t_n = 80\text{ ns}$ takes $100 \cdot 80\text{ ns} = 8000\text{ ns}$. The speedup ratio achieved is $8000 / 2060 = 3.88$, approaching the theoretical upper limit of 4.
+
+## Arithmetic Pipeline
+
+An **arithmetic pipeline** divides complex arithmetic operations—such as floating-point calculations or fixed-point multiplications—into suboperations executed across pipeline stages. Pipeline arithmetic is central to scientific computers handling continuous matrices and floating-point data streams.
+
+Consider floating-point addition or subtraction involving two normalized inputs: $X = A \cdot 2^a$ and $Y = B \cdot 2^b$, where $A$ and $B$ are fractional mantissas, and $a$ and $b$ are exponents. The operation is executed in a four-stage arithmetic pipeline:
+
+1. **Compare Exponents:** Subtract exponents ($a - b$) to identify the difference and select the larger exponent as the result's exponent.
+2. **Align Mantissas:** Shift the mantissa associated with the smaller exponent to the right by an amount equal to the exponent difference, aligning both numbers under the same power.
+3. **Add or Subtract Mantissas:** Perform addition or subtraction on the aligned mantissa fractions.
+4. **Normalize Result:** Adjust the resulting mantissa so its most significant fractional bit is non-zero. If overflow occurs, shift the mantissa right and increment the exponent. If underflow occurs, shift the mantissa left based on leading zero count and decrement the exponent.
+
+To trace this concrete mechanics, consider adding decimal floating-point numbers $X = 0.9504 \times 10^3$ and $Y = 0.8200 \times 10^2$:
+
+- **Segment 1:** Exponents are subtracted ($3 - 2 = 1$). The larger exponent ($3$) is chosen.
+- **Segment 2:** Shift $Y$'s mantissa right by 1 position: $Y = 0.0820 \times 10^3$.
+- **Segment 3:** Add mantissas: $0.9504 + 0.0$$820 = 1.0324$, giving $Z = 1.0324 \times 10^3$.
+- **Segment 4:** Normalize sum by shifting mantissa right by 1 and incrementing exponent by 1: $Z = 0.10324 \times 10^4$.
+
+In hardware design, pipeline clock cycles are constrained by the maximum segment propagation delay plus register delay ($t_p = t_{max} + t_r$). If segment delays are $60\text{ ns}, 70\text{ ns}, 100\text{ ns}$, and $80\text{ ns}$ with $10\text{ ns}$ register delay, the clock cycle must be set to $100 + 10 = 110\text{ ns}$. An equivalent non-pipelined unit takes $60 + 70 + 100 + 80 + 10 = 320\text{ ns}$, producing a speedup ratio of $320 / 110 = 2.91$.
+
+## Instruction Pipeline
+
+An **instruction pipeline** overlaps the fetch, decode, and execute phases of the instruction cycle to process a continuous stream of machine instructions from memory. In a general processor, each instruction undergoes six distinct sequential steps: Fetch Instruction (FI), Decode Instruction (DA), Calculate Effective Address (EG), Fetch Operands (FO), Execute Instruction (EX), and Store Result.
+
+In a streamlined four-segment instruction pipeline model, these steps are combined:
+
+- **Segment 1 (FI):** Fetches the instruction word from memory or a FIFO instruction queue.
+- **Segment 2 (DA):** Decodes the operation and calculates the operand's effective address.
+- **Segment 3 (FO):** Fetches the operand from memory.
+- **Segment 4 (EX):** Executes the instruction and stores the result in a processor register.
+
+While instruction pipelines significantly boost execution speed, they encounter three major categories of **pipeline hazards** (conflicts) that disrupt smooth execution:
+
+1. **Resource Conflicts:** Occur when two segments attempt to access memory simultaneously (e.g., FI fetching an instruction while FO fetches an operand). Resolved by utilizing separate instruction and data memories (Harvard architecture) or dual-bus memory modules.
+2. **Data Dependency Conflicts:** Arise when an instruction requires data generated by a preceding instruction that has not yet completed execution. Resolved using:
+   - **Hardware Interlocks:** Control circuits that halt dependent pipeline stages until required data is written.
+   - **Operand Forwarding:** Direct hardware paths that route ALU results straight to the ALU input for the next cycle, bypassing register file write delay.
+   - **Delayed Load:** Compiler software reordering that inserts independent instructions or NO-OPs after load commands.
+3. **Branch Difficulties:** Caused by program control instructions (branches, jumps, interrupts) that alter the Program Counter (PC), invalidating prefetched pipeline stages. Mitigated using:
+   - **Prefetching Target Instruction:** Fetching both branch target and sequential paths.
+   - **Branch Target Buffer (BTB):** Associative memory storing previous branch addresses and target instructions for immediate retrieval.
+   - **Loop Buffer:** High-speed register buffer storing entire small loops locally.
+   - **Branch Prediction:** Hardware heuristic logic predicting conditional outcomes in advance.
+   - **Delayed Branch:** Compiler technique inserting safe instructions after branch calls.
+
+## RISC Pipeline
+
+Reduced Instruction Set Computers (**RISC**) maximize pipeline efficiency by enforcing simple, fixed-length instruction formats, register-to-register data operations, and standardized single-cycle instruction execution. Because address calculations and complex memory modes are eliminated from data manipulation tasks, a RISC instruction pipeline can be simplified into three streamlined stages:
+
+- **I (Instruction Fetch):** Fetches the fixed-length instruction from program memory and decodes it alongside register selection.
+- **A (ALU Operation):** Performs an arithmetic/logic operation, computes an effective memory address for loads/stores, or calculates a target address for branches.
+- **E (Execute/Writeback):** Transfers the ALU result to a register, sends the address to data memory, or updates the Program Counter (PC).
+
+To maintain single-cycle execution without hardware interlock stalls, RISC architectures rely heavily on **compiler optimization techniques** to resolve data and branch hazards.
+
+**Delayed Load Optimization:** Consider loading a register and immediately operating on it:
+
+1. `LOAD: R1 <- M[address 1]`
+2. `LOAD: R2 <- M[address 2]`
+3. `ADD: R3 <- R1 + R2` In a 3-stage pipeline, `ADD` requires $R2$ in stage A during clock cycle 4, but `LOAD R2` does not complete memory writeback into $R2$ until the end of cycle 4. This creates a data conflict. The compiler resolves this by inserting a `NO-OP` (no-operation) instruction or reordering independent code between the `LOAD` and `ADD`, ensuring valid data before execution.
+
+**Delayed Branch Optimization:** When a branch occurs, the program counter is modified, typically causing pipeline delay cycles. In a delayed branch scheme, the compiler places useful instructions _immediately after_ the branch instruction (in the branch delay slot). These instructions are fetched and executed regardless of whether the branch is taken, eliminating wasted delay cycles.
+
+## Vector Processing
+
+Certain advanced scientific applications—such as weather forecasting, seismic data processing, aerodynamics simulation, and AI model training—require billions of floating-point operations on vast data arrays. Conventional scalar processors handle data items one at a time through iterative loops, incurring massive loop-control and instruction-fetch overhead.
+
+**Vector processing** eliminates this overhead by evaluating single **vector instructions** that operate directly on entire ordered one-dimensional arrays of data. A single vector instruction specifies operand base addresses, vector length, and the operation code (e.g., $C(1:100) \leftarrow A(1:100) + B(1:100)$).
+
+**Matrix Multiplication Pipelines:** Multiplying two $n \times n$ matrices $A$ and $B$ requires $n^2$ inner products, totaling $n^3$ multiply-add operations. An inner product equation takes the form: $C = A_1 B_1 + A_2 B_2 + A_3 B_3 + \dots + A_k B_k$
+
+In a vector processor, this calculation is executed using a pipeline containing a 4-segment floating-point multiplier connected to a 4-segment floating-point adder. Paired operands $A_i$ and $B_i$ feed into the multiplier every clock cycle. The pipeline breaks the continuous summation into four interleaved partial sum streams, which are ultimately combined into the final inner product result.
+
+**Memory Interleaving:** To feed fast arithmetic pipelines with high-bandwidth data without memory bus bottlenecks, systems utilize **interleaved memory**. Memory is split into $N$ distinct modules, each with its own Address Register (AR) and Data Register (DR). In an $N$-way interleaved system (where $N$ is a power of 2), the $k$ least significant address bits select the memory module, while the remaining upper bits address specific locations within that module. This allows $N$ simultaneous memory accesses to proceed concurrently.
+
+**Superscalar vs. Vector Processors:** While vector processors execute a single vector instruction on array data items, **superscalar processors** execute multiple independent scalar instructions simultaneously per clock cycle using parallel functional units and dynamic dispatch circuitry.
+
+When high-performance vector processing, massive memory interleaving, tightly integrated multi-pipeline hardware, and liquid cooling systems are fully combined into a commercial scientific platform, the resulting architecture is classified as a **Supercomputer** (measured in FLOPS, megaflops, or gigaflops).
+
+## Array Processors
+
+An **array processor** is a high-performance system designed to perform computations on large structural arrays of data. Although array processors and vector processors both manipulate vector arrays, their underlying hardware architectures differ significantly. Array processors fall into two distinct structural classifications:
+
+**1. Attached Array Processor:** An attached array processor is an auxiliary back-end coprocessor attached to a conventional general-purpose host computer via an input-output interface and high-speed bus. Its purpose is to boost the numerical computation performance of the host system at a fraction of supercomputer costs.
+
+- **Structure:** Contains a local high-speed memory and specialized arithmetic units with pipelined floating-point adders and multipliers.
+- **Operation:** The host computer handles general data processing, operating system tasks, and file storage, while offloading dense vector calculations to the attached array processor's local memory for parallel execution.
+
+**2. SIMD Array Processor:** An SIMD array processor is a unified computer system featuring a single Master Control Unit (MCU) connected to a grid of identical **Processing Elements (PEs)**, each paired with its own local memory ($M_i$).
+
+- **Structure:** Each PE includes an ALU, floating-point units, and working registers. The Master Control Unit stores the main program.
+- **Operation:** Program decoding and scalar control operations occur within the Master Control Unit. When a vector instruction is encountered, the MCU broadcasts the command to all active PEs simultaneously. Each PE executes the identical instruction on the distinct data point residing in its individual local memory.
+- **Masking Schemes:** PEs incorporate control flags (active/inactive bits) to selectively enable or disable specific processing elements, allowing the system to handle vectors shorter than the total number of physical PEs.
+
+## Summary
+
+Pipelining and vector processing represent foundational architectural techniques that enable computer systems to transcend sequential processing limits, achieving high instruction throughput and rapid numerical processing.
+
+### Key Takeaways:
+
+- **Parallel Processing & Flynn's Taxonomy:** Parallel processing enhances throughput via concurrent functional units or multi-processor configurations, categorized by Flynn into SISD, SIMD, MISD, and MIMD systems.
+- **Pipelining Dynamics:** Pipelining splits operations into $k$ hardware stages separated by registers. The theoretical maximum speedup ratio approaches $k$ as task volume ($n$) grows large.
+- **Arithmetic & Instruction Pipelines:** Arithmetic pipelines decompose complex floating-point calculations into suboperations (exponent comparison, mantissa alignment, addition, normalization). Instruction pipelines overlap fetch, decode, and execution cycles but must resolve resource, data dependency, and branch hazards.
+- **RISC & Optimization:** Simple single-cycle RISC pipelines leverage compiler techniques like delayed load and delayed branch slots to eliminate pipeline stalls without complex interlock hardware.
+- **Vector & Supercomputing:** Vector instructions process structured array data directly, using memory interleaving and integrated pipelines to sustain massive throughput (FLOPS).
+- **Array Architectures:** Attached array processors serve as specialized back-end accelerators for general hosts, whereas SIMD array processors execute broadcast vector instructions across synchronized Processing Elements simultaneously.

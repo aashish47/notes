@@ -1,0 +1,202 @@
+export const metadata = {
+	title: "Microprogrammed Control Unit",
+	description:
+		"An introduction to microprogrammed control unit architecture covering hardwired versus microprogrammed control, control memory, microinstructions, address sequencing, opcode mapping, conditional branching, subroutine management, 20-bit microinstruction formats, symbolic microprogram routines, microoperation decoding, and microprogram sequencer design.",
+	order: 7,
+	draft: false,
+	tags: [
+		"computer architecture",
+		"microprogrammed control",
+		"control unit",
+		"hardwired control",
+		"control memory",
+		"microinstructions",
+		"microprogramming",
+		"address sequencing",
+		"opcode mapping",
+		"conditional branching",
+		"subroutine management",
+		"microinstruction format",
+		"microprogram sequencer",
+		"control signal decoding",
+		"digital logic design",
+	],
+};
+
+## Introduction
+
+How does a computer transform a high-level software command into billions of precisely timed electrical pulses across physical logic gates? Is the control system hardwired permanently into copper traces, or can it be programmed like software itself?
+
+In this lesson, we will explore the architecture of microprogrammed control units—the elegant mechanism that bridges software instructions and low-level digital hardware.
+
+- **Contrast** hardwired control units with microprogrammed control units in terms of speed, flexibility, and implementation.
+- **Trace** how address sequencing mechanisms, status bits, and opcode mapping direct the flow of microinstructions.
+- **Analyze** a complete 20-bit microinstruction format and write symbolic microprograms for common machine instructions.
+- **Examine** the internal hardware of a microprogram sequencer, including decoding circuits, multiplexers, and input logic.
+
+## Control Memory
+
+The Central Processing Unit (CPU) relies on its control unit to initiate sequences of microoperations in the correct order. Because any digital computer supports a finite set of microoperations, the overall complexity of the system stems from the sheer number of microoperation sequences it must execute. Historically, designers have implemented control units using one of two primary methods: **hardwired control** or **microprogrammed control**.
+
+In a **hardwired control unit**, control signals are generated directly by physical hardware logic, including fixed AND/OR gate arrays, decoders, encoders, and flip-flops.
+
+- **Key Characteristics:** High-speed operation, expensive design process, complex layout, and complete lack of flexibility. Adding or altering an instruction requires physical wiring changes.
+- **Typical Applications:** Systems where speed is paramount, such as the Intel 8085, Motorola 6802, Zilog 80, and modern Reduced Instruction Set Computer (RISC) processors.
+
+In a **microprogrammed control unit**, control signals are specified by binary control variables stored in a dedicated internal memory called **control memory**.
+
+- **Key Characteristics:** Elegant and systematic control structure, highly flexible instruction set, and simplified hardware design. Updating the computer's instruction set simply requires updating the control memory content.
+- **Typical Applications:** Complex Instruction Set Computer (CISC) architectures, such as the Intel 8080 and Motorola 68000.
+
+**Key Terminology of Microprogramming**
+
+- **Control Variable:** A binary state variable that specifies a microoperation. When active (1 or 0 depending on design), it initiates its corresponding microoperation.
+- **Control Word:** A string of 1s and 0s representing all active control variables at a given instant.
+- **Microinstruction:** An individual word stored in control memory containing a control word and next-address selection bits.
+- **Microprogram:** A sequence of microinstructions that executes a specific machine instruction or system routine.
+- **Control Memory:** Memory dedicated to holding the microprogram. It is usually Read-Only Memory (ROM) because microprograms rarely need to change once hardware production is complete.
+- **Dynamic Microprogramming:** An advanced setup where microprograms are loaded from auxiliary storage into a **writable control memory** (RAM), allowing software to modify system control logic dynamically.
+
+**Main Memory vs. Control Memory** A microprogrammed computer features two distinct memory systems:
+
+1. **Main Memory:** Holds user programs (machine code) and data. It is read/write enabled, user-accessible, and changes frequently.
+2. **Control Memory:** Holds the fixed microprogram. It is inaccessible to the standard user and contains microinstructions that generate control signals to fetch, decode, and execute machine instructions from main memory.
+
+**Control Unit Architecture** A standard microprogrammed control unit relies on key internal components:
+
+- **Control Address Register (CAR):** Specifies the memory address of the microinstruction currently being read.
+- **Control Memory (ROM):** Stores the microinstructions.
+- **Control Data Register (CDR / Pipeline Register):** Holds the microinstruction currently being executed while the next address generator circuit computes the address of the subsequent microinstruction.
+- **Next-Address Generator (Sequencer):** Computes the next CAR address based on branch conditions, increment logic, or external inputs.
+
+When a pipeline register (CDR) is present, the system uses a **two-phase clock**: one pulse updates CAR, and the other updates CDR, allowing microoperation execution to occur simultaneously with next-address calculation. If no CDR is used, the control unit operates with a **single-phase clock**, relying on the ROM's combinational circuit property where outputs remain stable as long as the CAR address remains unchanged.
+
+## Address Sequencing
+
+Microinstructions are organized in control memory in functional groups called **routines**. Each machine instruction in main memory has its own microprogram routine in control memory to execute its unique microoperations. The primary task of address sequencing hardware is to step sequentially through microinstructions within a routine and seamlessly branch from one routine to another.
+
+### Steps in Executing an Instruction
+
+1. **Instruction Fetch:** Power-on loads an initial starting address into CAR (usually address 64 or the fetch routine origin). The fetch routine reads the instruction from main memory into the Instruction Register / Data Register and increments the Program Counter (PC).
+2. **Effective Address Calculation:** If the instruction uses indirect addressing or indexing, control branches to a routine that computes the effective address in memory.
+3. **Instruction Execution:** The operation code (opcode) of the instruction is converted into a control memory address via a **mapping process**. Control jumps to this mapped routine to execute the instruction.
+4. **Return to Fetch:** Once execution finishes, an unconditional branch returns control to the start of the fetch routine to repeat the cycle.
+
+**Core Address Sequencing Capabilities** To handle complex instruction flows, the control memory hardware must support four core operations:
+
+- **Incrementing:** Advancing the CAR by 1 to execute consecutive microinstructions.
+- **Conditional and Unconditional Branching:** Testing system status bits to decide whether to jump to a new address or continue sequentially.
+- **Opcode Mapping:** Translating instruction opcode bits into a microinstruction entry-point address in control memory.
+- **Subroutine Call and Return:** Jumping to shared microcode sections (e.g., effective address calculation) and returning accurately to the calling routine.
+
+**Conditional Branching Logic** Branching relies on **status bits**—special signal lines representing conditions like adder carry-out, sign bit (S), zero value (Z), or addressing mode (I). A multiplexer (MUX) uses selection bits from the current microinstruction to select a specific status bit. If the selected bit is 1, the multiplexer output enables loading the branch address from the microinstruction into the CAR. If the selected bit is 0, the CAR simply increments by 1. Unconditional branching is achieved by fixing one multiplexer input permanently to 1.
+
+**Mapping Instructions to Microinstruction Addresses** To jump to the correct microcode execution routine, the 4-bit opcode of a machine instruction must be converted into a 7-bit control memory address (assuming a 128-word control memory).
+
+- **Simple Padding Method:** Place a leading 0, insert the 4-bit opcode, and pad with two trailing 0s. For example, opcode `0101` maps to CAR address `0 0101 00` (decimal 20). This provides 4 memory words per instruction routine.
+- **ROM / PLD Mapping:** Pass opcode bits as inputs to a Mapping Read-Only Memory or Programmable Logic Device (PLD). The output directly specifies the starting address of the microprogram routine anywhere in control memory, maximizing memory allocation flexibility.
+
+**Subroutine Management** Shared microcode sequences, such as computing effective addresses, are best implemented as **subroutines** to save control memory space. When a subroutine call microinstruction executes, the incremented CAR value (the return address) is stored in a dedicated **Subroutine Register (SBR)** or pushed onto a Last-In, First-Out (LIFO) register stack. A return microinstruction (`RET`) then restores the saved address from SBR back into CAR.
+
+## Microprogram Example
+
+To understand microprogramming in practice, let us analyze a concrete microprogrammed digital computer system.
+
+### Computer Hardware Configuration
+
+- **Main Memory:** 2048 words x 16 bits.
+- **Control Memory:** 128 words x 20 bits.
+- **Processor Registers:**
+  - **PC (Program Counter):** 11 bits (holds instruction addresses).
+  - **AR (Address Register):** 11 bits (specifies main memory addresses).
+  - **DR (Data Register):** 16 bits (holds data read from or written to main memory).
+  - **AC (Accumulator):** 16 bits (performs arithmetic and logic operations).
+- **Control Registers:**
+  - **CAR (Control Address Register):** 7 bits.
+  - **SBR (Subroutine Register):** 7 bits.
+
+Data moves between processor registers through multiplexers rather than a single shared bus. Main memory receives addresses strictly from AR; data read from main memory enters DR; data written to main memory originates from DR.
+
+**Machine Instruction Format** Each 16-bit machine instruction consists of three fields:
+
+- Bit 15: **I** (1 bit for indirect addressing mode; 0 = direct, 1 = indirect).
+- Bits 14–11: **Opcode** (4 bits, providing up to 16 instructions).
+- Bits 10–0: **Address** (11 bits, specifying operand location in main memory).
+
+Four example machine instructions include:
+
+- **ADD** (`0000`): $AC \leftarrow AC + M[EA]$
+- **BRANCH** (`0001`): If ($AC < 0$), then $PC \leftarrow EA$
+- **STORE** (`0010`): $M[EA] \leftarrow AC$
+- **EXCHANGE** (`0011`): $AC \leftarrow M[EA], M[EA] \leftarrow AC$
+
+**20-Bit Microinstruction Format** Each control memory word is 20 bits wide and divided into six distinct fields:
+
+- **F1, F2, F3 (Bits 19–11):** Three 3-bit microoperation fields. Each field specifies one microoperation from a predefined set (000 = NOP). Up to three non-conflicting microoperations can execute simultaneously.
+- **CD (Bits 10–9):** Condition field (2 bits). Selects status test condition:
+  - `00` (**U**): Unconditional branch (always 1).
+  - `01` (**I**): Indirect bit ($DR(15)$).
+  - `10` (**S**): Sign bit of AC ($AC(15)$).
+  - `11` (**Z**): Zero flag in AC ($AC = 0$).
+- **BR (Bits 8–7):** Branch field (2 bits). Selects next-address operation:
+  - `00` (**JMP**): $CAR \leftarrow AD$ if condition is true; else $CAR \leftarrow CAR + 1$.
+  - `01` (**CALL**): $CAR \leftarrow AD$ and $SBR \leftarrow CAR + 1$ if condition is true; else $CAR \leftarrow CAR + 1$.
+  - `10` (**RET**): $CAR \leftarrow SBR$ (Return from subroutine).
+  - `11` (**MAP**): $CAR(2\text{--}5) \leftarrow DR(11\text{--}14)$, $CAR(0,1,6) \leftarrow 0$.
+- **AD (Bits 6–0):** Address field (7 bits, specifying target branch address).
+
+**Symbolic Microprogram Routines** Using assembly language rules, microinstructions can be written symbolically:
+
+- **Fetch Routine (Origin address 64):**
+  1. `PCTAR U JMP NEXT`: Transfer PC to AR.
+  2. `READ, INCPC U JMP NEXT`: Read main memory into DR; increment PC.
+  3. `DRTAR U MAP`: Transfer address bits $DR(0\text{--}10)$ to AR; map opcode to CAR.
+- **Indirect Subroutine (INDRCT):**
+  1. `READ U JMP NEXT`: Read effective address from main memory into DR.
+  2. `DRTAR U RET`: Transfer effective address to AR; return from subroutine.
+- **ADD Routine (Origin address 0):**
+  1. `NOP I CALL INDRCT`: If $I=1$, call INDRCT subroutine.
+  2. `READ U JMP NEXT`: Read operand into DR.
+  3. `ADD U JMP FETCH`: Add DR to AC; jump back to FETCH.
+
+## Design of Control Unit
+
+Designing the physical control unit requires decoding the control memory output fields into actionable physical control signals and building an address sequencing unit.
+
+**Decoding Microoperation Fields** Grouping mutually exclusive microoperations into encoded fields reduces microinstruction width. However, external 3-to-8 decoders are required to convert the 3-bit subfields ($F1, F2, F3$) into individual control lines.
+
+For example:
+
+- When $F1 = 101$ (binary 5), output 5 of decoder $F1$ becomes active, representing `DRTAR` ($AR \leftarrow DR(0\text{--}10)$).
+- When $F1 = 110$ (binary 6), output 6 of decoder $F1$ becomes active, representing `PCTAR` ($AR \leftarrow PC$).
+- Outputs 5 and 6 of decoder $F1$ connect to an OR gate feeding the Load input of register AR. Output 5 also controls the MUX select line to route data from DR rather than PC.
+- ALU control lines (such as ADD, AND, DRTAC) connect directly to decoder outputs to trigger specific arithmetic and logic circuits during the clock transition.
+
+**Microprogram Sequencer Structure** The hardware circuit responsible for presenting addresses to control memory is called the **microprogram sequencer**. It consists of:
+
+1. **Multiplexer 1 (MUX 1):** A 7-bit 4-to-1 multiplexer that selects the source for CAR from four possibilities: the Incrementer, Address Field (AD), Subroutine Register (SBR), or External Opcode Mapping.
+2. **Multiplexer 2 (MUX 2):** Tests system status conditions based on the microinstruction's CD field, outputting test variable $T$ (1 if condition met, 0 if false).
+3. **Control Address Register (CAR):** Stores the 7-bit address for control memory.
+4. **Subroutine Register (SBR):** Stores the return address ($CAR + 1$) during subroutine calls.
+5. **Combinational Incrementer:** Cascaded half-adder gates that compute $CAR + 1$ without requiring flip-flops.
+6. **Input Logic Circuit:** Determines multiplexer selection lines ($S_1, S_0$) and the load signal ($L$) for SBR based on BR field bits ($I_1, I_0$) and test output $T$.
+
+**Input Logic Truth Table & Boolean Logic** By mapping branch inputs ($I_1, I_0$) and test status ($T$) to MUX 1 selection modes ($S_1, S_0$) and SBR load ($L$), we derive the exact logic functions:
+
+- $S_1 = I_1$
+- $S_0 = I_1 I_0 + I_1' T$
+- $L = I_1' I_0 T$
+
+This simple combinational logic block (constructed using three AND gates, one OR gate, and an inverter) enables full sequencer control over program branches, subroutine calls, returns, and opcode mapping.
+
+## Summary
+
+Microprogrammed control provides a structured, highly adaptable approach to digital system design by storing binary control variables in control memory as microinstructions rather than locking them into fixed hardwired logic circuits.
+
+### Key Takeaways
+
+- **Hardwired vs. Microprogrammed:** Hardwired control prioritizes speed at the expense of flexibility; microprogrammed control prioritizes systematic design and modify-ability.
+- **Control Memory Architecture:** CAR selects microinstruction addresses in ROM/RAM; CDR (pipeline register) enables simultaneous execution and next-address generation.
+- **Address Sequencing:** The control unit handles sequential execution, status-bit conditional branching, opcode mapping (via padded logic, ROM, or PLD), and subroutine stack management.
+- **Microinstruction Encoding:** Grouping non-conflicting microoperations into fields ($F1, F2, F3$) saves memory width but requires external 3-to-8 decoders.
+- **Sequencer Logic:** The microprogram sequencer combines multiplexers, test logic, incrementers, and boolean input logic to control hardware execution seamlessly.

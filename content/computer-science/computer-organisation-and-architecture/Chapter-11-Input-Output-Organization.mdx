@@ -1,0 +1,353 @@
+export const metadata = {
+	title: "Computer Input-Output Organization",
+	description:
+		"An introduction to computer I/O organization, covering peripheral devices, I/O interfaces, asynchronous data transfer, programmed and interrupt-initiated I/O, DMA, priority interrupts, input-output processors, and serial communication protocols.",
+	order: 11,
+	draft: false,
+	tags: [
+		"computer architecture",
+		"input-output organization",
+		"peripheral devices",
+		"I/O interfaces",
+		"asynchronous data transfer",
+		"interrupts",
+		"direct memory access",
+		"input-output processors",
+		"serial communication",
+	],
+};
+
+## Introduction
+
+Did you know that a high-speed CPU executing billions of instructions per second would spend over 99.9% of its time completely idle if forced to wait directly for a human to type a single key? To bridge this astronomical speed gap, computer architectures rely on a sophisticated hierarchy of input-output interfaces, asynchronous handshakes, and autonomous processors.
+
+By the end of this lesson, you will be able to:
+
+- **Differentiate** between peripheral types and decode standard binary alphanumeric formats like 7-bit ASCII.
+- **Contrast** isolated I/O and memory-mapped I/O addressing schemes and explain interface register decoding.
+- **Analyze** asynchronous timing protocols including strobe control, two-wire handshaking, and FIFO buffer logic.
+- **Evaluate** the trade-offs among programmed I/O, interrupt-initiated I/O, direct memory access (DMA), and dedicated I/O processors (IOP).
+- **Detail** hardware priority interrupt mechanisms (daisy-chaining vs. parallel priority encoders) and serial communication link protocols.
+
+## Peripheral Devices
+
+Imagine trying to conduct a high-powered business meeting where one person speaks at lightspeed while another communicates by typing one character every few seconds. This is precisely the dilemma facing a computer system. The central processing unit (CPU) operates at blistering electronic speeds, whereas human operators and electromechanical devices move at a relative crawl. To make a computer genuinely useful, it must communicate with the outside world through **peripherals**—devices under the direct control of the computer, classified as on-line when connected directly to the system.
+
+Peripherals fall into three core categories: **input peripherals** (like keyboards and character readers), **output peripherals** (like printers and display units), and **input-output peripherals** or auxiliary storage (like magnetic disks and tapes).
+
+### Video Monitors and Keyboards
+
+Video monitors represent the most ubiquitous interactive peripheral. Modern display terminals combine a keyboard for input with a display screen (historically based on Cathode Ray Tubes or CRTs) for output. On CRT displays, an electron beam sweeps horizontally and vertically across a phosphorescent screen. By modulating the grid voltage, phosphors glow at designated coordinates to generate visual characters and graphics.
+
+Key features of monitor interaction include:
+
+- **The Cursor**: A highlight character marking where the next character will appear. Edit keys allow users to position the cursor to modify single characters, words, or full lines.
+- **Single-Character Mode**: Every keystroke immediately transmits a binary character code to the host processor.
+- **Block Mode**: Text is accumulated and edited locally within terminal memory before being transmitted as a unified data block, drastically reducing processor interruption.
+
+### Printers and Auxiliary Storage
+
+Printers convert digital results into permanent hard-copy output on paper. They generally fall into three structural mechanisms:
+
+1. **Daisywheel Printers**: Utilize a rotating wheel with molded character shapes along its circumference, struck by a energized magnet against an inked ribbon.
+2. **Dot Matrix Printers**: Employ a vertical column of pins (such as a $5 \times 7$ dot matrix) that fire selectively as the print head glides horizontally across the line.
+3. **Laser Printers**: Apply a rotating photographic drum to electrostatically imprint character images, which are transferred to paper using heat and toner—much like a photocopier.
+
+For bulk data storage, **magnetic tapes** offer low-cost, sequential-access file storage (ideal for archiving payroll records), while **magnetic disks** offer rapid, direct-access storage by positioning magnetic read-write heads over rotating concentric tracks.
+
+### ASCII Alphanumeric Characters
+
+Human-computer interaction depends on a common binary code. The standard representation is **ASCII** (American Standard Code for Information Interchange), a 7-bit binary code capable of representing $2^7 = 128$ distinct characters ($b_1$ through $b_7$, where $b_7$ is the most significant bit):
+
+- **94 Printable Characters**: Including uppercase ($A-Z$), lowercase ($a-z$), numerals ($0-9$), and printable symbols (e.g., `%`, `$`).
+- **34 Non-Printing Control Characters**: Used for formatting and communication routing.
+
+ASCII control characters are split into three functional domains:
+
+- **Format Effectors**: Direct physical text layout (e.g., Backspace `BS`, Horizontal Tab `HT`, Carriage Return `CR`).
+- **Information Separators**: Organize data structures into logical units (e.g., Record Separator `RS`, File Separator `FS`).
+- **Communication Controls**: Frame messages across transmission lines (e.g., Start of Text `STX`, End of Text `ETX`).
+
+Although ASCII is a 7-bit code, modern systems store characters within 8-bit **bytes**. The 8th bit is frequently utilized for parity checking in data communications or to expand the character set to 256 symbols (enabling italic fonts or foreign alphabets).
+
+## Input–Output Interface
+
+Why can't we plug a magnetic disk or printer directly into the CPU's bus? The reason stems from fundamental operational mismatch:
+
+1. **Signal Differences**: Peripherals are electromechanical or electromagnetic, whereas the CPU and RAM are purely electronic.
+2. **Speed Mismatch**: Data transfer rates in peripherals are orders of magnitude slower than CPU execution rates.
+3. **Format Discrepancies**: Peripheral data formats and word lengths rarely match internal processor registers.
+4. **Mode Autonomy**: Peripherals operate independently and must be managed so they don't disrupt other active units.
+
+To bridge these differences, computer architectures place specialized hardware units—called **interface units**—between the system bus and external devices.
+
+### I/O Bus and Command Execution
+
+An **I/O Bus** comprises data lines, address lines, and control lines connected in parallel to all peripheral interfaces. When the CPU wants to communicate with a specific peripheral:
+
+1. The CPU places a unique device address onto the address lines.
+2. Each interface contains an address decoder. When an interface recognizes its assigned address, it activates its local data path and enables communication; all unaddressed interfaces remain disabled.
+3. Concurrently, the CPU places an **I/O command** (function code) on the control lines.
+
+Interface units execute four primary types of I/O commands:
+
+- **Control Command**: Instructs the peripheral to perform a physical action (e.g., rewind tape, position disk head).
+- **Status Command**: Tests peripheral state flags (e.g., device busy, paper out, parity error detected).
+- **Data Output Command**: Prompts the interface to pull data from the system bus into its internal buffer register.
+- **Data Input Command**: Prompts the interface to receive data from the device buffer and place it onto the system bus for the CPU.
+
+### Isolated vs. Memory-Mapped I/O
+
+Computers structure memory and peripheral addressing using one of two primary topologies:
+
+- **Isolated I/O**: The system maintains separate address spaces for memory words and I/O registers. The CPU uses distinct read/write control lines (`Memory Read`/`Memory Write` vs. `I/O Read`/`I/O Write`) and specialized instructions (like `IN` and `OUT`). Memory addresses remain untouched by peripheral assignments.
+- **Memory-Mapped I/O**: The system assigns I/O interface registers directly to addresses within the standard memory space. There are no specialized I/O instructions; standard memory-reference instructions (`LOAD`, `STORE`) interact directly with interface registers. This vastly expands I/O manipulation capabilities, though it reduces the total memory range available for system RAM.
+
+### Architecture of a Typical I/O Interface
+
+A standard interface unit contains four internal registers accessed via two register select lines ($RS1, RS0$) and a Chip Select ($CS$) line:
+
+- **Port A Register**: Handles bidirectional or unidirectional data transfer.
+- **Port B Register**: Handles a second independent data transfer channel.
+- **Control Register**: Accepts mode configuration bytes from the CPU (e.g., setting Port A as input, Port B as output).
+- **Status Register**: Holds operational flag bits (e.g., buffer full, error flags).
+
+## Asynchronous Data Transfer
+
+When two units—such as a CPU and an external device—operate on independent internal clock generators, they are **asynchronous**. Transmitting data between them requires control signaling to coordinate exact transfer instants.
+
+### Strobe Control vs. Handshaking
+
+- **Strobe Pulse**: A single control line accompanies the data lines. In a _source-initiated transfer_, the source places valid data on the bus and fires a strobe pulse to tell the destination to capture it. In a _destination-initiated transfer_, the destination fires a strobe pulse requesting data, and the source responds by placing data on the bus.
+  - _Limitation_: The transmitting unit has no feedback mechanism to confirm whether the receiving unit actually captured the data.
+- **Handshaking**: Introduces a two-wire agreement scheme for complete transfer confirmation:
+  - **Source-Initiated Handshake**: The source places data on the bus and enables `Data Valid`. The destination accepts the data and responds by enabling `Data Accepted`. The source then disables `Data Valid`, prompting the destination to disable `Data Accepted` and return the bus to its idle state.
+  - **Destination-Initiated Handshake**: The destination asserts `Ready for Data`. The source places data on the bus and asserts `Data Valid`. Once captured, the destination drops `Ready for Data`, and the source invalidates the data line.
+  - _Reliability_: Handshaking prevents data loss due to variable response times. If a device fails to respond, a **timeout mechanism** in the CPU triggers an interrupt to execute recovery routines.
+
+### Asynchronous Serial Transfer & UARTs
+
+In serial transmission, characters are transmitted bit-by-bit over a single pair of wires. To keep sender and receiver synchronized without a shared clock line, asynchronous framing is used:
+
+- **Idle State**: The transmission line rests at logic 1.
+- **Start Bit**: A leading logic 0 signals the arrival of a character.
+- **Character Bits**: 5 to 8 data bits follow the start bit.
+- **Stop Bits**: 1 or 2 logic 1 bits frame the end of the character to allow receiver resynchronization.
+
+Transmission speed is measured in **baud rate** (bits per second). For instance, transmitting 10 characters per second using an 11-bit frame (1 start bit, 8 data bits, 2 stop bits) yields a transfer rate of 110 baud ($10 \text{ characters/sec} \times 11 \text{ bits/character}$).
+
+Hardware implementations utilize an **Asynchronous Communication Interface** or **UART** (Universal Asynchronous Receiver-Transmitter). A UART features double-buffered transmitter and receiver registers alongside internal shift registers, allowing a new byte to be loaded into the buffer while the previous byte is being shifted out bit-by-bit.
+
+During reception, the UART monitors for three critical errors:
+
+1. **Parity Error**: The number of 1s in the received data does not match the configured parity.
+2. **Framing Error**: A logic 1 stop bit was not detected at the expected frame boundary.
+3. **Overrun Error**: The CPU failed to read the previous character from the receiver register before a new character was shifted in, causing data loss.
+
+### First-In, First-Out (FIFO) Buffers
+
+A **FIFO buffer** is a specialized memory unit that inputs and outputs data at independent speeds while maintaining strict data order. Internally, a FIFO consists of data registers paired with control flip-flops ($F_1$ to $F_n$). When data is loaded, flag logic causes data words to automatically ripple through empty register slots until reaching the output end. FIFOs smooth out bursty data transfers between asynchronous systems.
+
+## Modes of Transfer
+
+Data transfer between CPU registers and peripherals can be executed in three primary operational modes, each offering different levels of hardware complexity and processing efficiency:
+
+1. Programmed I/O
+
+In **programmed I/O**, data transfers are driven entirely by software instructions executed by the CPU. To transfer a byte, the CPU must:
+
+1. Execute an instruction to read the interface status register.
+2. Test the flag bit ($F$) in a loop. If $F = 0$ (data not ready), the CPU loops back and reads the status register again.
+3. Once $F = 1$, execute an input instruction to read the interface data register into a CPU register.
+4. Execute a store instruction to transfer the word from the CPU register into RAM.
+
+_Major Drawback_: If an input device produces only 100 bytes/sec and the CPU completes status check loops in 1 microsecond, the CPU will execute 10,000 wasteful polling loops between every single byte transferred! This keeps the processor needlessly trapped in idle waiting loops.
+
+2. Interrupt-Initiated I/O
+
+To eliminate wasteful polling loops, **interrupt-initiated I/O** allows the CPU to continue executing main program tasks while peripherals process data.
+
+- When an interface unit completes a data transfer and is ready for the CPU, it asserts an **interrupt request** signal.
+- Upon detecting the interrupt signal, the CPU completes its current instruction cycle, saves its return address (Program Counter) onto the stack, and branches to an **I/O service routine**.
+- Service routine location handling:
+  - **Nonvectored Interrupt**: Control branches to a hardwired, fixed memory location.
+  - **Vectored Interrupt**: The interrupting source supplies an **interrupt vector** to the CPU, specifying the exact starting address (or pointer) of its service routine.
+
+3. Direct Memory Access (DMA)
+
+For high-speed storage units (like magnetic disks), transferring data byte-by-byte through CPU registers creates a severe bottleneck. **Direct Memory Access (DMA)** bypasses the CPU entirely, allowing the interface controller to manage the system memory buses directly to transfer blocks of data straight to or from RAM.
+
+### Software Considerations
+
+Standardized operating system software provides pre-built **I/O drivers** to issue device commands, monitor status flags, process interrupts, and initiate DMA blocks, shielding application programmers from low-level register manipulation.
+
+## Priority Interrupt
+
+In real-world computer systems, multiple peripherals are connected simultaneously, each capable of issuing interrupt requests. A **priority interrupt** system establishes a defined order to determine which device is serviced first when simultaneous requests occur, and ensures high-speed devices (like disks) take precedence over slower devices (like keyboards).
+
+### Priority Determination: Software vs. Hardware
+
+- **Software Polling**: A single common interrupt line alerts the CPU. The CPU executes a polling routine that tests each device's status flag sequentially. The order of testing defines priority. However, polling many devices consumes excessive CPU time.
+- **Hardware Priority**: Hardware control logic evaluates simultaneous requests instantaneously and routes the CPU directly to the vector address without software loops.
+
+### Daisy-Chaining Priority (Serial Connection)
+
+In a **daisy-chaining** scheme, all devices share a common wired-OR interrupt request line, but the interrupt acknowledge signal (`INTACK`) passes serially through devices in order of priority:
+
+- Device 1 (Highest Priority) receives `INTACK` at its Priority In ($PI$) input.
+- If Device 1 has a pending request, it blocks `INTACK` by forcing its Priority Out ($PO$) to 0, and places its Vector Address ($VAD$) on the data bus.
+- If Device 1 has no request pending, it passes $PO = 1$ to Device 2's $PI$ input, propagating down the line until the requesting device intercepts the signal.
+
+### Parallel Priority Interrupt
+
+Parallel priority uses an **Interrupt Register** (where individual bits are set by peripheral logic) and a **Mask Register** (programmed by the CPU to selectively enable or disable specific interrupt inputs).
+
+Outputs from both registers feed into a **Priority Encoder**:
+
+- If $I_0$ (Disk) is active, the encoder outputs binary $xy = 00$ regardless of lower inputs.
+- If $I_0 = 0$ and $I_1$ (Printer) is active, the encoder outputs $xy = 01$.
+- The output $xy$ forms part of the vector address $VAD$ pushed to the bus.
+- An Interrupt Status ($IST$) bit is set when an unmasked interrupt occurs, which is ANDed with the global Interrupt Enable flip-flop ($IEN$) to alert the CPU.
+
+### Interrupt Cycle & Housekeeping Overhead
+
+When $IEN = 1$ and $IST = 1$, the CPU initiates an **Interrupt Cycle**:
+
+$$
+\text{SP} \leftarrow \text{SP} - 1, \quad M[\text{SP}] \leftarrow \text{PC}
+$$
+
+$$
+\text{INTACK} \leftarrow 1, \quad \text{PC} \leftarrow \text{VAD}, \quad \text{IEN} \leftarrow 0
+$$
+
+To prevent corruption of program execution, every interrupt routine executes initial and final **housekeeping chores**:
+
+1. **Initial**: Clear lower-level mask bits, clear $IST$, save CPU registers on stack, set $IEN = 1$ (allowing higher-priority devices to preempt the current routine).
+2. **Final**: Clear $IEN$, restore saved CPU registers, clear the device's interrupt bit, restore mask bits, pop the original PC return address, and enable $IEN$.
+
+## Direct Memory Access (DMA)
+
+To achieve maximum transfer rates between fast devices (like hard drives) and memory, systems use **Direct Memory Access (DMA)**. During DMA, the CPU relinquishes control of the system bus, allowing the DMA Controller to drive memory lines directly.
+
+### Bus Signals: BR and BG
+
+Two key CPU signals facilitate DMA transfer:
+
+- **Bus Request (**$BR$**)**: Asserted by the DMA controller to ask the CPU to relinquish bus control.
+- **Bus Grant (**$BG$**)**: Asserted by the CPU to confirm its output lines (`Address Bus`, `Data Bus`, `Read`, `Write`) have entered a high-impedance state (behaving like an open circuit). The DMA controller now acts as the bus master.
+
+### Modes of DMA Transfer
+
+- **Burst Transfer**: A full block of memory words is transferred continuously while the DMA controller holds the buses. Necessary for rapid storage mediums that cannot be paused mid-stream.
+- **Cycle Stealing**: The DMA controller requests the buses for a single memory cycle, transfers one word, and releases control back to the CPU. The CPU merely pauses for one memory cycle without losing state context.
+
+### DMA Controller Architecture
+
+A standard DMA controller contains three primary operational registers:
+
+1. **Address Register**: Holds the starting RAM address for read/write. Auto-increments after each word transfer.
+2. **Word Count Register**: Holds the total number of words in the block. Auto-decrements after each transfer until it reaches zero.
+3. **Control Register**: Specifies transfer mode (Read or Write channel setting).
+
+_Note on Control Lines_: The DMA Controller's `RD` and `WR` lines are **bidirectional**. When $BG = 0$, they act as _inputs_ so the CPU can program internal DMA registers via the data bus. When $BG = 1$, they act as _outputs_ driven by the DMA to trigger RAM read or write commands.
+
+### Step-by-Step DMA Transfer Sequence
+
+1. **Initialization**: The CPU sends the memory block starting address, word count, and transfer mode to the DMA registers via the data bus.
+2. **Peripheral Request**: The device asserts `DMA Request` to the DMA controller.
+3. **Bus Takeover**: The DMA asserts $BR = 1$. The CPU finishes its bus cycle, sets bus outputs to high impedance, and asserts $BG = 1$.
+4. **Data Transfer**: The DMA controller puts the Address Register value on the address bus, asserts `DMA Acknowledge` to the peripheral, and asserts `RD` or `WR` control signals.
+5. **Block Termination**: For each word transferred, Address Register increments and Word Count decrements. When Word Count reaches zero, the DMA drops $BR$, returning bus mastership to the CPU, and issues an interrupt to notify the CPU that the transfer is complete.
+
+## Input–Output Processor (IOP)
+
+In high-performance computing systems, even DMA control logic is insufficient to manage hundreds of concurrent I/O devices. Instead, systems incorporate independent specialized processing units called **Input-Output Processors (IOP)** or **Data Channels**.
+
+An IOP is an autonomous processor capable of fetching and executing its own specialized instruction set (called **commands**). While the CPU executes general computational programs, the IOP independently fetches commands from memory, executes data transformations, manages device handshaking, and steers DMA traffic.
+
+### CPU-IOP Communication Protocol
+
+Communication between the main CPU and an IOP relies on shared system RAM operating as a message center:
+
+1. The CPU tests the IOP path by reading status words.
+2. If clear, the CPU issues a _Start I/O_ instruction, passing the memory address of the **IOP Command Program**.
+3. The CPU returns to processing application programs.
+4. The IOP reads its command words from RAM, parses control flags, and carries out data transfers using DMA.
+5. Upon finishing the I/O program, the IOP issues an interrupt request to the CPU and writes a **Channel Status Word (CSW)** into a dedicated memory location for CPU inspection.
+
+### Case Study 1: IBM 370 I/O Channel Architecture
+
+IBM 370 mainframes categorize channels into three structural formats:
+
+- **Multiplexer Channel**: Interleaves byte-by-byte data transfers across multiple slow/medium devices simultaneously.
+- **Selector Channel**: Controls one high-speed device at a time in full block bursts.
+- **Block-Multiplexer Channel**: Combines features of both, multiplexing full data block transfers across multiple high-speed devices.
+
+IOP commands in the IBM 370 are called **Channel Command Words (CCW)**, specifying functions like _Read_, _Write_, _Read Backwards_, _Control_ (tape rewind), and _Transfer in Channel_ (branching). Flags enable **Data Chaining** (combining separate RAM buffers into a single physical record) or **Command Chaining** (executing sequential device actions).
+
+### Case Study 2: Intel 8089 IOP
+
+Designed to partner with the 8086 micro-architecture, the Intel 8089 IOP contains two independent channels. The CPU alerts the 8089 by pulling its `Channel Attention` line. The 8089 reads linked message blocks in RAM:
+
+- **Control Block**: Contains channel busy flags and command words.
+- **Parameter Block**: Contains starting memory addresses, byte counts, and track/sector parameters.
+- **Task Block**: Contains the custom 8089 instruction program executed by the channel.
+
+## Serial Communication
+
+When connecting remote computing nodes across networks or telephone infrastructure, parallel buses are impractical due to cable cost and signal skew. Systems rely on a **Data Communication Processor (DCP)** that converts multi-line bus words into serial streams transmitted over single conductor pairs.
+
+Because traditional telephone networks were built for analog voice audio, computers connect via **Modems** (Modulator-Demodulator), converting digital binary signals into audio frequency tones and vice versa.
+
+### Transmission Modes & Error Control
+
+Data transfer channels are classified by directionality:
+
+- **Simplex**: One-way transmission only (e.g., radio broadcasting).
+- **Half-Duplex**: Two-way transmission, but only one direction at a time (requires turnaround time to reverse channel role).
+- **Full-Duplex**: Simultaneous two-way transmission (requires 4-wire cables or split-frequency band 2-wire pairs).
+
+To ensure integrity over noisy serial lines, systems perform error detection using:
+
+- **Character Parity & Echoing**: Transmitting characters back to the sender terminal display for visual operator verification.
+- **Longitudinal Redundancy Check (LRC)**: An exclusive-OR accumulation across corresponding bit positions of all characters in a message block.
+- **Cyclic Redundancy Check (CRC)**: A polynomial shift-register division code appended to message blocks, highly effective at catching burst errors.
+
+### Character-Oriented Protocols
+
+In **Character-Oriented Protocols** (e.g., ASCII protocols), control characters structure the data link frame:
+
+$$
+\text{SYN} \rightarrow \text{SYN} \rightarrow \text{SOH (Header)} \rightarrow \text{STX (Text)} \rightarrow \text{ETX} \rightarrow ext{BCC (LRC/CRC)}
+$$
+
+- `SYN` (Synchronous Idle) bits establish receiver character framing.
+- **Data Transparency**: If binary files (like executable images) contain raw byte patterns matching control characters like `ETX`, the receiver will prematurely terminate parsing. To achieve data transparency, the transmitter inserts a Data Link Escape (`DLE`) character before control symbols. In text fields, any raw data byte matching `DLE` is doubled (`DLE DLE`), telling the receiver to strip the leading `DLE` and treat the second byte as pure data.
+
+### Bit-Oriented Protocols
+
+Modern data link controls—such as SDLC, HDLC, and ADCCP—use **Bit-Oriented Protocols**. These transmit continuous bit streams unfettered by character boundary rules using a unique 8-bit flag frame: `01111110`.
+
+$$
+\begin{array}{|c|c|c|c|c|c|} \hline \text{Flag } (01111110) & \text{Address } (8\text{b}) & \text{Control } (8\text{b}) & \text{Information Field} & \text{CRC } (16\text{b}) & \text{Flag } (01111110) \\ \hline \end{array}
+$$
+
+To prevent raw information bits from accidentally creating a false flag pattern (`01111110`), bit-oriented protocols enforce **Zero Insertion**:
+
+- The transmitter automatically inserts a logic `0` after _any_ sequence of five consecutive `1`s during transmission.
+- The receiving hardware inspects incoming streams: upon reading five continuous `1`s followed by a `0`, it automatically strips the zero bit, restoring original data perfectly.
+
+## Summary
+
+Computer Input-Output organization acts as the indispensable bridge between ultra-fast central processing hardware and the diverse, asynchronous peripheral world. By mastering interface command decoders, handshaking protocols, priority hardware interrupt controllers, DMA channels, and serial framing rules, computer architects build systems capable of fluidly processing real-time tasks without letting slow I/O operations paralyze processor execution.
+
+### Key Takeaways
+
+- **Interfaces Bridge the Gap**: I/O interfaces resolve signal, speed, code, and operating mode differences between CPU buses and electromechanical peripherals.
+- **Addressing Models**: Isolated I/O keeps memory and peripheral address spaces distinct using specific I/O control lines; Memory-Mapped I/O embeds interface registers into the unified RAM address space.
+- **Asynchronous Reliability**: Two-wire handshaking (`Data Valid` / `Data Accepted`) guarantees robust data exchange across independent clock domains, protected by timeout alarms.
+- **Transfer Mode Trade-offs**: Programmed I/O wastes CPU cycles in status polling loops; Interrupt-Initiated I/O frees CPU time by signaling readiness; DMA bypasses CPU execution entirely for high-speed block memory transfers.
+- **Hardware Priority**: Parallel priority encoders and daisy-chain lines handle simultaneous interrupt requests instantaneously without software polling delays.
+- **Dedicated Processors**: IOPs and Data Channels fetch their own command programs from RAM to autonomously execute complex I/O pipelines.
+- **Serial Framing**: Bit-oriented protocols achieve full data transparency through hardware zero insertion after five consecutive logic 1 bits.

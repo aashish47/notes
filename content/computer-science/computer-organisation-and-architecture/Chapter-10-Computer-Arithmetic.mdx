@@ -1,0 +1,234 @@
+export const metadata = {
+	title: "Computer Arithmetic",
+	description:
+		"An introduction to computer arithmetic algorithms and hardware, covering signed-magnitude and 2's complement addition and subtraction, Booth's algorithm, array multiplication, binary division, floating-point operations, BCD arithmetic circuits, and multi-digit decimal arithmetic.",
+	order: 10,
+	draft: false,
+	tags: [
+		"computer architecture",
+		"computer arithmetic",
+		"binary arithmetic",
+		"signed number representation",
+		"Booth's algorithm",
+		"binary multiplication",
+		"binary division",
+		"floating-point arithmetic",
+		"BCD arithmetic",
+		"arithmetic logic unit",
+	],
+};
+
+## Introduction
+
+How does a modern processor perform billions of mathematical calculations every second using nothing more than microscopic switches turning on and off? The secret lies in **computer arithmetic**—the precise collection of hardware logic and step-by-step algorithms that transform raw binary logic into high-speed mathematical powerhouse performance!
+
+In this comprehensive lesson, we will explore the internal algorithms and hardware configurations that make modern digital computing possible. By the end of this lesson, you will be able to:
+
+- **Analyze** hardware addition and subtraction algorithms for signed-magnitude and signed-2's complement representations.
+- **Evaluate** efficient multiplication techniques, including Booth's algorithm and combinational array multipliers.
+- **Explain** binary division hardware, restorable vs. nonrestoring methods, and divide-overflow prevention.
+- **Synthesize** floating-point operations, including mantissa alignment, exponent biasing, and normalization.
+- **Design** Binary-Coded Decimal (BCD) adders, subtractors, and multi-digit decimal arithmetic circuits.
+
+## Introduction to Computer Arithmetic
+
+At its heart, an **arithmetic processor** is the specialized execution engine inside a CPU designed to execute data manipulation instructions. Everyday software applications rely heavily on four elementary arithmetic operations: addition, subtraction, multiplication, and division. From these four bedrock operations, numerical analysis methods can formulate virtually any higher-level mathematical function—from standard trigonometry to complex physics simulations.
+
+### Data Types and System Complexity
+
+The architecture of an arithmetic processor depends heavily on the data types it must support. Data stored in processor registers during instruction execution can be formatted as **binary** or **decimal**, and each can be represented as either **fixed-point** (integers or fractions) or **floating-point** numbers. Furthermore, negative values require designated representation schemes such as **signed-magnitude**, **signed-1's complement**, or **signed-2's complement**.
+
+If a processor only supports binary fixed-point addition, its underlying hardware remains simple. However, incorporating all four basic operations across binary and decimal data in both fixed-point and floating-point layouts creates a significantly more sophisticated hardware architecture.
+
+### Algorithmic Flowcharts
+
+To build hardware that performs mathematics reliably, engineers rely on an **algorithm**—a finite sequence of well-defined procedural steps that solves a specific problem. When negative numbers use signed-2's complement representation, addition requires only a simple parallel binary adder. However, signed-magnitude representation demands a more elaborate algorithm that actively checks sign bits, compares relative magnitudes, and selects between addition and subtraction units.
+
+To visualize these algorithmic sequences, hardware designers use **flowcharts**:
+
+- **Rectangular boxes** represent specific computational steps (such as register transfers or arithmetic microoperations).
+- **Diamond-shaped boxes** represent decision steps where execution paths branch based on condition checks (such as sign bit comparisons or carry flip-flops).
+
+## Addition and Subtraction Algorithms
+
+Most digital computers adopt **signed-2's complement** representation for integer calculations because it simplifies arithmetic circuits. However, **signed-magnitude** representation is commonly retained for mantissas in floating-point operations. Understanding both hardware implementations reveals why complement arithmetic is so popular in modern CPU design.
+
+### Signed-Magnitude Addition and Subtraction
+
+When adding or subtracting two signed numbers with magnitudes $A$ and $B$, there are eight distinct conditions based on operation type and operand signs. When adding numbers with identical signs (or subtracting numbers with different signs), we simply add the magnitudes ($A + B$) and attach the sign of $A$. But when adding numbers with different signs (or subtracting numbers with identical signs), we must compare magnitudes:
+
+1. If $A > B$, subtract $B$ from $A$ ($A - B$) and keep the sign of $A$.
+2. If $A < B$, subtract $A$ from $B$ ($B - A$) and reverse the sign of $A$.
+3. If $A = B$, subtract $B$ from $A$ to yield zero, forcing the sign to positive to avoid a negative zero ($-0$).
+
+### Hardware Implementation for Signed-Magnitude
+
+To construct this in hardware, we use registers $A$ and $B$, alongside sign flip-flops $A_s$ and $B_s$. Rather than using separate circuits for magnitude comparison, addition, and subtraction, an elegant design employs a single **parallel adder** and a **complementer**:
+
+- Subtraction is executed as $A$ plus the 2's complement of $B$ ($A + \bar{B} + 1$).
+- A mode control signal $M$ directs the complementer ($M=0$ passes $B$ directly for addition; $M=1$ feeds the 1's complement of $B$ and sets the input carry to 1 for subtraction).
+- The carry output is stored in flip-flop $E$. If $E=1$, then $A \ge B$, and $A$ contains the correct result. If $E=0$, then $A < B$, meaning $A$ holds the 2's complement of the true magnitude; taking the 2's complement of $A$ restores the correct value, and complementing sign bit $A_s$ yields the proper sign.
+- Overflow during addition is captured in the add-overflow flip-flop $AVF$.
+
+### Signed-2's Complement Addition and Subtraction
+
+In signed-2's complement, the leftmost bit serves directly as the sign ($0$ for positive, $1$ for negative). This layout simplifies hardware dramatically:
+
+- **Addition**: Add $AC$ and $BR$ directly across all bits (including sign bits). Any carry-out of the sign position is simply discarded.
+- **Subtraction**: Take the 2's complement of the subtrahend ($BR$) by adding its 1's complement plus 1, then add to $AC$.
+- **Overflow Detection (**$V$**)**: An overflow occurs if two numbers of the same sign yield a result with the opposite sign. Hardware detects this by taking the Exclusive-OR of the carries into and out of the sign-bit position ($V = C_{\text{in}} \oplus C_{\text{out}}$).
+
+## Multiplication Algorithms
+
+Multiplication in binary hardware follows the familiar pencil-and-paper technique of forming partial products and summing them. However, digital hardware optimizes this process using shift-and-accumulate microoperations.
+
+### Signed-Magnitude Hardware Multiplication
+
+To multiply two $n$-bit signed-magnitude numbers, hardware uses three registers ($A$, $B$, $Q$), a sequence counter ($SC$), and sign logic:
+
+- The multiplicand is stored in register $B$, the multiplier in $Q$, and accumulator $A$ is initialized to zero.
+- Sign logic sets $A_s = Q_s \oplus B_s$.
+- The sequence counter $SC$ is set to $n-1$ (the number of magnitude bits).
+- For each step, hardware inspects the least significant bit of the multiplier ($Q_n$):
+  - If $Q_n = 1$, the multiplicand $B$ is added to $A$ ($EA \leftarrow A + B$).
+  - If $Q_n = 0$, $A$ remains unchanged.
+- The combined register bit string $EAQ$ is shifted right by one position (`shr EAQ`), pushing the lowest bit of $A$ into $Q$ and bringing $E$ into $A$.
+- $SC$ is decremented by 1. This loop continues until $SC = 0$, leaving the final double-length product in combined registers $A$ and $Q$.
+
+### Booth Multiplication Algorithm
+
+When numbers are represented in signed-2's complement, **Booth's algorithm** provides an optimized multiplication technique. It relies on the principle that a sequence of adjacent $1$s in a multiplier ranging from bit weight $2^k$ down to $2^m$ can be evaluated as $2^{k+1} - 2^m$.
+
+Booth's algorithm inspects two adjacent bits of the multiplier ($Q_n$ and an appended extra flip-flop $Q_{n+1}$):
+
+- **10**: First 1 of a string encountered $\rightarrow$ Subtract multiplicand ($AC \leftarrow AC - BR$).
+- **01**: First 0 after a string encountered $\rightarrow$ Add multiplicand ($AC \leftarrow AC + BR$).
+- **00** **or** **11**: Inside a string of 0s or 1s $\rightarrow$ No arithmetic operation required.
+- Following the step, an **arithmetic shift right** (`ashr AC & QR`) shifts $AC$ and $QR$ right while preserving the sign bit of $AC$.
+
+### Combinational Array Multipliers
+
+While sequential multiply algorithms require $n$ clock cycles, an **array multiplier** uses a pure combinational circuit to calculate all partial product bits simultaneously. For $j$ multiplier bits and $k$ multiplicand bits, the array requires $j \times k$ AND gates and $(j - 1)$ $k$-bit parallel adders, yielding ultra-fast multiplication bounded only by gate propagation delays.
+
+## Division Algorithms
+
+Division in fixed-point binary is structured as a sequence of compare, shift, and subtract microoperations. Because binary quotient digits are strictly $0$ or $1$, hardware division avoids the trial-and-error estimation required in decimal division.
+
+### Signed-Magnitude Division Hardware
+
+Division uses the same core register setup as multiplication ($A$, $B$, $Q$, $E$, and $SC$):
+
+- The double-length dividend is loaded into combined registers $A$ and $Q$, while the divisor resides in $B$.
+- Rather than shifting the divisor right, hardware shifts register pair $EAQ$ **left** by one bit (`shl EAQ`).
+- The divisor $B$ is subtracted from $A$ by adding its 2's complement ($EA \leftarrow A + \bar{B} + 1$).
+  - If carry flip-flop $E = 1$, then $A \ge B$. The subtraction is valid, and quotient bit $Q_n$ is set to $1$.
+  - If carry flip-flop $E = 0$, then $A < B$. The result is negative, quotient bit $Q_n$ remains $0$, and $A$ is restored by adding $B$ back ($A \leftarrow A + B$).
+- This sequence repeats for $n-1$ counter steps until $SC = 0$, leaving the quotient in $Q$ and the final remainder in $A$.
+
+### Divide Overflow and Safety Mechanisms
+
+Because processor registers have fixed bit widths, division can cause a **divide overflow** if the resulting quotient exceeds the register capacity. When a double-length dividend is divided by a single-length divisor, an overflow occurs if the high-order half of the dividend ($A$) is greater than or equal to the divisor ($B$).
+
+If $A \ge B$ , the system sets a divide-overflow flag ($DVF = 1$). Divide overflow also automatically catches attempts to **divide by zero**, as any non-zero dividend is greater than or equal to zero. Modern processors handle $DVF$ by raising an interrupt request, suspending execution so an error handler or subroutine can rescale the data.
+
+### Alternative Division Methods
+
+1. **Restoring Method**: The standard approach described above, where negative trial subtractions are canceled out by immediately adding back the divisor $B$.
+2. **Comparison Method**: Compares $A$ and $B$ using adder look-ahead carry logic prior to subtraction, performing the subtraction only if $A \ge B$.
+3. **Nonrestoring Method**: Avoids restoring additions. If a trial subtraction yields a negative partial remainder ($E = 0$), the negative remainder is shifted left ($2A$) and $B$ is **added** in the next cycle, since $2(A - B) + B = 2A - B$.
+
+## Floating-Point Arithmetic Operations
+
+Fixed-point numbers struggle to represent extremely large or tiny numbers efficiently. **Floating-point representation** overcomes this limitation by expressing values as a mantissa $m$ and an exponent $e$ scaled by radix $r$ ($m \times r^e$).
+
+### Biased Exponents and Normalization
+
+To simplify hardware floating-point math:
+
+- **Normalization**: A floating-point number is normalized when the most significant bit ($A_1$) of its fractional mantissa is non-zero ($1$ in binary). This ensures maximum bit accuracy.
+- **Biased Exponent**: Exponents are stored as positive numbers by adding a fixed constant bias ($e_{\text{stored}} = e_{\text{actual}} + \text{bias}$). Biasing removes explicit sign bits from exponent registers, allowing simple hardware magnitude comparators to check exponent sizes directly.
+
+### Floating-Point Addition and Subtraction
+
+Adding or subtracting floating-point values requires four distinct execution phases:
+
+1. **Zero Check**: If either operand is zero, the non-zero value is passed immediately as the result.
+2. **Mantissa Alignment**: Exponents $a$ and $b$ are compared. The mantissa associated with the smaller exponent is shifted right while its exponent is incremented until both exponents match.
+3. **Mantissa Addition/Subtraction**: The aligned mantissas are added or subtracted using standard fixed-point hardware logic.
+4. **Normalization**:
+   - **Overflow**: If mantissa addition creates a carry ($E=1$), the sum is shifted right once, and exponent $a$ is incremented.
+   - **Underflow**: If subtraction creates leading zeros ($A_1 = 0$), the mantissa is shifted left repeatedly while exponent $a$ is decremented until $A_1 = 1$.
+
+### Floating-Point Multiplication and Division
+
+- **Multiplication**: Check for zeros, add biased exponents and subtract the extra bias ($a \leftarrow a + b - \text{bias}$), multiply mantissas ($A \times B$), and perform a single left shift to normalize if an underflow bit appears in $A_1$.
+- **Division**: Check for zeros (and handle divide-by-zero errors), perform **dividend alignment** (if $A \ge B$, shift $A$ right once and increment exponent $a$ to prevent mantissa divide overflow), subtract exponents and add bias ($q \leftarrow a - b + \text{bias}$), and divide mantissas to produce a normalized quotient in $QR$.
+
+## Decimal Arithmetic Unit
+
+In application domains with heavy input-output activity (such as financial calculators or database systems), converting decimal inputs to binary and back introduces noticeable latency. For these machines, processing data directly in **Binary-Coded Decimal (BCD)** format using a dedicated decimal arithmetic unit is much more efficient.
+
+### BCD Adder Design
+
+In BCD, decimal digits $0$ through $9$ are encoded using 4-bit binary values (`0000` to `1001`). When two BCD digits plus an input carry are added using a standard 4-bit binary adder, the output ranges from $0$ to $19$.
+
+- Binary sums from $0$ to $9$ (`0000` to `1001`) are valid BCD digits and require no adjustment.
+- Binary sums from $10$ to $19$ (`1010` to `10011`) are **non-valid BCD representation**.
+
+To correct non-valid sums, hardware must add binary $6$ (`0110`) to the binary sum. This shifts the result across the six unused 4-bit combinations (`1010` through `1111`), producing the correct BCD digit output and generating a true output carry bit ($C$).
+
+The Boolean function that detects when a correction factor of $+6$ is required is: $$C = K + Z_8 Z_4 + Z_8 Z_2$$ where $K$ is the raw binary carry-out, and $Z_8, Z_4, Z_2, Z_1$ represent the outputs of the primary 4-bit binary adder. A complete BCD adder uses two cascaded 4-bit binary adders: the first calculates the binary sum, and the second conditionally adds `0110` whenever $C = 1$.
+
+### BCD Subtractor Logic
+
+To perform BCD subtraction, hardware adds the **9's or 10's complement** of the subtrahend to the minuend.
+
+The 9's complement of a 4-bit BCD digit $B$ can be generated using a combinational logic circuit controlled by a mode signal $M$:
+
+- When $M = 0$, the circuit passes $B$ unchanged.
+- When $M = 1$, the circuit outputs the 9's complement logic expressions ($x_1, x_2, x_4, x_8$).
+
+Feeding $M = 1$ and applying an initial input carry $C_1 = 1$ to the lowest-stage BCD adder automatically computes $A$ plus the **10's complement** of $B$, achieving seamless BCD subtraction.
+
+## Decimal Arithmetic Operations
+
+Executing full-word multi-digit decimal operations requires specialized shift and register controls that manage data in 4-bit digit blocks.
+
+Register Configurations and Decimal Shifts
+
+Decimal arithmetic registers ($A, B, Q$) are grouped into 4-bit nibbles. A **decimal shift right** (`dshr A`) or **decimal shift left** (`dshl A`) moves entire 4-bit digits simultaneously.
+
+Multi-digit decimal addition can be implemented in three hardware configurations:
+
+1. **Parallel Adder**: Uses $n$ dedicated BCD adders to add all digits simultaneously in a single clock cycle.
+2. **Digit-Serial Bit-Parallel Adder**: Uses a single BCD adder shared across all digits, shifting decimal digits through the unit sequentially over $n$ clock cycles.
+3. **All-Serial Adder**: Shifts individual bits through a single full adder, applying correction logic after every 4 bits.
+
+### Decimal Multiplication Algorithm
+
+Unlike binary multiplication where partial products are formed by simple bit checks ($0$ or $1$), a decimal multiplier digit ranges from $0$ to $9$. In decimal multiplication:
+
+- The low-order multiplier digit in $Q_L$ is tested.
+- If $Q_L \neq 0$, multiplicand $B$ is added to register $A$, and $Q_L$ is decremented ($Q_L \leftarrow Q_L - 1$). This loop repeats until $Q_L = 0$, effectively multiplying $B$ by digit $Q_L$.
+- Extended digit register $A_e$ holds any temporary overflow digits ($0$ to $9$).
+- Once $Q_L = 0$, register pair $AQ$ is shifted right by one decimal digit (`dshr AQ`), bringing the next multiplier digit into $Q_L$. The loop repeats for all $k$ multiplier digits.
+
+### Decimal Division Algorithm
+
+Decimal division implements restoring arithmetic across decimal digits:
+
+- The dividend in $AQ$ is shifted left by one decimal digit (`dshl AQ`), moving its highest digit into $A_e$.
+- Divisor $B$ is repeatedly subtracted from $A$ using 10's complement addition, and quotient digit $Q_L$ is incremented ($Q_L \leftarrow Q_L + 1$) for each successful subtraction.
+- When subtraction yields a negative result ($E = 0$), $B$ is added back to restore $A$, $Q_L$ is not incremented, and the restored partial remainder is shifted left to process the next quotient digit.
+
+## Summary
+
+Computer arithmetic forms the foundational gateway between physical digital logic gates and complex abstract numerical processing. Whether optimizing integer operations via Booth's algorithm, maintaining precise scientific data using floating-point normalization pipelines, or processing decimal financial calculations directly with BCD adders, hardware arithmetic algorithms balance circuit complexity, execution speed, and numerical precision.
+
+### Key Takeaways
+
+- **Signed-2's Complement Superiority**: Signed-2's complement representation simplifies arithmetic unit design by enabling addition and subtraction across sign bits without magnitude comparators.
+- **Optimized Multiplication**: Booth's algorithm reduces multiplication steps for signed-2's complement numbers by skipping bit strings of $1$s, while array multipliers trade hardware area for ultra-fast combinational multiplication.
+- **Overflow Safeguards**: Divide operations must enforce check mechanisms ($A \ge B$) to prevent register overflow and handle division-by-zero safely via system interrupts.
+- **Floating-Point Mechanics**: Floating-point engines align mantissas by shifting smaller exponents right, compute results, and dynamically re-normalize mantissas while adjusting biased exponents.
+- **BCD Corrections**: Native BCD decimal adders use primary binary adders and automatically add binary $6$ (`0110`) whenever a 4-bit binary sum exceeds $9$ (`1001`).

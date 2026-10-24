@@ -1,0 +1,418 @@
+export const metadata = {
+	title: "Central Processing Unit Organization",
+	description:
+		"An introduction to CPU architecture covering register organization, control words, stack operations, Reverse Polish Notation, instruction formats, addressing modes, data transfer and manipulation, program control, interrupts, and RISC architecture with overlapped register windows.",
+	order: 8,
+	draft: false,
+	tags: [
+		"computer architecture",
+		"central processing unit",
+		"CPU organization",
+		"register organization",
+		"control words",
+		"arithmetic logic unit",
+		"stack organization",
+		"reverse polish notation",
+		"instruction formats",
+		"addressing modes",
+		"effective address",
+		"program control",
+		"interrupts",
+		"RISC architecture",
+		"CISC architecture",
+		"register windows",
+	],
+};
+
+## Introduction
+
+Have you ever wondered how a computer transforms a string of ones and zeros into complex software, high-speed graphics, and rapid mathematical computations? At the heart of this digital choreography lies the Central Processing Unit (CPU)—the master conductor that fetches, decodes, and executes every single command.
+
+In this lesson, we will journey inside the architecture of the CPU to explore how data moves, how instructions are structured, and how modern processors evaluate complex math in fractions of a second. By the end of this journey, you will be able to:
+
+- **Analyze** the internal structural components of a CPU and contrast embedded (Harvard) versus nonembedded (Stored Program) memory architectures.
+- **Formulate** control words that coordinate multi-register data transfers across a common arithmetic logic unit (ALU).
+- **Evaluate** arithmetic expressions using Reverse Polish Notation (RPN) and stack operations.
+- **Compare** instruction formats across zero-, one-, two-, three-address, and RISC machines.
+- **Calculate** effective memory addresses across various addressing modes and trace interrupt execution cycles.
+
+## Introduction to the Central Processing Unit
+
+Think of the **Central Processing Unit (CPU)** as the central brain of the computer system. It carries out the bulk of data-processing operations dictated by machine language instructions. Viewed from the inside, the CPU consists of three primary building blocks:
+
+- **The Register Set:** A collection of high-speed storage units that hold intermediate data, pointers, counters, and temporary results during instruction execution.
+- **The Arithmetic Logic Unit (ALU):** The hardware computational engine that performs arithmetic (addition, subtraction) and logic (AND, OR, shift) microoperations.
+- **The Control Unit:** The supervisor that directs information flow between registers and instructs the ALU on which specific operation to execute.
+
+### Computer Architecture: Programmer View vs. Hardware Design
+
+Computer architecture bridges the boundary between the software programmer and the hardware designer. From the designer's perspective, the instruction set dictates the hardware choices—selecting logic gates, multiplexers, and timing circuits to implement each machine instruction. From the assembly language programmer's view, architecture defines the register layout, memory organization, supported data types, and operational behaviors.
+
+### Memory Architectures: Nonembedded vs. Embedded
+
+Depending on how memory is utilized for programs and data, computer systems fall into two fundamental architectural categories:
+
+1. **Nonembedded Architectures (Stored Program Computers):** Programs and data share the exact same physical memory system. Desktop computers and general-purpose PCs are classic examples. While flexible, sharing a single memory bus creates a potential bottleneck for memory bandwidth.
+2. **Embedded Architectures (Harvard Architecture):** Program instructions and data reside in physically separate memory systems. Because the CPU can fetch an instruction and access data simultaneously over separate buses, memory bandwidth effectively doubles. Embedded microcontrollers and Digital Signal Processors (DSPs) rely heavily on this model for real-time processing performance.
+
+## General Register Organization
+
+Accessing main memory is traditionally the slowest operation a CPU performs. To achieve high execution speeds, processors store intermediate variables, loop counters, and pointers inside CPU registers. When a processor contains multiple registers, connecting them through a shared bus system organized around a common ALU offers the most efficient hardware configuration.
+
+### Bus Organization for a Register Set
+
+Consider a CPU containing seven registers ($R1$ through $R7$). To perform an operation like $R1 \leftarrow R2 + R3$, the CPU must extract the contents of $R2$ and $R3$, feed them into the ALU, and route the resulting sum into $R1$.
+
+This is achieved using multiplexers and decoders:
+
+- **Multiplexers (MUX A & MUX B):** Two 3-bit selection inputs (**SELA** and **SELB**) control two multiplexers to select which register contents (or external input data) are placed onto **Bus A** and **Bus B**.
+- **Arithmetic Logic Unit (ALU):** Takes Bus A and Bus B as inputs and executes the operational code specified by a 5-bit field (**OPR**).
+- **Destination Decoder:** A 3-bit field (**SELD**) feeds a $3 \times 8$ decoder that activates the load line of the destination register, transferring the output bus data into the target register upon the next clock transition.
+
+### Decoding the 14-Bit Control Word
+
+To coordinate this entire hardware path in a single clock cycle, the control unit generates a **14-bit control word** divided into four distinct fields:
+
+$$
+\text{Control Word Format: } \underbrace{\text{SELA}}_{3\text{ bits}} \quad \underbrace{\text{SELB}}_{3\text{ bits}} \quad \underbrace{\text{SELD}}_{3\text{ bits}} \quad \underbrace{\text{OPR}}_{5\text{ bits}}
+$$
+
+- **SELA (3 bits):** Selects source register for Bus A (e.g., `001` = $R1$, `010` = $R2$, `000` = Input).
+- **SELB (3 bits):** Selects source register for Bus B (e.g., `011` = $R3$, `000` = Input).
+- **SELD (3 bits):** Selects destination register via decoder (e.g., `001` = $R1$, `000` = None/External Output).
+- **OPR (5 bits):** Selects ALU operation (e.g., `00010` = ADD, `00101` = SUB, `01100` = XOR, `11000` = SHLA).
+
+For example, to execute the subtraction $R1 \leftarrow R2 - R3$, the control unit issues the control word:
+
+- **SELA** = `010` ($R2$), **SELB** = `011` ($R3$), **SELD** = `001` ($R1$), **OPR** = `00101` (SUB) $\rightarrow$ **010 011 001 00101**.
+
+If a field is unused (e.g., during an increment `INCA` or transfer `TSFA` operation where Bus B is ignored), the corresponding field code is set to `000` (`—`). Clearing a register to zero can be concisely accomplished using Exclusive-OR: $R5 \leftarrow R5 \oplus R5$ via control word `101 101 101 01100`.
+
+## Stack Organization
+
+A **stack** is a Last-In, First-Out (LIFO) storage mechanism. Imagine a stack of cafeteria trays: the last tray placed on top is the very first one removed. In digital computers, physical registers do not physically move; instead, insertion (**push**) and deletion (**pop**) operations are simulated by modifying a specialized register known as the **Stack Pointer (SP)**.
+
+### Register Stack
+
+A stand-alone **64-word register stack** uses a 6-bit Stack Pointer ($2^6 = 64$ addresses, 0 to 63). SP points directly to the item currently at the top of the stack.
+
+Two 1-bit flag registers manage boundary conditions:
+
+- **FULL:** Set to 1 when the stack is completely full.
+- **EMTY:** Set to 1 when the stack contains no items.
+
+### Push Microoperation Sequence
+
+To push data from Data Register ($DR$) onto the stack:
+
+1. $SP \leftarrow SP + 1$ _(Increment stack pointer)_
+2. $M[SP] \leftarrow DR$ _(Write data to top of stack)_
+3. $\text{If } (SP = 0) \text{ then } (FULL \leftarrow 1)$ _(Check if address wrapped around to 0)_
+4. $EMTY \leftarrow 0$ _(Mark stack non-empty)_
+
+### Pop Microoperation Sequence
+
+To pop data off the stack into $DR$:
+
+1. $DR \leftarrow M[SP]$ _(Read item from top of stack)_
+2. $SP \leftarrow SP - 1$ _(Decrement stack pointer)_
+3. $\text{If } (SP = 0) \text{ then } (EMTY \leftarrow 1)$ _(Check if stack is empty)_
+4. $FULL \leftarrow 0$ _(Mark stack non-full)_
+
+### Memory Stack
+
+Rather than separate registers, CPUs can allocate a portion of main memory to serve as a stack. In a typical memory stack, three registers define memory access:
+
+- **Program Counter (**$PC$**):** Points to instruction addresses during fetch.
+- **Address Register (**$AR$**):** Points to data operands during execution.
+- **Stack Pointer (**$SP$**):** Points to the top of the stack.
+
+Many memory stacks **grow downwards** (with decreasing addresses). For instance, if $SP$ is initialized to 4001, the first pushed item is placed at address 4000, and the next at 3999. In this downward-growing configuration:
+
+- **Push:** $SP \leftarrow SP - 1$, then $M[SP] \leftarrow DR$
+- **Pop:** $DR \leftarrow M[SP]$, then $SP \leftarrow SP + 1$
+
+### Reverse Polish Notation (RPN) & Expression Evaluation
+
+Standard mathematical expressions use **infix notation** (e.g., $A * B + C * D$), which requires computers to scan back and forth to enforce operator precedence. To simplify evaluation, Polish mathematician Łukasiewicz introduced **prefix notation** ($+*AB*CD$), which led to **postfix notation**, commonly called **Reverse Polish Notation (RPN)** ($AB*CD*+$).
+
+In RPN, operators follow their operands, eliminating the need for parentheses entirely.
+
+### Converting Infix to RPN
+
+Consider $(3 * 4) + (5 * 6)$:
+
+1. Convert $3 * 4 \rightarrow 3 \ 4 \ *$
+2. Convert $5 * 6 \rightarrow 5 \ 6 \ *$
+3. Combine with addition $\rightarrow \mathbf{3 \ 4 \ * \ 5 \ 6 \ * \ +}$
+
+### Evaluating RPN with a Stack
+
+To evaluate $3 \ 4 \ * \ 5 \ 6 \ * \ +$:
+
+1. Push `3`, Push `4` $\rightarrow$ Stack contains `[3, 4]` (TOS = 4).
+2. Encounter `*`: Pop `4` and `3`, multiply ($3 \times 4 = 12$), Push `12` $\rightarrow$ Stack: `[12]`.
+3. Push `5`, Push `6` $\rightarrow$ Stack: `[12, 5, 6]`.
+4. Encounter `*`: Pop `6` and `5`, multiply ($5 \times 6 = 30$), Push `30` $\rightarrow$ Stack: `[12, 30]`.
+5. Encounter `+`: Pop `30` and `12`, add ($12 + 30 = 42$), Push `42` $\rightarrow$ Final Result: **42**.
+
+## Instruction Formats
+
+An instruction code is formatted into bit groups called **fields**. The primary fields are:
+
+1. **Opcode Field:** Defines the operation to be performed (e.g., ADD, SUB).
+2. **Address Field:** Designates memory addresses or CPU registers.
+3. **Mode Field:** Specifies how the effective address or operand is determined.
+
+CPU architectures are classified by the number of address fields their instruction formats support. Let us evaluate the arithmetic expression $X = (A + B) * (C + D)$ across different instruction formats.
+
+1. Three-Address Instructions
+
+Each instruction specifies two source operands and one destination operand. Operands can be registers or memory locations.
+
+```
+ADD  R1, A, B     ; R1 <- M[A] + M[B]
+ADD  R2, C, D     ; R2 <- M[C] + M[D]
+MUL  X, R1, R2    ; M[X] <- R1 * R2
+```
+
+- _Advantage:_ Short programs.
+- _Disadvantage:_ Requires a large number of bits per instruction to encode three addresses.
+
+2. Two-Address Instructions
+
+The destination register or memory location double-functions as one of the source operands.
+
+```
+MOV  R1, A        ; R1 <- M[A]
+ADD  R1, B        ; R1 <- R1 + M[B]
+MOV  R2, C        ; R2 <- M[C]
+ADD  R2, D        ; R2 <- R2 + M[D]
+MUL  R1, R2       ; R1 <- R1 * R2
+MOV  X, R1        ; M[X] <- R1
+```
+
+3. One-Address Instructions
+
+Uses an **implied Accumulator (**$AC$**)** register for all computational operations.
+
+```
+LOAD A            ; AC <- M[A]
+ADD  B            ; AC <- AC + M[B]
+STORE T           ; M[T] <- AC      (Store temporary result)
+LOAD C            ; AC <- M[C]
+ADD  D            ; AC <- AC + M[D]
+MUL  T            ; AC <- AC * M[T]
+STORE X           ; M[X] <- AC
+```
+
+4. Zero-Address Instructions
+
+Used in **stack-organized CPUs**. Arithmetic computational instructions perform operations directly on the Top of Stack ($TOS$) without specifying address fields.
+
+```
+PUSH A            ; TOS <- A
+PUSH B            ; TOS <- B
+ADD               ; TOS <- (A + B)
+PUSH C            ; TOS <- C
+PUSH D            ; TOS <- D
+ADD               ; TOS <- (C + D)
+MUL               ; TOS <- (C + D) * (A + B)
+POP  X            ; M[X] <- TOS
+```
+
+5. RISC Instructions
+
+Restricts memory access strictly to `LOAD` and `STORE` instructions. All computational instructions operate purely on internal processor registers using a three-address format.
+
+```
+LOAD R1, A        ; R1 <- M[A]
+LOAD R2, B        ; R2 <- M[B]
+LOAD R3, C        ; R3 <- M[C]
+LOAD R4, D        ; R4 <- M[D]
+ADD  R1, R1, R2   ; R1 <- R1 + R2
+ADD  R3, R3, R4   ; R3 <- R3 + R4
+MUL  R1, R1, R3   ; R1 <- R1 * R3
+STORE X, R1       ; M[X] <- R1
+```
+
+## Addressing Modes
+
+Computers utilize **addressing modes** to offer programming versatility (pointers, indexing, counters) and to reduce the number of bits in the address field. The **effective address** is defined as the actual memory address computed by the CPU to retrieve an operand or branch to a target instruction.
+
+### Core Addressing Modes
+
+- **Implied Mode:** Operands are specified implicitly in the instruction definition (e.g., `CLC` clears carry flag; stack operations operate on $TOS$).
+- **Immediate Mode:** The operand is specified directly within the instruction itself (e.g., `LD #500` loads the literal value 500).
+- **Register Mode:** Operands reside in CPU registers selected from a $k$-bit register field.
+- **Register Indirect Mode:** The instruction specifies a CPU register that holds the _memory address_ of the operand.
+- **Autoincrement / Autodecrement Mode:** Similar to register indirect mode, but automatically increments or decrements the register before or after accessing memory.
+- **Direct Address Mode:** The effective address is equal to the address field of the instruction ($E.A. = A$).
+- **Indirect Address Mode:** The address field gives a memory location that contains the effective address ($E.A. = M[A]$).
+- **Relative Address Mode:** Adds the address field (treated as a signed number) to the Program Counter: $E.A. = PC + A$.
+- **Indexed Addressing Mode:** Adds the address field (base array address) to an Index Register ($XR$): $E.A. = XR + A$.
+- **Base Register Addressing Mode:** Adds the content of a Base Register to a displacement address field: $E.A. = \text{Base Reg} + \text{Displacement}$. Used primarily for relocating programs in memory.
+
+### Comprehensive Numerical Example
+
+To visualize how these modes differ, consider a two-word `LOAD to AC` instruction stored at memory addresses 200 and 201, with an address field of 500.
+
+- Current $PC = 200$ (so during instruction execution, $PC$ has advanced to $202$).
+- Register $R1 = 400$.
+- Index Register $XR = 100$.
+
+| Addressing Mode       | Effective Address Calculation            | Effective Address ($E.A.$) | Operand Loaded into $AC$ | Memory / Register Source          |
+| --------------------- | ---------------------------------------- | -------------------------- | ------------------------ | --------------------------------- |
+| **Direct Address**    | $E.A. = 500$                             | 500                        | **800**                  | $M[500] = 800$                    |
+| **Immediate**         | $E.A. = 201$                             | 201                        | **500**                  | Part of instruction               |
+| **Indirect Address**  | $E.A. = M[500]$                          | 800                        | **300**                  | $M[M[500]] = M[800] = 300$        |
+| **Relative Address**  | $E.A. = PC + 500 = 202 + 500$            | 702                        | **325**                  | $M[702] = 325$                    |
+| **Indexed Address**   | $E.A. = XR + 500 = 100 + 500$            | 600                        | **900**                  | $M[600] = 900$                    |
+| **Register**          | No $E.A.$ (Operand in $R1$)              | —                          | **400**                  | Content of $R1$                   |
+| **Register Indirect** | $E.A. = R1$                              | 400                        | **700**                  | $M[400] = 700$                    |
+| **Autoincrement**     | $E.A. = R1$, then $R1 \leftarrow R1 + 1$ | 400                        | **700**                  | $M[400] = 700$ ($R1$ becomes 401) |
+| **Autodecrement**     | $R1 \leftarrow R1 - 1$, then $E.A. = R1$ | 399                        | **450**                  | $M[399] = 450$ ($R1$ becomes 399) |
+
+## Data Transfer and Manipulation
+
+Computer instructions are broadly categorized into three fundamental functional groups: **Data Transfer**, **Data Manipulation**, and **Program Control**.
+
+1. Data Transfer Instructions
+
+Data transfer instructions copy binary information between locations (registers, memory, I/O ports) without altering the data content.
+
+- **Common Commands:** `LD` (Load), `ST` (Store), `MOV` (Move), `XCH` (Exchange), `IN` (Input), `OUT` (Output), `PUSH` (Push), `POP` (Pop).
+- Assembly notations often customize mnemonics or append symbols to reflect addressing modes: `LD #NBR` (Immediate load), `LD @ADR` (Indirect load), `LD $ADR` (PC-relative load), `LD ADR(X)` (Indexed load).
+
+2. Data Manipulation Instructions
+
+Data manipulation instructions perform computational work on data operands and fall into three distinct sub-categories:
+
+### A. Arithmetic Instructions
+
+- Basic operations: `INC` (Increment), `DEC` (Decrement), `ADD`, `SUB`, `MUL`, `DIV`.
+- **Data Types:** Depending on the architecture, operations can be specified for signed binary integers (`ADDI`), floating-point values (`ADDF`), or Binary Coded Decimal (`ADDD`).
+- **Double-Precision Arithmetic:** Small CPUs utilize `ADDC` (Add with Carry) and `SUBB` (Subtract with Borrow) to chain multi-byte additions using the hardware carry flag. `NEG` forms the 2's complement of an operand.
+
+### B. Logical and Bit Manipulation Instructions
+
+Logical instructions treat each bit independently as a Boolean variable:
+
+- **AND** **(Masking):** Used to clear specific bits to 0 ($x \cdot 0 = 0$; $x \cdot 1 = x$).
+- **OR** **(Selective Set):** Used to set specific bits to 1 ($x + 1 = 1$; $x + 0 = x$).
+- **XOR** **(Selective Complement):** Used to invert specific bits ($x \oplus 1 = x'$; $x \oplus 0 = x$).
+- **Flag Control:** `CLRC` (Clear Carry), `SETC` (Set Carry), `EI` (Enable Interrupt), `DI` (Disable Interrupt).
+
+### C. Shift Instructions
+
+- **Logi\*\***cal Shift (\***\*SHR\*\***,\*\* **SHL\*\***):\*\* Inserts 0 into the vacated end-bit position.
+- **Arithmetic Shift (\*\***SHRA\***\*,** **SHLA\*\***):\*\* `SHRA` preserves the sign bit in the leftmost position while shifting right. `SHLA` inserts 0 at the rightmost position.
+- **Rotate Shift (\*\***ROR\***\*,** **ROL\*\***):\*\* Circular shifts where bits popped off one end re-enter the opposite end.
+- **Rotate Through Carry (\*\***RORC\***\*,** **ROLC\*\***):\*\* Treats the hardware carry flag ($C$) as an additional bit extension of the register.
+
+## Program Control
+
+Program control instructions alter the normal sequential flow of program execution by updating the contents of the Program Counter ($PC$). Typical control commands include `BR` (Branch), `JMP` (Jump), `SKP` (Skip), `CALL` (Call Subroutine), `RET` (Return), `CMP` (Compare), and `TST` (Test).
+
+### Status Register Flags
+
+To execute conditional branches, the ALU updates a **Status Register** (Condition Code Register) containing four core flag bits ($C, S, Z, V$):
+
+1. $C$ **(Carry):** Set to 1 if an end carry $C_8$ is produced out of the high-order bit during an addition.
+2. $S$ **(Sign):** Set to 1 if the highest-order bit $F_7$ is 1 (indicating a negative result).
+3. $Z$ **(Zero):** Set to 1 if the ALU output is strictly all zeros.
+4. $V$ **(Overflow):** Set to 1 if the exclusive-OR of the last two carries ($C_7 \oplus C_8$) equals 1, signaling that a signed number exceeded $+127$ or $-128$.
+
+### Unsigned vs. Signed Comparisons ($A - B$)
+
+The `CMP` instruction performs $A - B$ without storing the numerical result, purely to set the status flags:
+
+- **Unsigned Comparisons:** Evaluated using Carry ($C$) and Zero ($Z$) flags. Commands use terms **Higher** or **Lower** (`BHI`: $A > B$, `BHE`: $A \ge B$, `BLO`: $A < B$, `BLOE`: $A \le B$, `BE`: $A = B$). Note that in many systems, $C=1$ represents a borrow ($A < B$).
+- **Signed Comparisons:** Evaluated using $S, V,$ and $Z$ flags. Commands use terms **Greater** or **Less** (`BGT`: $A > B$, `BGE`: $A \ge B$, `BLT`: $A < B$, `BLE`: $A \le B$). Specifically, $A < B$ is true whenever $(S \oplus V) = 1$.
+
+### Subroutine Call and Return via Stack
+
+When a `CALL` instruction is executed:
+
+1. $SP \leftarrow SP - 1$ _(Decrement Stack Pointer)_
+2. $M[SP] \leftarrow PC$ _(Push current return address onto stack)_
+3. $PC \leftarrow \text{Effective Address}$ _(Jump to subroutine)_
+
+When `RET` is executed at the end of the subroutine:
+
+1. $PC \leftarrow M[SP]$ _(Pop top of stack into PC)_
+2. $S$$P \leftarrow SP + 1$ _(Increment Stack Pointer)_
+
+Using a stack for subroutine calls allows subroutines to be nested or call themselves recursively without overwriting return addresses.
+
+### Program Interrupts
+
+An **interrupt** alters program flow in response to asynchronous hardware or software requests. Unlike a subroutine call, an interrupt saves both the $PC$ and the **Program Status Word (PSW)**—which contains status flags and processor state modes (Supervisor vs. User Mode).
+
+#### Types of Interrupts
+
+1. **External Interrupts:** Initiated by hardware input/output devices, timers, or power supply monitor circuits (e.g., I/O transfer ready, power failure imminent).
+2. **Internal Interrupts (Traps):** Triggered synchronously by illegal software actions or hardware errors during instruction execution (e.g., divide by zero, invalid opcode, stack overflow, memory protection violation).
+3. **Software Interrupts:** Triggered explicitly by executing a special instruction (e.g., Supervisor Call). Used by user-mode applications to safely request operating system services.
+
+## Reduced Instruction Set Computer (RISC)
+
+In computer architecture, a major design divergence exists between **Complex Instruction Set Computers (CISC)** and **Reduced Instruction Set Computers (RISC)**.
+
+### CISC vs. RISC Characteristics
+
+- **CISC Architectural Design:** Attempts to simplify software compilation by offering a vast instruction library (100–250+ instructions), variable-length instruction formats, complex memory-to-memory operations, and microprogrammed control logic (e.g., VAX, IBM 370).
+- **RISC Architectural Design:** Maximizes hardware execution speed by simplifying the instruction set.
+  - _Key Characteristics:_ Few instructions, simple register-to-register operations, memory access restricted solely to `LOAD`/`STORE`, fixed-length instruction formats, single-cycle execution per instruction via instruction pipelining, and hardwired control logic.
+
+### Overlapped Register Windows
+
+To eliminate the time-consuming overhead of saving and restoring registers to memory during procedure calls, RISC architectures utilize **overlapped register windows**.
+
+The overall processor register file is split into global registers (shared by all procedures) and circular windows assigned to specific procedures. Overlapping sections allow adjacent procedures to pass parameters effortlessly without moving data.
+
+Mathematical Window Formulas
+
+Given:
+
+- $G$ = Number of Global Registers
+- $L$ = Number of Local Registers per window
+- $C$ = Number of Common Overlapping Registers shared between adjacent windows
+- $W$ = Number of Windows
+
+$$
+\mathbf{\text{Window Size}} = L + 2C + G
+$$
+
+$$
+\mathbf{\text{Total Register File}} = (L + C)W + G
+$$
+
+_Example (Fig 8-9):_ With $G=10$, $L=10$, $C=6$, and $W=4$:
+
+- $\text{Active Window Size} = 10 + 2(6) + 10 = \mathbf{32\text{ registers accessible at any time}}$.
+- $\text{Total Processor Register File} = (10 + 6) \times 4 + 10 = \mathbf{74\text{ physical registers}}$.
+
+### Berkeley RISC I Architecture
+
+The U.C. Berkeley RISC I processor exemplifies this design philosophy:
+
+- **Instruction Format:** 32-bit fixed instruction length supporting 31 instructions.
+- **Register File:** 138 total registers organized into 10 global registers and 8 windows ($W=8, L=10, C=6$).
+- **Three-Address Format:** All arithmetic operations specify destination $R_d$, source $R_s$, and a second source $S_2$ (which can be either a CPU register or a 13-bit sign-extended immediate constant).
+- Register $R_0$ hardwires the constant value `0`. Thus, `ADD R0, R21, R22` acts as a move instruction ($R22 \leftarrow R21$), and `ADD R0, #150, R22` acts as a load-immediate instruction ($R22 \leftarrow 150$).
+
+## Summary
+
+### Lesson Synthesis
+
+The Central Processing Unit coordinates digital computation through the elegant synchronization of registers, the Arithmetic Logic Unit, and control logic. From the 14-bit control words that orchestrate internal bus transfers to LIFO memory stacks that manage RPN evaluations and subroutines, CPU design balances hardware complexity against execution speed. Modern instruction set choices reflect this balance—contrasting the rich, memory-direct capabilities of CISC with the streamlined, single-cycle pipelined performance of RISC processors utilizing overlapped register windows.
+
+Key Takeaways
+
+- **CPU Architecture:** Composed of a Register Set (temporary storage), ALU (microoperation execution), and Control Unit (bus flow supervision).
+- **Control Word Mechanics:** Multi-register operations are orchestrated by multi-field control words driving multiplexer selectors, ALU operation codes, and destination decoders.
+- **Stack Operations:** LIFO stacks utilize Stack Pointers ($SP$) to perform Push/Pop operations, evaluating parentheses-free Reverse Polish Notation (RPN) expressions efficiently.
+- **Addressing Modes & Effective Address:** Addressing modes determine how the $E.A.$ is calculated—ranging from direct memory lookup to PC-relative, index register, and register-indirect access.
+- **Program Control & Interrupts:** $C, S, Z,$ and $V$ status flags govern conditional branching. Interrupts (External, Internal Traps, and Software) halt standard program flow to execute specialized service routines, preserving CPU state via the PSW and Stack.
+- **CISC vs. RISC:** RISC minimizes complexity using fixed-length instructions, load/store memory restrictions, single-cycle execution, and overlapped register windows to accelerate procedure calls.
