@@ -1,0 +1,155 @@
+export const metadata = {
+	title: "Programming the Basic Computer",
+	description:
+		"Learn the basic computer programming model, machine and assembly languages, two-pass assembler design, program loops, arithmetic and logic algorithms, subroutine linkage, programmed I/O, and interrupt-driven input/output processing.",
+	order: 6,
+	draft: false,
+	tags: [
+		"computer architecture",
+		"basic computer",
+		"machine language",
+		"assembly language",
+		"assembler",
+		"two-pass assembler",
+		"program loops",
+		"arithmetic algorithms",
+		"logic operations",
+		"subroutines",
+		"input output",
+		"interrupts",
+		"interrupt service routine",
+	],
+};
+
+## Introduction
+
+Did you know that every sophisticated software application running today—from video games to web browsers—ultimately executes as a simple sequence of binary 1s and 0s inside microprocessors? How do we bridge the massive gap between human thought, symbolic programming languages, and the raw silicon hardware that executes our commands?
+
+In this lesson, you will explore the essential connection between computer software and hardware by studying the programming model of a basic computer. You will learn to:
+
+- Explain the fundamental relationship between computer hardware organization and software execution.
+- Differentiate between binary machine language, hexadecimal representation, assembly language, and high-level languages.
+- Trace how a two-pass assembler converts symbolic instructions into binary machine code.
+- Implement software algorithms for program loops, multi-precision arithmetic, logic operations, subroutines, and interrupt-driven I/O.
+
+## Machine Language
+
+A computer can directly execute programs only when they are represented internally in binary format. Every program written in any other language must eventually be translated into binary machine code before the processor's control unit can execute it.
+
+Programming languages generally fall into four primary categories:
+
+- **Binary Code:** The exact sequence of 1s and 0s stored in computer memory words, directly interpreted by hardware circuits.
+- **Octal or Hexadecimal Code:** A compact representation of binary code where groups of 3 or 4 binary bits are converted into equivalent octal or hexadecimal digits.
+- **Symbolic Code (Assembly Language):** A language where human-readable alphanumeric symbols represent operation codes, addresses, and mode bits. An **assembler** translates each symbolic instruction into one binary machine instruction.
+- **High-Level Languages:** Problem-oriented languages (such as Fortran or C) that allow programmers to write algorithms using mathematical expressions and structured statements. A **compiler** translates high-level statements into machine code sequences.
+
+The basic computer instruction set consists of 25 distinct instructions categorized into three distinct operational groups:
+
+- **Memory-Reference Instructions (MRI):** Use a 3-bit op-code (bits 12–14), an indirect mode bit (bit 15), and a 12-bit address (bits 0–11). When represented in hexadecimal, direct memory instructions range from `0000` to `6FFF`, while indirect memory instructions range from `8000` to `EFFF`. Key instructions include `AND` (0/8), `ADD` (1/9), `LDA` (2/A), `STA` (3/B), `BUN` (4/C), `BSA` (5/D), and `ISZ` (6/E).
+- **Register-Reference Instructions:** Operate directly on the Accumulator (`AC`) and Extended bit (`E`). They have a 16-bit op-code starting with the hexadecimal digit `7` (e.g., `CLA` = 7800, `CMA` = 7200, `INC` = 7020, `HLT` = 7001).
+- **Input–Output Instructions:** Handle data transfer and flag status checks for external peripherals. They feature a 16-bit op-code starting with the hexadecimal digit `F` (e.g., `INP` = F800, `OUT` = F400, `SKI` = F200, `ION` = F080).
+
+While hardware only recognizes binary patterns, programmers utilize symbolic mnemonics and hexadecimal equivalents to write, read, and debug machine-level programs efficiently.
+
+## Assembly Language
+
+Assembly language provides a syntax that replaces binary pattern creation with intuitive symbolic code. Writing an effective assembly program requires a firm grasp of the computer's programming model, memory map, register set, and syntax rules.
+
+Each line of code in an assembly language program is partitioned into three distinct columns known as **fields**:
+
+- **Label Field:** May be empty or contain a **symbolic address** consisting of up to three alphanumeric characters starting with a letter. A label must be terminated with a comma (e.g., `MIN,`).
+- **Instruction Field:** Specifies a machine instruction (MRI or non-MRI) or an assembler **pseudoinstruction**. Memory-reference instructions list an operation symbol, a symbolic address, and an optional `I` flag to indicate indirect addressing (e.g., `ADD PTR I`).
+- **Comment Field:** Begins with a slash (`/`) and contains explanatory text ignored during binary translation.
+
+Unlike machine instructions, **pseudoinstructions** are special instructions directed to the assembler program itself to guide the translation process:
+
+- **ORG N** **(Origin):** Sets the assembler's Location Counter to hexadecimal memory address `N`.
+- **END\*\***:\*\* Signals the physical end of the symbolic source code file.
+- **DEC N\*\***:\*\* Directs the assembler to convert a signed decimal constant `N` into its 16-bit signed 2's complement binary equivalent.
+- **HEX N\*\***:\*\* Directs the assembler to convert a hexadecimal constant `N` into binary.
+
+For example, subtracting two numbers involves loading a subtrahend into the accumulator, complementing it (`CMA`), incrementing it (`INC`) to obtain its 2's complement, and adding the minuend (`ADD`). The symbolic program uses memory labels rather than hardcoded memory locations so that data buffers can be assigned flexibly.
+
+## The Assembler
+
+An **assembler** is a system program that takes a symbolic source program in ASCII character format and translates it into an equivalent binary object program stored in memory.
+
+In memory, source characters are stored sequentially with two 8-bit ASCII characters packed into each 16-bit memory word. The assembler scans this character stream using a register called the **Location Counter (LC)**, which keeps track of the memory address for each line of code.
+
+A standard **two-pass assembler** processes the symbolic program in two distinct sweeps:
+
+- **First Pass:** The assembler reads the source program to construct the **Address Symbol Table**. LC is initially set to 0. If an `ORG` pseudoinstruction is encountered, LC updates to that specified origin address. Whenever a label symbol (terminated by a comma) is found in column 1, the assembler places the symbol and the current LC value into the Address Symbol Table. LC increments by 1 for every instruction or data line processed until the `END` pseudoinstruction is reached.
+- **Second Pass:** The assembler translates symbolic operation codes and labels into raw binary machine code. It uses a **table-lookup procedure** across four predefined system tables: the Pseudoinstruction Table, MRI Table, Non-MRI Table, and the newly generated Address Symbol Table. It sets the operation code bits, looks up symbolic addresses in the symbol table to get their 12-bit addresses, configures the indirect bit `I`, and writes the assembled binary word into memory at LC.
+
+During translation, the assembler performs **error diagnostics**. If a programmer uses an undefined instruction mnemonic or a symbolic address that was never defined in the label field, the assembler catches the error and outputs an error message instead of generating invalid machine code.
+
+## Program Loops
+
+A **program loop** is a sequence of instructions executed repeatedly, operating on different data items in consecutive memory locations during each iteration. Compilers convert high-level iterative constructs (such as Fortran `DO` loops) into machine-level program loops using two critical control elements: a **pointer** and a **counter**.
+
+To understand loop mechanics, consider adding 100 consecutive numbers stored in memory starting at address `150`:
+
+- **Pointer (\*\***PTR\***\*):** A memory location initialized to hold the starting address of the array (`HEX 150`). When an instruction references `PTR` indirectly (`ADD PTR I`), the computer fetches the operand stored at the address contained within `PTR`.
+- **Counter (\*\***CTR\***\*):** A memory location initialized to the negative count of iterations (e.g., `-100` represented in decimal as `DEC -100`).
+
+Inside the loop body, the program adds the current array element to the accumulator, increments the pointer location using `ISZ PTR` (so `PTR` points to the next memory address), and increments the counter location using `ISZ CTR`. The `ISZ` (Increment and Skip if Zero) instruction checks whether `CTR` has reached zero. If `CTR` is not yet zero, execution continues to a branch instruction (`BUN LOP`), repeating the loop. Once `CTR` reaches zero after 100 passes, `ISZ` skips the branch instruction, exiting the loop.
+
+In architectures equipped with multiple hardware registers, designated **index registers** act as dedicated pointers and counters, dramatically speeding up loop execution by removing the need for memory-reference increment instructions.
+
+## Programming Arithmetic and Logic Operations
+
+Computers vary in hardware complexity. High-end processors implement complex mathematical instructions in hardware logic circuits, whereas reduced-instruction machines implement complex math using software subroutines.
+
+When hardware instructions are missing, algorithms must be written using basic operations:
+
+- **Multiplication Algorithm:** Implemented in software using shift and add operations. To multiply two unsigned 8-bit numbers, the program checks each bit of the multiplier `Y`. The multiplier is loaded into `AC` and rotated right through the `E` bit (`CIR`). If `E = 1`, the multiplicand `X` is added to a partial product variable `P`. The multiplicand `X` is shifted left (`CIL`) on each iteration, and a loop counter tracks the process across 8 iterations.
+- **Double-Precision Arithmetic:** Operates on 32-bit quantities stored across two adjacent 16-bit memory words (`AL/AH` and `BL/BH`). To add double-precision numbers, the program first adds the lower words (`AL + BL`). Any resulting carry bit captured in `E` is rotated into the `AC`, which is then added to the upper words (`AH + BH`).
+- **Logic Operations Synthesis:** The basic computer provides hardware logic instructions for `AND`, complement (`CMA`), and clear (`CLA`). Missing logic functions are synthesized via Boolean logic equivalencies. For example, the `OR` operation ($A + B$) is synthesized using DeMorgan's Theorem: $\overline{\overline{A} \cdot \overline{B}}$.
+- **Shift Operations:** Logical shifts fill empty positions with zeros using `CLE` combined with `CIR` or `CIL`. Arithmetic right-shifts maintain the sign bit by copying bit 15 into `E` prior to circulating. Arithmetic left-shifts clear `E` first and check for arithmetic overflow.
+
+## Subroutines
+
+A **subroutine** is a self-contained, reusable sequence of instructions that performs a specific, repetitive task. Using subroutines eliminates code duplication across large programs.
+
+When a main program calls a subroutine, it must save its current return location so that execution can seamlessly resume after the subroutine completes. In the basic computer, this subroutine linkage is executed by the **BSA** **(Branch and Save Return Address)** instruction:
+
+- When `BSA SH4` executes at address `101`, the return address (`102`) is automatically stored directly into the memory location specified by the label `SH4` (address `109`).
+- Execution immediately jumps to `SH4 + 1` (address `10A`), where the subroutine code begins.
+- To return to the main program, the final instruction of the subroutine uses an indirect branch: `BUN SH4 I`. This instruction fetches the return address (`102`) stored inside `SH4` and jumps back to continue main program execution.
+
+Data parameters can be passed between the main program and subroutines in several ways:
+
+- **Register Passing:** A single parameter is loaded into `AC` before calling the subroutine.
+- **Inline Memory Parameters:** Parameters are placed in memory words immediately following the `BSA` call instruction. The subroutine accesses these parameters using indirect addressing (`LDA` `OR I`) and increments its stored return address using `ISZ` for each parameter consumed before returning.
+- **Data Block Pointer Passing:** For large datasets, parameters are organized in a memory block, and the starting memory address of the block is passed following the `BSA` call.
+
+## Input–Output Programming
+
+Input and output operations require synchronization between high-speed processor circuits and relatively slow external peripherals. Transferred data characters are represented as 8-bit ASCII codes occupying the lower half of a 16-bit memory word.
+
+Peripherals signal their readiness using hardware flags:
+
+- **Programmed I/O (Polling):** The computer uses tight check loops containing `SKI` (Skip if Input Flag is ON) or `SKO` (Skip if Output Flag is ON) combined with branch loops (`BUN`). The CPU stays trapped in a wait loop until the external device sets its flag, wasting substantial processor processing power.
+- **Character Packing:** Because each memory word holds 16 bits, character manipulation routines accept two consecutive 8-bit ASCII input characters via `INP`, shift the first character 8 bits to the left using subroutine calls, and combine it with the second character to store packed strings efficiently in buffer blocks.
+- **Program Interrupts:** To eliminate wasteful polling loops, the CPU uses an interrupt facility (`ION` to enable, `IOF` to disable). When an I/O device becomes ready, it triggers a hardware interrupt. The CPU finishes its current instruction, stores the return address in location `0`, and jumps to the interrupt service routine at location `1`.
+
+The **Interrupt Service Routin\*\***e (SRV)\*\* executes six essential tasks:
+
+1. Saves the current state of processor registers (`AC` and `E`) in temporary memory locations.
+2. Checks device flags sequentially to identify the interrupting peripheral.
+3. Services the hardware device by performing data input (`INP`) or output (`OUT`).
+4. Restores saved register states (`E` and `AC`).
+5. Re-enables the interrupt facility (`ION`).
+6. Performs an indirect jump through location 0 (`BUN ZRO I`) to return to the interrupted main program seamlessly.
+
+## Summary
+
+Programming a basic computer involves coordinating software instructions with internal register architectures and timing cycles. By mastering symbolic assembly formats, two-pass assembly translation, software-driven arithmetic algorithms, subroutine linkage strategies, and interrupt-driven I/O processing, engineers establish the fundamental mechanisms required to construct modern system software.
+
+### Key Takeaways:
+
+- **Multilevel Language Hierarchy:** High-level and symbolic programs must be translated into explicit 16-bit binary codes before hardware execution can occur.
+- **Two-Pass Assembly:** Pass 1 populates the Address Symbol Table using the Location Counter; Pass 2 synthesizes binary machine code using system lookup tables.
+- **Software Algorithm Implementation:** Missing hardware capabilities (like multiplication, double-precision math, and OR functions) are synthesized through software loops, shifts, and DeMorgan logic rules.
+- **Structured Subroutine Linkage:** The `BSA` instruction stores return addresses directly into subroutine header words, enabling flexible returns via `BUN I` indirect jumps.
+- **Interrupt-Driven Efficiency:** Interrupt service routines eliminate wasteful CPU polling loops by saving CPU context, handling asynchronous transfers, and restoring program execution context.

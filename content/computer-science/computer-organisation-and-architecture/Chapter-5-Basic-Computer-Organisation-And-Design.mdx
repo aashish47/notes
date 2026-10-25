@@ -1,0 +1,314 @@
+export const metadata = {
+	title: "Basic Computer Organization and Design",
+	description:
+		"Understand the architecture and design of a basic computer, including instruction codes, addressing modes, registers, common bus organization, instruction execution cycles, memory-reference instructions, I/O interrupts, hardwired control logic, Boolean control equations, and accumulator circuit design.",
+	order: 5,
+	draft: false,
+	tags: [
+		"computer architecture",
+		"basic computer organization",
+		"instruction codes",
+		"addressing modes",
+		"computer registers",
+		"common bus system",
+		"instruction cycle",
+		"microoperations",
+		"hardwired control",
+		"memory-reference instructions",
+		"input output",
+		"program interrupts",
+		"Boolean logic",
+		"control unit design",
+		"accumulator logic",
+	],
+};
+
+## Introduction
+
+How does a simple stream of 1s and 0s transform into a fully functional computer capable of performing arithmetic, executing conditional logic, and communicating with external devices?
+
+Welcome to the inner workings of computer architecture! In this lesson, we will systematically dissect the organization and design of a classic basic computer from the ground up—exploring how hardware registers, control logic, timing signals, and binary instruction sets harmonize to execute programs.
+
+By the end of this lesson, you will be able to:
+
+- **Analyze** the stored program organization, addressing modes, and instruction code formats of a basic computer.
+- **Trace** the data pathways and transfer signals across the 8 internal registers and the 16-bit common bus system.
+- **Deconstruct** the multi-phase instruction cycle, including fetch, decode, effective address calculation, and execution.
+- **Evaluate** the execution of memory-reference, register-reference, and input–output instructions.
+- **Contrast** programmed I/O polling with hardware-driven program interrupts.
+- **Derive** Boolean logic equations to design control units, register inputs, and accumulator logic.
+
+## Instruction Codes
+
+At the heart of every digital computer is its ability to execute stored programs. A **program** is a set of instructions that specifies operations, operands, and the exact sequence of data processing tasks. An **instruction code** is a group of bits that instructs the computer to perform a specific operation.
+
+Instruction codes are partitioned into specific functional fields, the most fundamental being the **operation code (opcode)**. An opcode defines macrooperations such as addition, subtraction, shifting, or logical clearing. If a computer supports up to $2^n$ distinct operations, its opcode field must contain at least $n$ bits. For instance, a system with 64 operations requires a 6-bit opcode ($2^6 = 64$). When decoded, the operation code triggers a precise sequence of low-level **microoperations** in the computer's internal registers.
+
+In a **stored program organization**, instructions and data share the same memory unit. In our model basic computer, memory consists of **4096 words**, where each word is **16 bits wide**. To address 4096 distinct memory words, an address field of **12 bits** is required ($2^{12} = 4096$). Each 16-bit instruction word is structured as follows:
+
+- **Bits 0–11**: A 12-bit address field pointing to an operand or target in memory.
+- **Bits 12–14**: A 3-bit opcode field specifying 1 of 8 primary operation types.
+- **Bit 15**: An addressing mode bit, designated as **I**.
+
+The central processor register paired with this memory architecture is the **accumulator (AC)**. Operations requiring memory operands process the data located at the instruction's address field in tandem with the current contents of the accumulator.
+
+Understanding how operands are retrieved requires examining three distinct addressing modes:
+
+- **Immediate Operand**: The address bits contain the actual data value itself rather than a memory address.
+- **Direct Address**: The 12-bit address field directly points to the memory location holding the operand ($I = 0$).
+- **Indirect Address**: The 12-bit address field points to a memory word that contains the _actual_ address of the operand ($I = 1$). This target memory address is called the **effective address**.
+
+While direct addressing requires only one memory reference to fetch an operand, indirect addressing requires **two memory references**: the first to fetch the pointer address from memory, and the second to retrieve the actual operand.
+
+## Computer Registers
+
+Because computer instructions execute sequentially from consecutive memory locations, the computer relies on dedicated internal registers to track program execution, hold operands, store instruction codes, and interface with peripheral hardware.
+
+The basic computer features eight key registers:
+
+- **Data Register (DR)** (16 bits): Holds the memory operand read from memory.
+- **Address Register (AR)** (12 bits): Holds the memory address for read/write operations.
+- **Accumulator (AC)** (16 bits): The primary general-purpose processing register.
+- **Instruction Register (IR)** (16 bits): Holds the raw instruction code fetched from memory.
+- **Program Counter (PC)** (12 bits): Holds the memory address of the next instruction to be fetched.
+- **Temporary Register (TR)** (16 bits): Holds temporary scratchpad data during processing.
+- **Input Register (INPR)** (8 bits): Receives incoming serial characters from an input device.
+- **Output Register (OUTR)** (8 bits): Holds outgoing character data for an output device.
+
+Connecting all these registers directly to one another with individual point-to-point wires would result in an overwhelming mesh of connections. To solve this, the basic computer uses a **16-bit common bus system** constructed with multiplexers.
+
+The outputs of seven registers and the memory unit are tied directly to the common bus. The active line placed onto the bus at any given moment is determined by three binary selection variables: **S2, S1, and S0**:
+
+- **S2 S1 S0 = 001**: Selects **AR** onto the bus.
+- **S2 S1 S0 = 010**: Selects **PC** onto the bus.
+- **S2 S1 S0 = 011**: Selects **DR** onto the bus.
+- **S2 S1 S0 = 100**: Selects **AC** onto the bus.
+- **S2 S1 S0 = 101**: Selects **IR** onto the bus.
+- **S2 S1 S0 = 110**: Selects **TR** onto the bus.
+- **S2 S1 S0 = 111**: Selects **Memory Output** onto the bus.
+
+Registers with 12-bit capacities (**AR** and **PC**) place their bits onto the 12 least significant positions of the bus, padding the upper 4 bits with zeros. When loading data _from_ the bus, only the lower 12 bits are transferred into AR or PC.
+
+To accept data from the common bus, a register's **Load (LD)** control input must be enabled during a clock pulse transition. Registers also feature **Increment (INR)** and **Clear (CLR)** synchronous control inputs, allowing them to function as binary counters with parallel load capabilities.
+
+Note that the accumulator (AC) cannot receive data directly from the bus. Instead, AC receives its inputs from an dedicated **Adder and Logic Circuit**. This circuit combines inputs from AC, DR, and INPR to perform arithmetic and logical microoperations, transferring the result into AC and outputting any end carry into flip-flop **E** (extended AC).
+
+## Computer Instructions
+
+The basic computer uses a 16-bit instruction format divided into three distinct operational categories, recognized by decoding bits 12 through 15:
+
+- **Memory-Reference Instruction**: Recognized when opcode bits 12–14 equal **000 through 110**. Bit 15 represents the addressing mode **I** ($I = 0$ for direct, $I = 1$ for indirect). Bits 0–11 contain the 12-bit memory address.
+- **Register-Reference Instruction**: Recognized when opcode bits 12–14 equal **111** and bit 15 is **0** (hexadecimal header **7**). Because no memory operand is needed, bits 0–11 specify the exact operation or conditional test performed directly on **AC** or **E**.
+- **Input–Output Instruction**: Recognized when opcode bits 12–14 equal **111** and bit 15 is **1** (hexadecimal header **F**). Bits 0–11 specify the specific type of input, output, or flag-testing operation.
+
+Instructions are commonly expressed using four-digit **hexadecimal codes**. For instance, an indirect ADD instruction with address `457` translates to `9457` in hexadecimal, whereas a direct ADD to address `457` translates to `1457`.
+
+To execute any arbitrary computable function, a computer's **instruction set** must be **complete**. A complete instruction set requires coverage across four core categories:
+
+1. **Arithmetic, Logical, and Shift Instructions**: Operations such as `ADD`, `CMA` (complement AC), `INC` (increment AC), `AND`, `CLA` (clear AC), `CIR` (circulate right), and `CIL` (circulate left).
+2. **Data Movement Instructions**: Transferring data between memory and processor registers, specifically `LDA` (load memory to AC) and `STA` (store AC to memory).
+3. **Program Control and Status Checking Instructions**: Branching and decision-making via `BUN` (unconditional branch), `BSA` (branch and save return address), `ISZ` (increment and skip if zero), and skip-on-condition instructions (`SPA`, `SNA`, `SZA`, `SZE`).
+4. **Input and Output Instructions**: Interfacing with external peripherals using `INP` and `OUT`.
+
+While the basic computer's 25 instructions represent a minimal instruction set, they are functionally complete. For example, subtraction is implemented by combining `CMA`, `INC`, and `ADD` (2's complement addition), while complex logic functions are constructed using `AND` and `CMA`.
+
+## Timing and Control
+
+All internal operations and register transfers are controlled by a master clock generator working in tandem with the **control unit**. Control organizations fall into two categories: **hardwired control** (built using digital logic gates, flip-flops, and decoders for maximum speed) and **microprogrammed control** (stored as microinstructions in a dedicated control memory).
+
+The basic computer implements a **hardwired control logic unit**. Its hardware structure consists of:
+
+- An **Instruction Register (IR)** holding the current instruction code.
+- A **3 × 8 operation decoder** decoding IR bits 12–14 into eight operation outputs (**D0 through D7**).
+- A flip-flop latching bit 15 into symbol **I**.
+- A **4-bit Sequence Counter (SC)** that counts synchronously from 0 to 15 (0000 to 1111).
+- A **4 × 16 decoder** that converts SC outputs into 16 distinct timing signals (**T0 through T15**).
+
+During normal operation, the sequence counter SC increments automatically with every positive clock transition, driving the timing signals sequentially ($T_0, T_1, T_2, T_3, \dots$). However, SC can be synchronously cleared back to 0 at any point when a specific control condition is met.
+
+For instance, consider the control statement:
+
+$$
+D_3 T_4: SC \leftarrow 0
+$$
+
+When operation decoder $D_3$ is active and timing signal $T_4$ arrives, the clear input (CLR) of SC is activated. On the very next clock edge, SC resets to 0000, causing timing signal $T_0$ to become active instead of $T_5$, seamlessly starting a new cycle.
+
+Memory read and write cycles are initiated at the rising edge of a timing signal. Assuming the memory access time is shorter than one full clock cycle period, data read from memory is loaded into its destination register at the exact positive transition marking the end of that clock cycle.
+
+## Instruction Cycle
+
+A program executes by continuously repeating the **instruction cycle**, which is divided into four consecutive phases:
+
+1. **Fetch** an instruction from memory.
+2. **Decode** the instruction.
+3. **Read the effective address** from memory (if an indirect address is specified).
+4. **Execute** the instruction.
+
+The microoperations for the **Fetch and Decode** phases are identical for all instructions and occur during timing signals $T_0$, $T_1$, and $T_2$:
+
+- $T_0$: $AR \leftarrow PC$ (Place the address from Program Counter into Address Register)
+- $T_1$: $IR \leftarrow M[AR], PC \leftarrow PC + 1$ (Read instruction word into Instruction Register and increment PC)
+- $T_2$: $D_0 \dots D_7 \leftarrow \text{Decode } IR(12\text{--}14), AR \leftarrow IR(0\text{--}11), I \leftarrow IR(15)$ (Decode opcode, isolate target address in AR, and save mode bit I)
+
+At timing signal $T_3$, the control unit evaluates $D_7$ and $I$ to determine the instruction type:
+
+- **If** $D_7 = 0$ **and** $I = 1$: Memory-reference instruction with **indirect address**. The control executes $AR \leftarrow M[AR]$ to fetch the effective address from memory.
+- **If** $D_7 = 0$ **and** $I = 0$: Memory-reference instruction with **direct address**. The effective address is already in AR; no operation is performed during $T_3$.
+- **If** $D_7 = 1$ **and** $I = 0$: **Register-reference instruction**. The operation executes entirely within timing signal $T_3$, after which $SC \leftarrow 0$.
+- **If** $D_7 = 1$ **and** $I = 1$: **Input–Output instruction**. The operation executes entirely within timing signal $T_3$, after which $SC \leftarrow 0$.
+
+Register-reference instructions are denoted by control function $r = D_7 I' T_3$. Individual bits in $IR(0\text{--}11)$ specify the microoperation: `CLA` ($rB_{11}$: $AC \leftarrow 0$), `CLE` ($rB_{10}$: $E \leftarrow 0$), `CMA` ($rB_9$: $AC \leftarrow \overline{AC}$), `CME` ($rB_8$: $E \leftarrow \overline{E}$), `CIR` ($rB_7$: circular right shift of AC and E), `CIL` ($rB_6$: circular left shift of AC and E), `INC` ($rB_5$: $AC \leftarrow AC + 1$), `SPA` ($rB_4$: skip next instruction if AC positive), `SNA` ($rB_3$: skip if AC negative), `SZA` ($rB_2$: skip if AC zero), `SZE` ($rB_1$: skip if E zero), and `HLT` ($rB_0$: stop computer clock).
+
+## Memory-Reference Instructions
+
+Memory-reference instructions begin execution at timing signal $T_4$. The effective address is already present in **AR**. The basic computer includes seven memory-reference instructions:
+
+- **AND to AC (**$D_0$**)**: Performs bitwise logic AND between AC and the memory word.
+  - $D_0 T_4: DR \leftarrow M[AR]$
+  - $D_0 T_5: AC \leftarrow AC \land DR, SC \leftarrow 0$
+- **ADD to AC (**$D_1$**)**: Adds the memory word to AC, sending carry-out to flip-flop E.
+  - $D_1 T_4: DR \leftarrow M[AR]$
+  - $D_1 T_5: AC \leftarrow AC + DR, E \leftarrow C_{out}, SC \leftarrow 0$
+- **LDA: Load to AC (**$D_2$**)**: Loads memory word into AC. Because there is no direct path from the common bus into AC, the word must pass through DR and the Adder/Logic circuit first.
+  - $D_2 T_4: DR \leftarrow M[AR]$
+  - $D_2 T_5: AC \leftarrow DR, SC \leftarrow 0$
+- **STA: Store AC (**$D_3$**)**: Writes current contents of AC into memory word.
+  - $D_3 T_4: M[AR] \leftarrow AC, SC \leftarrow 0$
+- **BUN: Branch Unconditionally (**$D_4$**)**: Transfers control to target instruction by updating PC.
+  - $D_4 T_4: PC \leftarrow AR, SC \leftarrow 0$
+- **BSA: Branch and Save Return Address (**$D_5$**)**: Implements a **subroutine call**. Saves the return address currently stored in PC into memory at address AR, then increments AR and transfers it to PC to begin subroutine execution.
+  - $D_5 T_4: M[AR] \leftarrow PC, AR \leftarrow AR + 1$
+  - $D_5 T_5: PC \leftarrow AR$, SC \leftarrow 0$
+- **ISZ: Increment and Skip if Zero (**$D_6$**)**: Increments a memory word (often used as a loop counter). If the incremented result equals zero, PC is incremented by 1 to skip the next instruction.
+  - $D_6 T_4: DR \leftarrow M[AR]$
+  - $D_6 T_5: DR \leftarrow DR + 1$
+  - $D_6 T_6: M[AR] \leftarrow DR, \text{if } (DR = 0) \text{ then } PC \leftarrow PC + 1, SC \leftarrow 0$
+
+## Input–Output and Interrupt
+
+To interact with users, the basic computer interfaces with terminal hardware (keyboard and printer) via two 8-bit registers—**INPR** and **OUTR**—and two 1-bit control flag flip-flops—**FGI** (input flag) and **FGO** (output flag).
+
+When a key is pressed, an 8-bit ASCII character is loaded into **INPR** and **FGI** is set to 1. Once the computer transfers INPR into AC, FGI resets to 0. Similarly, **FGO** is set to 1 when **OUTR** is ready to receive a character from AC. When loaded, FGO resets to 0 while the printer outputs the character.
+
+Input–output instructions execute during $T_3$ when control symbol $p = D_7 I T_3$ is active:
+
+- **INP** ($pB_{11}$): $AC(0\text{--}7) \leftarrow INPR, FGI \leftarrow 0$
+- **OUT** ($pB_{10}$): $OUTR \leftarrow AC(0\text{--}7), FGO \leftarrow 0$
+- **SKI** ($pB_9$): Skip next instruction if $FGI = 1$
+- **SKO** ($pB_8$): Skip next instruction if $FGO = 1$
+- **ION** ($pB_7$): $IEN \leftarrow 1$ (Enable interrupt capability)
+- **IOF** ($pB_6$): $IEN \leftarrow 0$ (Disable interrupt capability)
+
+Relying on **programmed I/O polling** (continually executing SKI/SKO skip loops) is highly inefficient because the CPU operates millions of times faster than peripheral devices, wasting thousands of clock cycles checking flags.
+
+To eliminate this waste, the system uses a **program interrupt facility** managed by an interrupt flip-flop **R**. When $IEN = 1$ and either $FGI = 1$ or $FGO = 1$, flip-flop $R$ is set to 1.
+
+When $R = 1$, the computer suspends its normal instruction cycle and enters an **Interrupt Cycle**:
+
+- $R T_0$: $AR \leftarrow 0, TR \leftarrow PC$ (Clear address register and store current return address in TR)
+- $R T_1$: $M[AR] \leftarrow TR, PC \leftarrow 0$ (Save return address in memory location 0 and reset PC to 0)
+- $R T_2$: $PC \leftarrow PC + 1, IEN \leftarrow 0, R \leftarrow 0, SC \leftarrow 0$ (Set PC to address 1, disable interrupts, reset R, and clear SC)
+
+The instruction at memory address 1 contains an unconditional branch to an I/O service routine. At the end of the service routine, an indirect branch `BUN 0` reads the stored address at location 0 and restores execution back to the main program.
+
+## Complete Computer Description
+
+The overall architecture of the basic computer consists of the following hardware components:
+
+1. **Memory Unit**: 4096 words, 16 bits per word.
+2. **Nine Registers**: AR (12 bits), PC (12 bits), DR (16 bits), AC (16 bits), IR (16 bits), TR (16 bits), INPR (8 bits), OUTR (8 bits), and SC (4 bits).
+3. **Seven Flip-Flops**: I (mode bit), S (start/stop), E (extended AC carry), R (interrupt request), IEN (interrupt enable), FGI (input flag), and FGO (output flag).
+4. **Two Decoders**: A 3 × 8 operation decoder and a 4 × 16 timing decoder.
+5. **Common Bus**: 16-bit shared bus driven by 8-to-1 selection multiplexers.
+6. **Control Logic Gates**: Hardwired gate array driving control lines.
+7. **Adder and Logic Circuit**: Combinational circuit supplying processor inputs to AC.
+
+The operational control logic toggles between two master cycles based on the state of flip-flop **R**:
+
+- **Instruction Cycle (**$R = 0$**)**: Initiated via $R' T_0$, executing Fetch ($R' T_0, R' T_1$), Decode ($R' T_2$), Type Determination ($T_3$), and Execution ($T_3$ or $T_4 ext{--}T_6$).
+- **Interrupt Cycle (**$R = 1$**)**: Initiated via $R T_0$, saving PC to location 0, loading $PC = 1$, clearing $IEN$ and $R$, and returning control to $T_0$ with $R = 0$.
+
+Every operational state change, bus selection, register enable, and memory access is precisely defined by a master set of register transfer control equations.
+
+## Design of Basic Computer
+
+Designing the hardware control logic for the basic computer requires extracting Boolean algebraic expressions from the master table of register transfer statements.
+
+To illustrate this hardware design methodology, consider the **Address Register (AR)**. By reviewing all register transfer statements that modify AR, we find:
+
+- $R' T_0: AR \leftarrow PC$
+- $R' T_2: AR \leftarrow IR(0\text{--}11)$
+- $D_7' I T_3: AR \leftarrow M[AR]$
+- $R T_0: AR \leftarrow 0$
+- $D_5 T_4: AR \leftarrow AR + 1$
+
+From these statements, we derive three simple Boolean expressions to drive the physical control inputs of register AR:
+
+- **Load Input**: $LD(AR) = R' T_0 + R' T_2 + D_7' I T_3$
+- **Clear Input**: $CLR(AR) = R T_0$
+- **Increment Input**: $INR(AR) = D_5 T_4$
+
+Similarly, memory control inputs are derived by isolating all statements requiring a memory read or write cycle:
+
+- **Read Control**: $\text{Read} = R' T_1 + D_7' I T_3 + (D_0 + D_1 + D_2 + D_6)T_4$
+- **Write Control**: $\text{Write} = R T_1 + D_3 T_4 + D_5 T_4 + D_6 T_6$
+
+Flip-flops are designed in the same manner. For example, using a JK flip-flop for **IEN**, the setting and resetting logic is expressed as:
+
+- $J = p B_7$
+- $K = p B_6 + R T_2$
+
+Finally, control of the **16-bit common bus** is governed by a 3-to-8 binary encoder driving selection inputs $S_2, S_1, S_0$. The encoder logic inputs ($x_1$ through $x_7$) correspond to the hardware activation of registers onto the bus:
+
+- $S_0 = x_1 + x_3 + x_5 + x_7$
+- $S_1 = x_2 + x_3 + x_6 + x_7$
+- $S_2 = x_4 + x_5 + x_6 + x_7$
+
+For example, input $x_1$ places **AR** onto the bus whenever control function $x_1 = D_4 T_4 + D_5 T_5$ is activated.
+
+## Design of Accumulator Logic
+
+The **Accumulator (AC)** register requires special design attention because it performs internal processing through an external combinational gate network: the **Adder and Logic Circuit**.
+
+Reviewing all register transfer statements that modify AC yields:
+
+- $D_0 T_5: AC \leftarrow AC \land DR$ (AND with DR)
+- $D_1 T_5: AC \leftarrow AC + DR$ (ADD with DR)
+- $D_2 T_5: AC \leftarrow DR$ (Transfer from DR)
+- $p B_{11}: AC(0\text{--}7) \leftarrow INPR$ (Transfer from INPR)
+- $r B_9: AC \leftarrow \overline{AC}$ (Bitwise complement)
+- $r B_7: AC \leftarrow \text{shr } AC, AC(15) \leftarrow E$ (Shift right)
+- $r B_6: AC \leftarrow \text{shl } AC, AC(0) \leftarrow E$ (Shift left)
+- $r B_{11}: AC \leftarrow 0$ (Clear AC)
+- $r B_5: AC \leftarrow AC + 1$ (Increment AC)
+
+The control gate structure driving the physical inputs of the AC register is:
+
+- $CLR(AC) = r B_{11}$
+- $INR(AC) = r B_5$
+- $LD(AC) = D_0 T_5 + D_1 T_5 + D_2 T_5 + p B_{11} + r B_9 + r B_7 + r B_6$
+
+The **Adder and Logic Circuit** consists of 16 identical parallel stages, each corresponding to one bit of AC ($AC_i$). Each individual stage $i$ is constructed using seven AND gates, one OR gate, and a Full-Adder (FA):
+
+- **AND Operation**: Gates $AC(i)$ with $DR(i)$.
+- **ADD Operation**: Feeds $AC(i)$, $DR(i)$, and carry input $C_i$ into a Full-Adder stage to calculate sum output and propagate carry $C_{i+1}$.
+- **INPR Transfer**: Connects $INPR(i)$ directly to $AC(i)$ for bit positions 0 through 7.
+- **Complement**: Inverts $AC(i)$ to feed $\overline{AC(i)}$.
+- **Shift-Right**: Routes adjacent bit $AC(i+1)$ into stage $i$ (with bit 15 receiving $E$).
+- **Shift-Left**: Routes adjacent bit $AC(i-1)$ into stage $i$ (with bit 0 receiving $E$).
+
+When $LD(AC)$ is pulsed, the output of the combinational logic stage $I_i$ is transferred simultaneously into flip-flop $AC(i)$ across all 16 bits.
+
+## Summary
+
+The basic computer architecture demonstrates how elementary digital logic elements—multiplexers, counters, decoders, flip-flops, and memory arrays—synthesize into a complete, stored-program computing machine capable of executing complex algorithms.
+
+### Key Takeaways:
+
+- **Stored Program Architecture**: Memory holds both 16-bit instructions and data. Instructions use a 3-bit opcode, a 1-bit mode flag (I), and a 12-bit address field.
+- **Bus-Centric Interconnections**: A 16-bit common bus driven by 3 selection lines ($S_2, S_1, S_0$) streamlines data transfers across 8 internal registers and memory.
+- **Hardwired Control Unit**: A 4-bit sequence counter (SC) generating timing signals $T_0\text{--}T_{15}$ operates alongside a $3 \times 8$ opcode decoder to synchronize microoperations.
+- **Four-Phase Instruction Cycle**: Sequential execution proceeds through Fetch ($T_0, T_1$), Decode ($T_2$), Indirect Addressing ($T_3$), and Execution ($T_3$ or $T_4\text{--}T_6$).
+- **Hardware Interrupts**: Replaces inefficient software polling by automatically storing the return address at location 0 and servicing peripheral devices when flags ($FGI/FGO$) are set.
+- **Equation-Driven Logic Design**: Control circuitry, register inputs, and accumulator logic are systematically derived by extracting Boolean functions directly from register transfer statements.
