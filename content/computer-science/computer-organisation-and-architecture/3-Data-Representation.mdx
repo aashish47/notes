@@ -1,0 +1,259 @@
+export const metadata = {
+	title: "Data Representation",
+	description:
+		"Explore number systems and base conversions, complement arithmetic, fixed-point and floating-point representations, binary codes such as BCD, Gray code, ASCII, and EBCDIC, and parity-based error detection techniques.",
+	order: 3,
+	draft: false,
+	tags: [
+		"computer science",
+		"data representation",
+		"number systems",
+		"base conversions",
+		"complement arithmetic",
+		"fixed-point representation",
+		"floating-point representation",
+		"binary codes",
+		"BCD",
+		"Gray code",
+		"ASCII",
+		"EBCDIC",
+		"error detection",
+		"parity bits",
+	],
+};
+
+## Introduction
+
+How can a machine constructed entirely out of microscopic two-state electronic switches—capable of storing only 0s and 1s—perform complex mathematical physics, process human language, display high-definition graphics, and run global financial systems? The secret lies in **data representation**: the systematic rules and binary codes that translate abstract numbers, symbols, and instructions into configurations of electronic bits.
+
+By exploring this lesson, you will master the foundational mechanisms that bridges human concepts with hardware execution:
+
+- **Master Number Systems & Conversions:** Move seamlessly between binary, octal, hexadecimal, and decimal representations.
+- **Perform Hardware-Efficient Arithmetic:** Utilize 1's, 2's, 9's, and 10's complements to perform subtraction using simple addition logic.
+- **Analyze Fixed & Floating-Point Data:** Evaluate signed integer formats, overflow conditions, and normalized floating-point structures.
+- **Examine Specialized Binary Codes:** Compare BCD, Gray code, Excess-3, ASCII, and EBCDIC representations.
+- **Implement Error Detection:** Understand how parity bit logic generator and checker circuits detect transmission errors.
+
+## Data Types
+
+To understand how digital computers process information, we must first distinguish between **data** and **information**. Data refers to raw facts without inherent meaning. Data becomes information only when it is assigned a specific interpretation. Inside digital computers, binary information is stored in processor registers or memory cells composed of flip-flops—two-state hardware devices that can hold only a 1 or a 0. Registers store two primary types of binary content:
+
+- **Control Information:** A bit or group of bits used to specify the sequence of command signals required to manipulate data in other registers.
+- **Data:** Numbers, letters, and discrete symbols operated on to achieve computational results.
+
+Computer data generally falls into three categories: numbers used in arithmetic computations, letters of the alphabet used in text processing, and discrete symbols used for specific system control. While binary is the natural language of digital hardware, computer systems must interact with human users who think in decimal and operate with text characters.
+
+### Number Systems and Base Conversions
+
+A number system of base, or **radix** $r$, uses $r$ distinct digit symbols. The total quantity represented by a string of digits is calculated by multiplying each digit by an integer power of radix $r$ and summing the weighted products. For example, in our everyday decimal system ($r = 10$), the digits 0 through 9 are used. The number $724.5_{10}$ represents:
+
+$$
+7 \times 10^2 + 2 \times 10^1 + 4 \times 10^0 + 5 \times 10^{-1} = 700 + 20 + 4 + 0.5
+$$
+
+In the binary system ($r = 2$), only digits 0 and 1 are used. The binary string $101101_2$ evaluates to decimal 45:
+
+$$
+1 \times 2^5 + 0 \times 2^4 + 1 \times 2^3 + 1 \times 2^2 + 0 \times 2^1 + 1 \times 2^0 = 32 + 0 + 8 + 4 + 0 + 1 = 45_{10}
+$$
+
+Converting a decimal number into base $r$ requires separating the number into its integer and fraction parts:
+
+- **Integer Conversion:** Accomplished by successive divisions by radix $r$ and accumulating the remainders from bottom to top (first remainder becomes the low-order bit).
+- **Fraction Conversion:** Accomplished by successive multiplications by radix $r$ and accumulating the integer digits generated (first integer becomes the digit adjacent to the radix point).
+
+For example, converting decimal $41.6875_{10}$ into binary yields integer $41_{10} = 101001_2$ and fraction $0.6875_{10} = 0.1011_2$, producing $101001.1011_2$.
+
+### Octal and Hexadecimal Numbers
+
+Writing long strings of binary bits is cumbersome and error-prone. To streamline register specifications, computer engineers rely on **octal** (radix 8: digits 0–7) and **hexadecimal** (radix 16: digits 0–9 and letters A–F, where A=10 through F=15). Because $2^3 = 8$ and $2^4 = 16$, conversions between binary and these bases are exceptionally straightforward:
+
+- **Binary to Octal:** Partition binary bits into groups of three starting from the radix point, and assign the corresponding octal digit to each group.
+- **Binary to Hexadecimal:** Partition binary bits into groups of four starting from the radix point, and assign the corresponding hexadecimal digit to each group.
+
+For instance, a 12-bit register holding `111111111111` can be compactly written as `7777` in octal (reducing digit count by one-third) or `FFF` in hexadecimal (reducing digit count by one-fourth).
+
+### Decimal and Alphanumeric Representation
+
+Instead of converting entire decimal numbers to pure binary for computation, computers can store decimal digits directly using binary codes. A **binary code** uses $n$ bits to represent up to $2^n$ elements. Encoding the 10 decimal digits requires at least 4 bits (which provides 16 combinations, leaving 6 unassigned).
+
+The most common decimal code is **Binary-Coded Decimal (BCD)**, which maps decimal digits 0 through 9 directly to 4-bit binary values `0000` through `1001`. It is critical to distinguish between decimal-to-binary conversion and decimal-to-BCD encoding:
+
+- Decimal $99_{10}$ converted to pure binary is `1100011` (7 bits).
+- Decimal $99_{10}$ encoded in BCD is `1001 1001` (8 bits).
+
+For text and symbolic data, computers use **alphanumeric character sets**. The standard code is **ASCII** (American Standard Code for Information Interchange), which uses 7 bits to represent 128 characters (including upper- and lowercase letters, numeric digits, punctuation, and control symbols). Interestingly, an ASCII numeric character (such as digit 5, encoded as `011 0101`) can be converted directly into BCD simply by stripping its three high-order bits (`011`).
+
+## Complements
+
+In digital computers, subtraction using traditional arithmetic borrow operations is hardware-inefficient. Instead, digital systems simplify subtraction and logical operations by using **complements**. Complements allow hardware adders to perform subtraction using basic addition circuits.
+
+There are two types of complements for any base $r$ system: the $(r - 1)$**'s complement** and the $r$**'s complement**.
+
+### The $(r - 1)$**'s Complement**
+
+For a number $N$ in base $r$ having $n$ digits, the $(r - 1)$'s complement is defined as $(r^n - 1) - N$.
+
+- **9's Complement (Decimal,** $r = 10$**):** Calculated as $(10^n - 1) - N$. Because $10^n - 1$ consists of a string of $n$ nines, the 9's complement is obtained simply by subtracting each digit of the number from 9. For example, the 9's complement of 546700 is $999999 - 546700 = 453299$.
+- **1's Complement (Binary,** $r = 2$**):** Calculated as $(2^n - 1) - N$. Since $2^n - 1$ consists of $n$ ones, subtracting a binary bit from 1 flips a 0 to 1 and a 1 to 0. Thus, the 1's complement of a binary number is formed simply by inverting all bits. For example, the 1's complement of `1011001` is `0100110`.
+
+### The $r$**'s Complement**
+
+The $r$'s complement of an $n$-digit number $N$ in base $r$ is defined as $r^n - N$ for $N \neq 0$ (and 0 for $N = 0$). Comparing this to the $(r - 1)$'s complement reveals that the $r$'s complement is simply obtained by adding 1 to the $(r - 1)$'s complement:
+
+$$
+r^n - N = [(r^n - 1) - N] + 1
+$$
+
+- **10's Complement (Decimal):** Add 1 to the 9's complement. Alternatively, leave all least significant 0s unchanged, subtract the first non-zero digit from 10, and subtract all higher digits from 9. For example, the 10's complement of 246700 is 753300.
+- **2's Complement (Binary):** Add 1 to the 1's complement. Alternatively, leave all least significant 0s and the first 1 unchanged, then invert all remaining bits to their left. For example, the 2's complement of `1101100` is `0010100`.
+
+Note that taking the complement of a complement restores the number to its original value.
+
+### Subtraction of Unsigned Numbers
+
+Subtracting two $n$-digit unsigned numbers $M - N$ in base $r$ using $r$'s complements follows a standard algorithmic workflow:
+
+1. **Add the minuend** $M$ **to the** $r$**'s complement of the subtrahend** $N$**:** This performs $M + (r^n - N) = M - N + r^n$.
+2. **Check for an end carry (**$r^n$**):**
+   - If $M \ge N$, the sum produces an **end carry** $r^n$. Discard this end carry; the remaining value is the correct positive result $M - N$.
+   - If $M < N$, the sum **does not** produce an end carry, resulting in $r^n - (N - M)$, which is the $r$'s complement of $(N - M)$. To express the final answer in familiar form, take the $r$'s complement of the sum and place a negative sign in front.
+
+For example, subtracting binary numbers $X = 1010100_2$ (84) and $Y = 1000011_2$ (67):
+
+- $X - Y$**:** Add $1010100$ to the 2's complement of $Y$ (`0111101`). The sum is $10010001_2$. Discard the end carry $2^7$, leaving $0010001_2$ ($+17_{10}$).
+- $Y - X$**:** Add $1000011$ to the 2's complement of $X$ (`0101100`). The sum is $1101111_2$. There is no end carry. Taking the 2's complement of $1101111_2$ gives $0010001_2$ and attaching a minus sign yields $-0010001_2$ ($-17_{10}$).
+
+## Fixed-Point Representation
+
+Fixed-point representation assumes that the binary point is held in a fixed position within a register—either at the extreme left (to represent fractions) or at the extreme right (to represent integers). While the binary point itself is not physically stored, hardware operations treat the register contents accordingly.
+
+### Integer Representation and Signed Numbers
+
+Positive integers are represented with a sign bit of `0` in the leftmost position, followed by the binary magnitude. Negative integers are represented with a sign bit of `1`, but their remaining magnitude bits can be formatted in one of three ways:
+
+- **Signed-Magnitude Representation:** Consists of the positive magnitude with the sign bit flipped to 1.
+- **Signed-1's Complement Representation:** Formed by complementing all bits of the positive value, including the sign bit.
+- **Signed-2's Complement Representation:** Formed by taking the 2's complement of the positive number, including its sign bit.
+
+For example, representing $+14_{10}$ and $-14_{10}$ in an 8-bit register:
+
+- $+14_{10}$ is always `00001110`.
+- $-14_{10}$ in Signed-Magnitude is `10001110`.
+- $-14_{10}$ in Signed-1's Complement is `11100001`.
+- $-14_{10}$ in Signed-2's Complement is `11100010`.
+
+Signed-magnitude is awkward for computer hardware, and 1's complement introduces two representations for zero (`+0` as `00000000` and `-0` as `11111111`). Consequently, modern digital systems almost universally use **signed-2's complement** for integer arithmetic.
+
+### Arithmetic Addition and Subtraction in 2's Complement
+
+Adding two numbers in signed-2's complement is remarkably simple: **Add the two numbers including their sign bits, and discard any carry out of the sign bit position.** Negative operands must initially be in 2's complement form, and if the final sum is negative, it automatically results in 2's complement form.
+
+To subtract two signed binary numbers, apply the rule: **Take the 2's complement of the subtrahend (including its sign bit) and add it to the minuend (including its sign bit).** This transforms subtraction into addition: $A - B = A + (-B)$.
+
+### Overflow Detection
+
+Because processor registers have a finite width of $n$ bits, an result requiring $n + 1$ bits causes an **overflow**. Overflow corrupts the result, often flipping the sign bit incorrectly.
+
+Overflow cannot occur when adding numbers of opposite signs. It occurs only when adding two positive numbers yields a negative result, or adding two negative numbers yields a positive result. Hardware detects overflow by monitoring the carry into the sign bit position ($C_{in}$) and the carry out of the sign bit position ($C_{out}$):
+
+$$
+\text{Overflow} = C_{in} \oplus C_{out}
+$$
+
+If an Exclusive-OR gate comparing these two carries outputs a 1, an overflow has occurred.
+
+### Decimal Fixed-Point Representation
+
+Decimal arithmetic can also be performed directly using 4-bit BCD codes. Signed decimal numbers allocate 4 bits for the sign digit—typically using `0000` for positive (`+`) and `1001` (BCD 9) for negative (`-`). Signed-10's complement system rules mirror 2's complement binary rules exactly, allowing direct hardware addition and subtraction of decimal data without binary conversion.
+
+## Floating-Point Representation
+
+To represent extremely large or tiny numbers without requiring huge registers, computers use **floating-point representation**. A floating-point number consists of two distinct signed parts:
+
+- **Mantissa (**$m$**):** A signed fixed-point fraction or integer representing the significant digits.
+- **Exponent (**$e$**):** A signed integer designating the position of the radix point.
+
+The floating-point value is interpreted according to the formula $m \times r^e$, where radix $r$ and the radix point position are implicitly assumed by hardware.
+
+For example, consider a binary floating-point number with an 8-bit fraction mantissa and a 6-bit exponent:
+
+- **Mantissa:** `01001110` (sign bit `0` indicates positive; implied binary point precedes bits: $+0.1001110_2$)
+- **Exponent:** `000100` (binary equivalent of $+4_{10}$)
+
+This format represents $+0.1001110_2 \times 2^4 = +1001.11_2 = +9.75_{10}$.
+
+### Normalization
+
+A floating-point number is **normalized** when the most significant (leftmost) digit of the mantissa is non-zero. For instance, the binary mantissa `00011010` is unnormalized due to three leading zeros. Shifting the mantissa left by 3 positions yields `11010000`. To preserve the overall numerical value, shifting left multiplies the mantissa by $2^3$, so the exponent must be decremented by 3.
+
+Normalization ensures maximum possible precision for a fixed register length. Zero cannot be normalized and is traditionally represented as all zeros across both mantissa and exponent.
+
+### Standard Formats
+
+Standardized formats established by organizations like ANSI and IEEE define exact bit allocations for floating-point exchange. For example, an ANSI 32-bit floating-point format organizes data into 4 bytes:
+
+- **Byte 1:** Sign bit ($S$) + Exponent bits ($E$, stored in 2's complement).
+- **Bytes 2–4:** Mantissa bits ($M$, stored as a normalized fraction).
+
+While floating-point hardware arithmetic is more complex and execution time is longer than fixed-point integer operations, floating-point capability is indispensable for scientific computation to avoid severe scaling and precision loss.
+
+## Other Binary Codes
+
+Beyond standard binary and ASCII, digital systems utilize specialized codes optimized for mechanical encoding, specialized arithmetic, or storage efficiency.
+
+### Gray Code
+
+In analog-to-digital systems, physical parameters (such as rotating shaft positions) are continuously sampled. If standard binary numbers were used to track shaft position, moving between adjacent segments could cause multiple bits to flip simultaneously (e.g., $3_{10} = 0011_2$ transitioning to $4_{10} = 0100_2$ changes three bits). Minor mechanical timing misalignments could produce wildly inaccurate intermediate readouts.
+
+To solve this, the **Gray code** (reflected binary code) is used. The fundamental property of Gray code is that **only a single bit changes when moving between consecutive values**. This single-bit transition property eliminates ambiguity in digital counters and analog sensors.
+
+### Other Decimal Codes
+
+Decimal digits can be mapped to 4-bit codes in various ways:
+
+- **Weighted Codes:** Each bit position is assigned a specific weight. BCD is an **8421 code** because $b_3 \times 8 + b_2 \times 4 + b_1 \times 2 + b_0 \times 1$ yields the digit value. The **2421 code** is another weighted code.
+- **Unweighted Codes:** Bit positions do not carry fixed weights. An example is **Exce\*\***ss-3\*\*, which is formed by adding binary $0011_2$ (3) to the corresponding BCD code.
+- **Self-Complementing Codes:** Codes such as 2421 and Excess-3 possess the self-complementing property: inverting all bits (replacing 1s with 0s and 0s with 1s) directly produces the 9's complement of the decimal digit. This drastically simplifies signed-complement decimal arithmetic.
+- **Excess-3 Gray Code:** Formed by shifting Gray code selections to start at entry $0010_2$, ensuring that cycling from digit 9 back to 0 involves changing only a single bit.
+
+### Other Alphanumeric Codes
+
+While 7-bit ASCII is widespread, other character representations exist:
+
+- **EBCDIC (Extended BCD Interchange Code):** An 8-bit character code extensively used in IBM systems.
+- **6-Bit Internal Codes:** Used internally in systems to pack 64 basic characters (uppercase letters, digits, core symbols) into memory efficiently, minimizing storage footprint compared to 8-bit structures.
+
+## Error Detection Codes
+
+When binary data is transmitted over communication lines or read from storage media, external noise can flip bits from 1 to 0 or 0 to 1. To maintain system reliability, digital systems incorporate error-checking mechanisms.
+
+An **error detection code** is a binary code that detects transmission errors. While it detects the presence of errors, it cannot correct them automatically; typically, detection prompts a retransmission request. In contrast, an **error-correcting code** (such as a Hamming code) detects and pinpoints single-bit error positions so the system can flip the corrupted bit back to its correct state without retransmission.
+
+### Parity Bits
+
+The most common error detection scheme involves appending an extra bit, called a **parity bit (**$P$**)**, to a binary message:
+
+- **Even Parity:** The bit $P(\text{even})$ is set to 0 or 1 to make the total number of 1s in the combined message and parity bit **even**.
+- **Odd Parity:** The bit $P(\text{odd})$ is set to make the total number of 1s **odd**.
+
+Note that $P(\text{odd})$ is always the exact complement of $P(\text{even})$. The parity method detects any single bit error, or any odd number of bit errors (1, 3, 5...). However, an even number of bit errors (2, 4...) cancels out parity distortion and goes undetected.
+
+### Hardware Logic Implementation
+
+Parity circuits are constructed using Exclusive-OR (XOR) logic gates. In Boolean algebra, an XOR function of three or more variables is defined as an **odd function**—it outputs a binary 1 if and only if an odd number of inputs are equal to 1.
+
+- **Parity Generator (Sending End):** Evaluates message bits $x, y, z$. The function $P(\text{even}) = x \oplus y \oplus z$. For odd parity, an Exclusive-NOR (XNOR) gate complements the output to generate $P(\text{odd})$.
+- **Parity Checker (Receiving End):** Receives the message plus parity bit. It evaluates all incoming bits using an XOR/XNOR network. If the received parity fails to match the adopted scheme, the parity checker outputs an error signal (binary 1).
+
+## Summary
+
+Data representation is the essential foundation of computer architecture, translating abstract mathematical numbers, human textual symbols, and discrete system commands into pure binary bit patterns manipulated by register hardware.
+
+### Key Takeaways:
+
+- **Radix Conversions & Bases:** Base $r$ numbers are weighted sums of powers of $r$. Octal (3-bit grouping) and Hexadecimal (4-bit grouping) serve as shorthand notations for long binary register values.
+- **Complement Arithmetic:** 2's complement (binary) and 10's complement (decimal) eliminate hardware borrow logic, transforming subtraction into addition ($A - B = A + [-B]$).
+- **Fixed vs. Floating-Point:** Signed-2's complement integer arithmetic uses XOR gates ($C_{in} \oplus C_{out}$) for overflow detection. Floating-point numbers represent scientific scales using mantissa fraction $m$ and exponent $e$ ($m \times r^e$) normalized for maximum precision.
+- **Specialized Binary Codes:** Gray code minimizes mechanical errors via single-bit state transitions. Self-complementing decimal codes (2421, Excess-3) streamline 9's complement calculations.
+- **Error Detection:** Parity schemes add a bit to enforce odd or even 1s across a message, leveraging XOR odd-function logic gates to detect single-bit transmission errors.

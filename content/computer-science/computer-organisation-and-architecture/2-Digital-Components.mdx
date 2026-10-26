@@ -1,0 +1,198 @@
+export const metadata = {
+	title: "Digital Components",
+	description:
+		"Learn about integrated circuits, digital logic families, decoders, encoders, multiplexers, registers, shift registers, binary counters, and memory organization, including RAM, ROM, and their variants.",
+	order: 2,
+	draft: false,
+	tags: [
+		"computer science",
+		"digital electronics",
+		"integrated circuits",
+		"decoders",
+		"encoders",
+		"multiplexers",
+		"registers",
+		"shift registers",
+		"binary counters",
+		"memory organization",
+		"RAM",
+		"ROM",
+	],
+};
+
+## Introduction
+
+How do millions of microscopic switches inside a silicon chip coordinate to execute complex computer programs in fractions of a second? The secret lies in a hierarchy of standardized **digital components**—functional building blocks constructed from simple logic gates that manage, direct, and store binary information.
+
+By the end of this lesson, you will be able to:
+
+- **Differentiate** between scales of integrated circuit integration (SSI, MSI, LSI, VLSI) and major digital logic families.
+- **Analyze and construct** functional combinational circuits such as decoders, encoders, and multiplexers.
+- **Explain** the internal architecture and operational control of sequential building blocks, including registers, bidirectional shift registers, and binary counters.
+- **Evaluate** memory organization, addressing schemes, and the distinctions between RAM and various ROM technologies.
+
+## Integrated Circuits
+
+At the physical core of modern electronics is the **Integrated Circuit (IC)**—a tiny silicon semiconductor crystal, commonly called a **chip**. Packed inside this ceramic or plastic container are electronic components forming digital logic gates, interconnected and welded via gold wires to external pins ranging from 14 pins on small packages to 100 or more on complex chips.
+
+As semiconductor technology advanced, engineers classified chips based on gate density per package:
+
+- **Small-Scale Integration (SSI):** Contains fewer than 10 independent gates with direct pin connections (e.g., standard logic gate packages).
+- **Medium-Scale Integration (MSI):** Features roughly 10 to 200 gates. MSI chips perform specific elementary functional operations such as decoding, addition, and data storage.
+- **Large-Scale Integration (LSI):** Contains 200 to a few thousand gates, housing complete digital systems like processors and memory chips.
+- **Very-Large-Scale Integration (VLSI):** Houses tens of thousands or millions of gates within a single package, enabling dense memory arrays and modern microcomputers.
+
+### Digital Logic Families
+
+Digital ICs are also grouped by their underlying circuit technology, known as a **digital logic family**. Each family relies on a specific basic electronic circuit (a NAND, NOR, or inverter gate):
+
+- **TTL (Transistor-Transistor Logic):** An evolution of older DTL (Diode-Transistor Logic) that replaced diodes with transistors. Running at 5V with logic levels near 0V (low) and 3.5V (high), TTL has long served as an industry standard.
+- **ECL (Emitter-Coupled Logic):** Designed for extreme speed. By operating transistors in a non-saturated state, ECL achieves lightning-fast propagation delays of just 1 to 2 nanoseconds, making it ideal for supercomputers.
+- **MOS (Metal-Oxide Semiconductor):** Uses unipolar transistors relying on a single carrier type—either electrons (**NMOS**) or holes (**PMOS**). It provides high component packing density.
+- **CMOS (Complementary MOS):** Combines PMOS and NMOS transistors in a complementary design. CMOS dominates modern computing due to its high packing density, simple fabrication, and ultra-low power consumption.
+
+## Decoders
+
+Digital computers represent discrete information using binary codes. A code of $n$ bits can represent up to $2^n$ unique items. A **decoder** is a combinational circuit that converts $n$ binary input lines into a maximum of $2^n$ unique output lines. If certain input combinations are unused, the decoder produces fewer than $2^n$ outputs.
+
+### The $n$-to-$m$-Line Decoder
+
+In an $n$-to-$m$ decoder (where $m \le 2^n$), the circuit activates exactly one output line corresponding to the binary value presented at its inputs.
+
+- **3-to-8-Line Decoder:** Takes 3 input variables ($A_2, A_1, A_0$) and decodes them using internal inverters and AND gates into 8 output lines ($D_0$ through $D_7$). Each output represents a unique minterm or octal digit.
+- **Enable Inputs (**$E$**):** Commercial decoders include one or more enable lines. When $E = 1$, the decoder operates normally; when $E = 0$, all outputs are forced to 0 regardless of the data inputs. Enable inputs transform decoders into versatile building blocks.
+
+### NAND Gate Decoders and Complemented Logic
+
+Decoders can also be built using NAND gates. Because a NAND gate performs an AND operation followed by inversion, it is naturally more economical to output signals in complemented form (active-low). In a NAND decoder, the selected output line drops to logic 0 while all unselected outputs remain at logic 1.
+
+### Decoder Expansion & Encoders
+
+What if you need a 6-to-64 decoder but only have 4-to-16 decoders? You can combine smaller units using their enable inputs! For instance, connecting two 2-to-4 decoders using an inverted enable signal driven by the most significant bit creates a fully functional 3-to-8 decoder.
+
+An **encoder** performs the exact inverse operation of a decoder. It accepts up to $2^n$ input lines (where only one is active at a time) and outputs the corresponding $n$-bit binary code. An octal-to-binary encoder uses OR gates to produce a 3-bit binary output based on which of the 8 octal input lines is active.
+
+## Multiplexers
+
+If a decoder is a traffic controller directing one input signal out to many paths, a **multiplexer (MUX)**—or **data selector**—is the reverse: it receives binary information from $2^n$ input data lines and directs the selected one to a single output line.
+
+### How a Multiplexer Works
+
+A $2^n$-to-1 multiplexer has:
+
+- $2^n$ data input lines ($I_0, I_1, \dots$).
+- $n$ selection lines ($S_{n-1}, \dots, S_0$).
+- 1 single output line ($Y$).
+
+For example, in a **4-to-1-line multiplexer**, two selection lines ($S_1, S_0$) decode which of four inputs ($I_0, I_1, I_2, I_3$) passes through to output $Y$. If $S_1S_0 = 10$, internal AND gates route input $I_2$ directly to the output OR gate while disabling the remaining data paths.
+
+### Quadruple Multiplexers and Universal Logic
+
+Multiple multiplexers are frequently packaged together with shared control lines. A **quadruple 2-to-1-line multiplexer** shares a single select line ($S$) and enable line ($E$) across four separate 2-to-1 MUX units, allowing a system to instantly switch between two distinct 4-bit data buses ($A_3..A_0$ versus $B_3..B_0$).
+
+Multiplexers serve three major functions in computer hardware:
+
+1. **Data Routing:** Directing data traffic between registers and buses.
+2. **Parallel-to-Serial Conversion:** Sending multi-bit words sequentially over a single communication wire.
+3. **Universal Logic Generation:** An $n$-variable Boolean function can be implemented using an $n$-select input multiplexer, making MUX units universal logic modules.
+
+## Registers
+
+While combinational logic circuits process input signals immediately, digital systems need memory components to store intermediate results. A **register** is a group of flip-flops, where each flip-flop stores 1 bit of binary information. An $n$-bit register contains $n$ flip-flops and can hold any $n$-bit binary pattern.
+
+### Basic Register Structure
+
+The simplest register consists purely of flip-flops without extra gating logic. A 4-bit register constructed from four **D flip-flops** shares a single master clock signal. On the rising edge of the clock pulse, whatever binary data is present at inputs $I_0..I_3$ is loaded into flip-flops $A_0..A_3$. An asynchronous **Clear** signal resets all flip-flops to zero regardless of the clock.
+
+### Registers with Parallel Load
+
+In complex microprocessors, a master clock pulse runs continuously. However, we do not want a register to overwrite its stored value on every single clock beat. How do we hold data steady without directly gating or disconnecting the clock line?
+
+We add a **Load** control input and feedback logic:
+
+- When **Load = 1**, external input data passes into the D inputs and gets loaded on the next clock transition.
+- When **Load = 0**, the logic feeds each flip-flop's current output ($Q$) back into its own D input. Because a D flip-flop lacks an inherent "no change" state, feeding output back to input ensures the register re-loads its present value on every clock tick, keeping its content intact!
+
+## Shift Registers
+
+A register capable of moving stored binary bits laterally in one or both directions is called a **shift register**. The basic architecture cascades flip-flops so that the output of one flip-flop feeds directly into the input of its neighbor, all driven by a shared clock pulse.
+
+### Bidirectional Shift Register with Parallel Load
+
+A **unidirectional shift register** shifts bits in only one direction (right or left). A **bidirectional shift register** can shift data left, right, load data in parallel, or retain its state.
+
+In a complete 4-bit bidirectional shift register with parallel load, each stage combines a D flip-flop with a 4-to-1 multiplexer controlled by selection lines $S_1$ and $S_0$:
+
+- $S_1S_0 = 00$ **(No Change):** Re-circulates output back to input.
+- $S_1S_0 = 01$ **(Shift-Right):** Passes the serial input to $A_0$ and shifts $A_{i-1} \to A_i$.
+- $S_1S_0 = 10$ **(Shift-Left):** Passes the serial input to $A_3$ and shifts $A_{i+1} \to A_i$.
+- $S_1S_0 = 11$ **(Parallel Load):** Loads four parallel input bits ($I_0..I_3$) simultaneously.
+
+### Interfacing Remote Systems
+
+Shift registers are essential for long-distance data transmission. Transmitting an $n$-bit memory word in parallel requires $n$ separate wires, which is expensive over long distances. Instead, a transmitter loads $n$ bits in parallel into a shift register and outputs them serially over a single wire. The remote receiver accepts bits one by one into its serial input line and then reads out the complete word in parallel once fully accumulated.
+
+## Binary Counters
+
+A **counter** is a sequential register that steps through a predetermined sequence of binary states upon receiving clock pulses. An $n$-bit binary counter counts through standard binary representations from $0$ up to $2^n - 1$.
+
+### Counting Logic and Flip-Flop Transitions
+
+In a standard binary count sequence ($0000, 0001, 0010, 0011, \dots$):
+
+1. The least significant bit ($A_0$) complements on **every single pulse**.
+2. Any higher bit complements on the next pulse **if and only if all preceding lower-order bits are currently 1**.
+
+**Synchronous binary counters** utilize flip-flops with complementing capabilities (such as **JK** or **T flip-flops**). In a 4-bit synchronous counter, setting $J = K = 1$ complements the stage on the clock edge. A chain of cascading AND gates checks whether all previous bits equal 1, enabling the appropriate $J$ and $K$ inputs simultaneously across all stages.
+
+### Counter with Parallel Load and Synchronous Clear
+
+Advanced counters include added functionality to initialize or limit counting:
+
+- **Clear Input:** Synchronously resets all output flip-flops to $000$$0$.
+- **Load Input:** Disables counting and transfers data from parallel inputs ($I_0..I_3$) into the register.
+- **Increment (Count) Input:** When enabled (and Clear/Load are 0), increments the counter value by 1 on each clock pulse.
+
+These capabilities make binary counters ideal for timing generators, divide-by-$N$ pulse counters, and program counters in CPU design.
+
+## Memory Unit
+
+A **memory unit** is a collection of storage cells accompanied by circuits necessary to transfer data in and out. Memory stores binary information in groups called **words**. A group of 8 bits is called a **byte**. Common memory capacities are measured in Kilobytes ($1K = 2^{10} = 1,024$), Megabytes ($1M = 2^{20}$), or Gigabytes ($1G = 2^{30}$).
+
+An internal memory structure is specified by the number of words ($2^k$) and bits per word ($n$), accessed via $k$ **address lines**.
+
+### Random-Access Memory (RAM)
+
+In **Random-Access Memory (RAM)**, reading or writing any memory word takes an identical amount of time regardless of its physical location. RAM requires data lines, address selection lines, and control lines (**Read** and **Write**):
+
+- **Write Operation:** Apply address $\to$ Apply input data $\to$ Activate Write line.
+- **Read Operation:** Apply address $\to$ Activate Read line $\to$ Read output data.
+
+RAM is split into two primary types:
+
+- **Static RAM (SRAM):** Uses internal flip-flops; retains memory as long as power is applied.
+- **Dynamic RAM (DRAM):** Stores data as electrical charges on microscopic capacitors; requires periodic **refreshing** to prevent bit corruption.
+
+### Read-Only Memory (ROM) and Variations
+
+**Read-Only Memory (ROM)** performs read operations only; its stored bits are permanently set and remain intact even when power is removed (non-volatile).
+
+Different types of ROM include:
+
+- **Mask-Programmed ROM:** Configured permanently by the semiconductor foundry during fabrication (economical only for massive production runs).
+- **PROM (Programmable ROM):** Shipped with fuses intact; programmed by users in the lab using high-current pulses in a PROM programmer.
+- **EPROM (Erasable PROM):** Cleared back to initial state by exposure to ultraviolet light, allowing reprogramming.
+- **EEPROM (Electrically Erasable PROM):** Erased and rewritten using electrical signals (used for system dates, configuration ports, etc.).
+- **Flash Memory:** A form of EEPROM that erases entire blocks of data rapidly, widely used in mobile phones and digital cameras.
+
+## Summary
+
+Digital components—from simple IC gate arrays to complex RAM and ROM chips—provide the fundamental functional units used to construct modern computing architecture.
+
+### Key Takeaways
+
+- **Integrated Circuits:** Categorized by density (SSI, MSI, LSI, VLSI) and technology family (TTL for standards, ECL for high speed, CMOS for low power consumption).
+- **Decoders & Multiplexers:** Decoders convert $n$ inputs into $2^n$ unique outputs for memory addressing and signal decoding; multiplexers select 1 of $2^n$ data inputs for single-line routing.
+- **Registers & Shift Registers:** Registers hold binary words; parallel load logic prevents unwanted state overwrites. Shift registers allow left/right bit shifting and parallel-to-serial conversion.
+- **Binary Counters:** Synchronous counters step through binary sequences using cascading bit-complement logic and enable signals.
+- **Memory Units:** Organized as $2^k \times n$ words. RAM offers volatile read/write access (Static vs Dynamic), while non-volatile ROM varieties (PROM, EPROM, EEPROM, Flash) preserve data permanently.

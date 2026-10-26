@@ -1,0 +1,267 @@
+export const metadata = {
+	title: "Digital Logic",
+	description:
+		"Explore digital computer fundamentals, computer architecture, logic gates, Boolean algebra, Karnaugh map simplification, combinational circuits, flip-flops, and sequential circuit design.",
+	order: 1,
+	draft: false,
+	tags: [
+		"computer science",
+		"digital logic",
+		"computer architecture",
+		"Boolean algebra",
+		"logic gates",
+		"Karnaugh maps",
+		"combinational circuits",
+		"sequential circuits",
+		"flip-flops",
+	],
+};
+
+## Introduction
+
+Have you ever wondered how a computer converts silent pulses of electrical voltage into complex mathematical computations, software applications, and intelligent decisions? At its fundamental physical layer, every digital computer relies on remarkably simple binary building blocks operating in structured mathematical harmony.
+
+In this lesson, we will systematically explore the hierarchy of digital logic—starting from raw bits and logic gates, advancing through Boolean simplification and combinational circuits, and culminating in stateful sequential machines. By the end of this journey, you will be able to:
+
+- **Distinguish** between computer organization, design, and architecture, including the structural trade-offs between von Neumann and Harvard designs.
+- **Analyze and manipulate** logic gates, Boolean algebraic expressions, and canonical forms.
+- **Minimize** complex Boolean functions using Karnaugh maps (K-maps) and don't-care conditions.
+- **Construct** fundamental combinational circuits, such as half-adders and full-adders.
+- **Design and evaluate** synchronous sequential circuits using flip-flops, state tables, and state diagrams.
+
+## Digital Computers
+
+A **digital computer** is a system designed to perform computational tasks using variables that take a limited number of discrete values. While decimal systems rely on 10 discrete digits ($0$ through $9$), physical electronic components operate far more reliably when constrained to just **two states**—high voltage and low voltage. This physical restriction naturally aligns with binary logic (true-or-false, yes-or-no), making the **binary number system** (base 2, using digits `0` and `1`) the foundation of all modern computing. A single binary digit is called a **bit**.
+
+In a digital computer, groups of bits represent diverse forms of information. For instance, the 7-bit sequence `1001011` can be expanded into a power series to represent the decimal number $75$:
+
+$$
+1 \cdot 2^6 + 0 \cdot 2^5 + 0 \cdot 2^4 + 1 \cdot 2^3 + 0 \cdot 2^2 + 1 \cdot 2^1 + 1 \cdot 2^0 = 64 + 8 + 2 + 1 = 75
+$$
+
+Yet, that exact same sequence of seven bits represents the upper-case letter **'K'** when interpreted through a standard alphanumeric code, or it might serve as a specific control instruction for internal processor hardware. Just as the same letters of an alphabet construct different languages, binary bit patterns derive their meaning entirely from context.
+
+Hardware, Software, and System Entities
+
+To process these bit patterns, a complete computer system integrates two main entities:
+
+- **Hardware:** The physical electronic components and electromechanical devices.
+- **Software:** The instructions and data manipulated by the hardware. A sequence of instructions forms a **program**, while the data manipulated forms the **data base**.
+
+System software—specifically the **operating system**—bridges the gap between physical hardware capabilities and user applications. For example, when a user writes a high-level application program, a system program called a **compiler** translates that program into machine-level binary code.
+
+The hardware architecture of a computer is traditionally divided into three central functional components:
+
+1. **Central Processing Unit (CPU):** Contains the arithmetic and logic unit (ALU) for manipulating data, registers for temporary storage, and control circuits for fetching and executing instructions.
+2. **Memory (RAM):** Stores instructions and data. It is called Random-Access Memory because the CPU can access any location at random in a fixed time interval.
+3. **Input-Output Processor (IOP):** Handles communication and data transfers between internal memory and external devices (keyboards, displays, disk drives).
+
+### Three Perspectives of Hardware
+
+Computer hardware is studied from three distinct viewpoints depending on the level of abstraction:
+
+- **Computer Organization:** Focuses on how functional hardware units operate and are interconnected (investigating the internal structure to verify components work as intended).
+- **Computer Design (Implementation):** Focuses on selecting specific hardware components and establishing their physical interconnections to meet set specifications.
+- **Computer Architecture:** Focuses on the structure and behavior of the computer as seen by the software user, including instruction sets, addressing modes, and register formats.
+
+### System Architectural Frameworks
+
+Two foundational computer architectures define how instructions and data move through memory:
+
+- **von Neumann Architecture:** Features a single, shared memory space and signal pathway (bus) for both instructions and data. It operates on the **stored-program principle**, executing instructions sequentially. Because data and instructions share the same bus, the CPU cannot read an instruction and read/write data simultaneously—a phenomenon known as the _von Neumann bottleneck_.
+- **Harvard Architecture:** Uses physically separate memory units and signal pathways for instructions and data. This separation allows simultaneous access to instruction and data memory, effectively doubling memory bandwidth. DesktopPersonal Computers rely primarily on von Neumann structures, whereas specialized microcontrollers and Digital Signal Processors (DSPs) favor Harvard architectures.
+
+## Logic Gates
+
+Binary information is represented inside a computer by physical electrical signals. For example, a system might define $3.0\text{ V}$ as binary `1` and $0.5\text{ V}$ as binary `0`. **Logic gates** are hardware circuits that manipulate these electrical signals based on logical rules, producing binary outputs when specific input conditions are met.
+
+Each logic gate is characterized by its graphic symbol, algebraic expression, and **truth table**—a tabular listing of all possible binary input combinations and their corresponding outputs.
+
+### The Eight Primary Logic Gates
+
+1. **AND Gate:** Produces output `1` if and only if **all** inputs are `1`. Symbolized algebraically as $x = A \cdot B$ or $x = AB$. An AND gate is sensitive to a logic `0` on any input.
+2. **OR Gate:** Produces output `1` if **any** input is `1` (inclusive OR). Symbolized algebraically as $x = A + B$.
+3. **Inverter (NOT Gate):** Accepts a single input and flips its logic state. Symbolized as $x = A'$ or $\bar{A}$. Its symbol features a small bubble at the output designating logical complementation.
+4. **Buffer:** A single-input circuit that produces an output identical to its input ($x = A$). It produces no logic change but provides **power amplification** to drive downstream gates requiring higher current.
+5. **NAND Gate:** The complement of AND ($x = (A$$B)'$). It produces `0` only when all inputs are `1`.
+6. **NOR Gate:** The complement of OR ($x = (A + B)'$). It produces `1` only when all inputs are `0`.
+7. **Exclusive-OR (XOR) Gate:** Produces output `1` if the inputs are different ($x = A'B + AB' = A \oplus B$). More generally, an $n$-input XOR functions as an **odd function**, yielding `1` when an odd number of inputs are `1`.
+8. **Exclusive-NOR (XNOR) Gate:** The complement of XOR ($x = A \odot B$). It yields `1` if the inputs are identical (both `0` or both `1`).
+
+### Universal Gates
+
+NAND and NOR gates are known as **universal gates** because any Boolean function or logic logic gate (AND, OR, NOT) can be constructed entirely out of NAND or NOR gates alone.
+
+## Boolean Algebra
+
+To systematically analyze and design digital circuits, engineers use **Boolean algebra** (specifically two-element switching algebra $B_2 = \{0, 1\}$). Boolean algebra defines operations on binary variables using three fundamental operators: **AND** (product, $\cdot$), **OR** (sum, $+$), and **NOT** (complement, $'$).
+
+A Boolean function can be transformed between an algebraic equation, a truth table with $2^n$ combinations (for $n$ variables), and a logic diagram composed of interconnected logic gates.
+
+### Basic Identities of Boolean Algebra
+
+These identity rules allow complex logic expressions to be simplified into minimal forms, reducing the physical gate count:
+
+- **Identity Elements:** $x + 0 = x$, $x \cdot 1 = x$
+- **Null Elements:** $x + 1 = 1$, $x \cdot 0 = 0$
+- **Idempotent Laws:** $x + x = x$, $x \cdot x = x$
+- **Complement Laws:** $x + x' = 1$, $x \cdot x' = 0$
+- **Involution Law:** $(x')' = x$
+- **Commutative Laws:** $x + y = y + x$, $xy = yx$
+- **Associative Laws:** $x + (y + z) = (x + y) + z$, $x(yz) = (xy)z$
+- **Distributive Laws:** $x(y + z) = xy + xz$, $x + yz = (x + y)(x + z)$
+
+_Note:_ The identity $x + yz = (x + y)(x + z)$ is extremely powerful in Boolean simplification, even though it has no equivalent in standard real-number algebra!
+
+### DeMorgan's Theorems
+
+DeMorgan's theorems provide the mathematical bridge between AND and OR operations, making them essential for working with universal NAND and NOR logic:
+
+1. $(x + y)' = x'y'$ _(A NOR gate is equivalent to an Invert-AND gate)_
+2. $(xy)' = x' + y'$ _(A NAND gate is equivalent to an Invert-OR gate)_
+
+### Complemented Functions and Canonical Forms
+
+To complement an entire algebraic function $F$, swap all $+$ and $\cdot$ operators and complement every individual literal variable.
+
+Functions can be expressed in non-canonical or **canonical forms** (where every term contains every variable in either its primed or unprimed state):
+
+- **Canonical Sum-of-Products (SOP):** Formed by ORing binary **minterms** (product terms equal to 1 for specific variable combinations).
+- **Canonical Product-of-Sums (POS):** Formed by ANDing binary **maxterms** (sum terms equal to 0 for specific variable combinations).
+
+## Map Simplification
+
+While Boolean identities can minimize logic expressions, algebraic simplification can be trial-and-error because it lacks a rigid procedural recipe. The **Karnaugh Map (K-map)** method provides a clear visual layout of a truth table that makes minimizing expressions up to 6 variables straightforward.
+
+### K-Map Fundamentals
+
+A K-map consists of $2^n$ adjacent squares for an $n$-variable function, where each square represents a single **minterm**. Adjacent squares differ by exactly one binary literal. To maintain this geometric adjacency across grid borders, coordinates are ordered using Gray code (`00`, `01`, `11`, `10`). Consequently, the top and bottom rows are adjacent, as are the leftmost and rightmost columns.
+
+To minimize a function using a K-map:
+
+1. Place a `1` in every square corresponding to a minterm where the function evaluates to `1`.
+2. Combine adjacent `1`s into rectangular groups of size $2^k$ ($1, 2, 4, 8, 16, \dots$). Larger groups eliminate more variables.
+3. Ensure every `1` is included in at least one group. Groups may overlap.
+4. Read out the simplified **Sum-of-Products (SOP)** expression by identifying variables that remain constant across each group.
+
+### Product-of-Sums (POS) Minimization
+
+To find a minimized **Product-of-Sums** expression using a K-map:
+
+1. Group the empty squares containing `0`s to obtain the simplified complement function, $F'$.
+2. Apply DeMorgan's theorem to $F'$ to yield $F$ in POS form (OR terms connected by an AND operation).
+
+### Don't-Care Conditions
+
+In many practical logic systems, certain input combinations will **never occur** in real-world operation. These minterms are called **don't-care conditions** and are marked with an '$\times$' (or '$d$') on the map.
+
+When simplifying, an '$\times$' can be treated as a `1` if it helps form a larger group, or as a `0` if it offers no benefit. You are never required to cover '$\times$' squares.
+
+## Combinational Circuits
+
+Digital logic circuits fall into two broad structural categories:
+
+1. **Combinational Circuits:** Contain no memory elements or feedback paths. The outputs at any instant depend entirely on the binary inputs present at that exact moment.
+2. **Sequential Circuits:** Contain memory elements (flip-flops) and feedback loops. Outputs depend on both present inputs and the internal state history.
+
+### Design Procedure for Combinational Logic
+
+Designing a combinational circuit follows five structured steps:
+
+1. State the practical problem clearly.
+2. Assign letter symbols to inputs and outputs.
+3. Construct the truth table defining output values for all $2^n$ input combinations.
+4. Obtain simplified Boolean expressions for each output using K-maps.
+5. Draw the resulting gate-level logic diagram.
+
+### Building Block Case Studies: Adders
+
+Arithmetic logic is foundational to computation. Let's look at the basic building blocks used for binary addition:
+
+1. Half-Adder
+
+A half-adder adds two single binary bits ($x$ and $y$) and produces two outputs: a Sum ($S$) and a Carry ($C$).
+
+- **Sum Function:** $S = x'y + xy' = x \oplus y$ _(Exclusive-OR)_
+- **Carry Function:** $C = xy$ _(AND)_
+
+2. Full-Adder
+
+A full-adder adds three binary bits: two significant operand bits ($x$ and $y$) plus an incoming carry bit ($z$) from a lower-order position.
+
+- **Sum Function:** $S = x \oplus y \oplus z$ _(Odd function)_
+- **Carry-Out Function:** $C = xy + (x \oplus y)z$
+
+Notice that a full-adder circuit can be constructed directly out of **two half-adders and a single OR gate**.
+
+## Flip-Flops
+
+To create system memory and sequential control, digital circuits require storage elements capable of retaining binary state information. In **clocked synchronous sequential circuits**, state changes occur only at discrete time intervals controlled by a master **clock pulse generator**.
+
+The basic 1-bit memory element used in synchronous circuits is the **flip-flop**. A flip-flop has two complementary outputs ($Q$ and $Q'$) and maintains its binary state until an edge transition on its clock input ($C$) triggers an update.
+
+### Core Types of Flip-Flops
+
+- **SR Flip-Flop (Set-Reset):** Has inputs $S$ (Set) and $R$ (Reset). Setting $S=1, R=0$ forces $Q(t+1) = 1$. Setting $S=0, R=1$ clears $Q(t+1) = 0$. If $S=R=0$, the state remains unchanged. **Crucially,** $S=1, R=1$ **is an illegal/indeterminate condition** that must be avoided.
+- **D Flip-Flop (Data):** Eliminates invalid states by passing a single data input $D$ through an internal inverter to $S$ and $R$. Whatever logic value exists on input $D$ is transferred directly to output $Q$ on the clock transition: $Q(t+1) = D$.
+- **JK Flip-Flop:** Resolves the SR invalid state problem. Inputs $J$ and $K$ act like Set and Reset, but when $J=1$ and $K=1$ simultaneously, the clock transition **complements (toggles)** the output state: $Q(t+1) = Q'(t)$.
+- **T Flip-Flop (Toggle):** Created by connecting $J$ and $K$ together into a single input $T$. If $T=0$, the state is unchanged; if $T=1$, the state toggles.
+
+### Triggering Mechanisms and Excitation Tables
+
+Modern designs use **edge-triggered flip-flops** that sample inputs and change state during a sharp signal transition—either on the rising edge (positive edge) or falling edge (negative edge) of the clock pulse. Inputs must remain stable for a minimum **setup time** before the edge and a **hold time** after it.
+
+While a flip-flop's _characteristic table_ dictates the next state $Q(t+1)$ given the inputs and present state $Q(t)$, circuit designers use an **excitation table** to reverse this logic. An excitation table specifies the required input values needed to force a desired state transition ($Q(t) \rightarrow Q(t+1)$):
+
+## Sequential Circuits
+
+A complete **sequential circuit** consists of an interconnected array of flip-flops alongside a combinational logic network. The combinational logic receives system inputs and current flip-flop states ($Q$) to generate system outputs and the **flip-flop input equations** ($D_A, J_A, K_A$, etc.) that determine the next state.
+
+### Representing Sequential Behavior
+
+Sequential behavior is formally tracked using two equivalent representations:
+
+1. **State Table:** A table listing the _Present State_, _Inputs_, _Next State_, and _Outputs_.
+2. **State Diagram:** A graphical layout where states are represented by labeled circles, and state transitions are indicated by directed arcs labeled with binary `Input / Output` values.
+
+### Complete Sequential Design Procedure
+
+To build a sequential logic circuit from functional specifications:
+
+1. Create a **State Diagram** capturing all operational states and transitions.
+2. Derive the corresponding **State Table**.
+3. Select the flip-flop type (e.g., JK, D, T).
+4. Expand the state table into a complete **Excitation Table** by looking up required flip-flop input values for every transition.
+5. Map the excitation inputs using K-maps to derive simplified **Flip-Flop Input Equations**.
+6. Draw the complete **Logic Diagram**.
+
+Design Example: 2-Bit Binary Counter
+
+Let's design a 2-bit binary counter using two JK flip-flops ($A$ and $B$) and an external control input $x$.
+
+- If $x = 1$, the counter cycles through binary states $00 \rightarrow 01 \rightarrow 10 \rightarrow 11 \rightarrow 00 \dots$
+- If $x = 0$, the counter holds its present state.
+
+By evaluating state transitions in the excitation table, mapping the required $J$ and $K$ values on K-maps, and simplifying, we get these input equations:
+
+$$
+J_A = Bx, \quad K_A = Bx
+$$
+
+$$
+J_B = x, \quad K_B = x
+$$
+
+The physical realization requires just two JK flip-flops and a single AND gate to feed $J_A$ and $K_A$!
+
+## Summary
+
+Digital hardware transforms abstract mathematical logic into physical computation through a structured hierarchy of components—starting from two-state physical voltages and logic gates, progressing through Boolean expressions and combinational building blocks, and culminating in stateful, clocked sequential systems.
+
+### Key Takeaways
+
+- **Binary Representation:** Computers process discrete data using binary bits (`0` and `1`), which derive their semantic meaning (numbers, text, control signals) from execution context.
+- **Architectural Models:** Von Neumann architectures share a single memory space for data and instructions (leading to sequential execution limits), whereas Harvard architectures utilize separate memories to boost bandwidth.
+- **Universal Logic:** NAND and NOR gates can implement any Boolean function. Logic expressions can be minimized algebraically or visually using Karnaugh maps.
+- **Combinational vs. Sequential:** Combinational circuits (e.g., adders) lack memory and depend solely on instantaneous inputs; sequential circuits (e.g., counters) use clocked flip-flops to retain state history.
+- **Sequential Design Flow:** State Diagrams $\rightarrow$ State Tables $\rightarrow$ Excitation Tables $\rightarrow$ K-map Input Equations $\rightarrow$ Circuit Schematics.
