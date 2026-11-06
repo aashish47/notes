@@ -1,28 +1,28 @@
 export const metadata = {
-	title: "Distributed Transactions and Consensus",
+	title: "Distributed and Parallel Databases",
 	description:
-		"A comprehensive guide to distributed database coordination, covering two-phase commit, distributed concurrency control, replication, consistency models, TrueTime, weak consistency, coordinator election, Paxos, Raft, and replicated state machines.",
+		"An introduction to distributed transaction processing, concurrency control, replication, consistency models, and consensus protocols. Explore Two-Phase Commit, quorum protocols, Google Spanner's TrueTime, Paxos, Raft, and replicated state machines for building scalable, fault-tolerant database systems.",
 	order: 22,
 	draft: false,
 	tags: [
+		"database systems",
 		"distributed databases",
+		"parallel databases",
 		"distributed transactions",
-		"2PC",
 		"concurrency control",
-		"replication",
-		"consensus",
-		"Paxos",
-		"Raft",
-		"linearizability",
-		"TrueTime",
+		"data replication",
+		"consensus algorithms",
+		"paxos",
+		"raft",
+		"fault tolerance",
 	],
 };
 
-## Introduction
+Introduction
 
 What if a single network glitch could freeze millions of banking transactions worldwide? In centralized databases, concurrency control and recovery are complex enough. But when data is scattered across independent nodes—where communication latencies are high, networks partition, and nodes fail independently—maintaining ACID properties becomes a high-stakes engineering challenge. This lesson explores the protocols, architectures, and consensus algorithms that keep distributed and parallel databases consistent, resilient, and performant.
 
-### **Learning Objectives:**
+**Learning Objectives:**
 
 - Detail the mechanics, failure handling, and blocking limitations of the Two-Phase Commit (2PC) protocol alongside persistent messaging alternatives.
 - Evaluate locking protocols, deadlock-handling architectures, and lease mechanisms in distributed systems.
@@ -30,7 +30,7 @@ What if a single network glitch could freeze millions of banking transactions wo
 - Analyze globally consistent timestamp techniques (like Google Spanner's TrueTime) and federated database concurrency control.
 - Master the theory of distributed consensus, contrasting the Paxos and Raft protocols, and learn how to implement fault-tolerant services using replicated state machines.
 
-## Distributed Transactions
+Distributed Transactions
 
 Access to data in a distributed database system is achieved through transactions. We distinguish between two transaction types:
 
@@ -49,7 +49,7 @@ Access to data in a distributed database system is achieved through transactions
 - **Failure of a Communication Link:** A link fails, requiring message rerouting.
 - **Network Partition:** The system splits into two or more isolated subsystems (partitions) that cannot communicate with each other. It is often impossible to distinguish between a node failure and a network partition.
 
-## Commit Protocols
+Commit Protocols
 
 To guarantee atomicity, all nodes participating in a transaction $T$ must agree on the final outcome: $T$ must commit at all nodes, or abort at all nodes. The transaction coordinator executes a commit protocol to achieve this consensus.
 
@@ -82,11 +82,11 @@ To guarantee atomicity, all nodes participating in a transaction $T$ must agree 
 - Bank B receives the message and executes a local transaction to insert the message into a local `received_messages` inbox table (preventing duplicate processing by verifying the unique ID), processes the transfer, and sends back an acknowledgment.
 - This guarantees "exactly-once" message delivery. If exceptions occur (e.g., Bank B's target account is closed), application-specific exception code must run to reverse the transaction (a compensating transaction). This model is a foundational block of **workflows**.
 
-## Concurrency Control in Distributed Databases
+Concurrency Control in Distributed Databases
 
 Traditional concurrency control techniques must be adapted to work across distributed nodes where data is not replicated.
 
-### **Locking Protocols**
+**Locking Protocols**
 
 - **Single Lock-Manager Approach:** A single designated node $N_i$ manages all locks. All lock and unlock requests are sent to $N_i$. This approach is easy to implement and simplifies deadlock detection. However, $N_i$ becomes a severe performance bottleneck and a single point of failure.
 - **Distributed Lock Manager:** The lock manager function is distributed. Each node manages locks for the data items stored locally at that node. This eliminates the central bottleneck and reduces overhead (requiring 2 messages for lock requests and 1 for unlock). However, it introduces complex global deadlock detection.
@@ -107,7 +107,7 @@ In **Distributed Timestamp Ordering**, each transaction is assigned a globally u
 
 **Distributed Validation** Optimistic Concurrency Control (OCC) uses three timestamps: start, validation, and finish. In a distributed setting, validation is performed locally at each node using a common validation timestamp $TS(T_i)$. If a transaction $T_j$ with a lower timestamp attempts to validate after $T_i$ has already validated on a node, $T_j$ must be rolled back. A widely used, lighter alternative is **optimistic concurrency control without read validation** (supported by many key-value stores). Data items are stored with a system-generated version number. The database supports an atomic **test-and-set** operation (such as HBase's `checkAndPut()` or `checkAndMutate()`). A transaction reads a data item at version $v$, performs local computations, and updates the item conditional on the version remaining $v$. If another transaction updated the item in the interim, the version will not match, the test-and-set fails, and the transaction rolls back, preventing the lost-update anomaly.
 
-## Replication
+Replication
 
 To ensure robustness (high availability and fault tolerance), data is replicated across multiple nodes. The location of these replicas is maintained in a partitioned or replicated catalog.
 
@@ -116,16 +116,12 @@ To ensure robustness (high availability and fault tolerance), data is replicated
 1. There must be a single, linear ordering of all read and write operations on a data item such that each read sees the value written by the most recent write preceding it.
 2. If an operation $o_1$ finishes before $o_2$ begins in real-world physical time, $o_1$ must precede $o_2$ in the linear order.
 
-### **Concurrency Control with Replicas**
+**Concurrency Control with Replicas**
 
 - **Primary Copy:** One replica is designated as the primary copy on a primary node. All lock requests for a data item $Q$ are handled by the primary node of $Q$. This simplifies concurrency control, but if the primary node fails, $Q$ becomes inaccessible.
 - **Majority Protocol:** If data item $Q$ is replicated across $n$ nodes, a transaction must successfully obtain a lock on a majority of replicas (at least $\lfloor n/2 \rfloor + 1$ nodes) before operating on $Q$. This protocol is decentralized but requires high message overhead ($2(\lfloor n/2 \rfloor + 1)$ messages for lock, $\lfloor n/2 \rfloor + 1$ for unlock) and can lead to deadlocks even when locking a single data item (e.g., $T_1$ locks replicas on $N_1, N_3$ and $T_2$ locks replicas on $N_2, N_4$, both waiting for a third lock).
 - **Biased Protocol:** Shared (read) locks require locking only one replica. Exclusive (write) locks require locking all replicas. This prioritizes read-heavy workloads but increases write overhead and deadlock complexity.
-- **Quorum Consensus Protocol:** A generalization of the majority protocol. Each node $i$ is assigned a non-negative weight. Read quorum $Q_r$ and write quorum $Q_w$ must satisfy the following conditions, where $S$ is the total weight of all nodes hosting replica $x$:
-  $$
-  Q_r + Q_w > S \quad \text{and} \quad 2 * Q_w > S
-  $$
-  To read $x$, a transaction must obtain locks on a subset of replicas with a total weight $\ge Q_r$. To write $x$, it must lock replicas with total weight $\ge Q_w$. By tuning weights and quorums, this protocol can simulate the majority or biased protocols.
+- **Quorum Consensus Protocol:** A generalization of the majority protocol. Each node $i$ is assigned a non-negative weight. Read quorum $Q_r$ and write quorum $Q_w$ must satisfy the following conditions, where $S$ is the total weight of all nodes hosting replica $x$: $$Q_r + Q_w > S \quad \text{and} \quad 2 * Q_w > S$$ To read $x$, a transaction must obtain locks on a subset of replicas with a total weight $\ge Q_r$. To write $x$, it must lock replicas with total weight $\ge Q_w$. By tuning weights and quorums, this protocol can simulate the majority or biased protocols.
 
 **Dealing with Failures** The simplest protocol, "read one, write all," cannot proceed if any node hosting a replica fails. A naive "read one, write all available" protocol is highly vulnerable: if a network partition occurs, both partitions might write to their available replicas, creating divergent, inconsistent data states.
 
@@ -136,12 +132,12 @@ To safely tolerate failures, the **majority-based protocol with version numbers*
 - To read, a transaction locks and queries a majority of replicas, reading the value from the replica with the highest version number.
 - This guarantees that any read quorum intersects with the most recent write quorum by at least one node, ensuring the reader always sees the latest version. Reintegration is trivial; an out-of-date node automatically catches up when a read or write operation overwrites it or identifies its stale version.
 
-### **Alternative Approaches to Read Cost**
+**Alternative Approaches to Read Cost**
 
 - To avoid the high read cost of majority queries, systems can use the **primary copy with leases**. Reads are sent only to the primary copy. If the primary node fails, a consensus protocol chooses a new primary.
 - Another variant is **chain replication**: replicas are ordered in a chain. Writes are sent to the head of the chain and propagated sequentially to the tail. Reads are executed only at the tail, ensuring only fully committed and replicated updates are read.
 
-## Extended Concurrency Control Protocols
+Extended Concurrency Control Protocols
 
 Advanced protocols extend distributed transaction processing to scale globally and handle heterogeneous systems.
 
@@ -158,7 +154,7 @@ Advanced protocols extend distributed transaction processing to scale globally a
 - Local serializability is not sufficient to ensure global serializability. If global transactions $T_1$ and $T_2$ both update data items on $N_1$ and $N_2$, $N_1$ might serialize them as $T_1 \to T_2$, while $N_2$ serializes them as $T_2 \to T_1$, resulting in a globally non-serializable execution.
 - To resolve this without violating local autonomy, systems use a **ticket scheme**. A special data item called a "ticket" is created in each local database. Every global transaction that accesses a node is forced to perform a write operation on that node's ticket. This forces all global transactions to conflict directly at every local database they visit, allowing the global transaction coordinator to control their serialization order by controlling the order in which they access the tickets.
 
-## Replication with Weak Degrees of Consistency
+Replication with Weak Degrees of Consistency
 
 To maximize availability and write performance across geographical distances, many modern databases relax strict consistency constraints.
 
@@ -188,7 +184,7 @@ Systems prioritizing availability over consistency adopt the **BASE properties**
 
 **Detecting Differences Using Merkle Trees** A **Merkle Tree** is a hierarchical hash tree that allows replicas to find differences between large datasets efficiently. Leaf nodes contain hashes of individual data items. Internal nodes store hashes computed from their children's hashes. To compare two replicas, they exchange and compare their root hashes. If they match, the datasets are identical. If they differ, they recursively compare child hashes down the tree. The path to a differing leaf is traversed in parallel, identifying differing data items in $O(m \log_K N)$ time, where $m$ is the number of differing items, $N$ is the total dataset size, and $K$ is the branching factor. This avoids transferring the entire dataset over the network.
 
-## Coordinator Selection
+Coordinator Selection
 
 Many distributed algorithms rely on a coordinator node. If the coordinator fails, the system must establish a new coordinator.
 
@@ -202,7 +198,7 @@ Many distributed algorithms rely on a coordinator node. If the coordinator fails
 
 **D\*\***istributed Coordination Services\*\* To avoid implementing custom election and synchronization logic, developers use fault-tolerant distributed coordination services (like Apache ZooKeeper or Google's Chubby). These services use consensus protocols internally and expose a hierarchical file-system-like API. Applications can implement locking and elections by attempting to create ephemeral files or acquiring leases on specific nodes within the service, watching for changes automatically via event notifications.
 
-## Consensus in Distributed Systems
+Consensus in Distributed Systems
 
 Distributed consensus is the foundational building block for building highly available, fault-tolerant replicated services.
 
@@ -233,9 +229,9 @@ Each follower verifies the `AppendEntries` parameters. If it finds a mismatch in
 
 **Two-Phase Commit Using Consensus** By combining 2PC with replicated consensus, we can build a non-blocking commit protocol. Instead of the coordinator and participants recording their 2PC decisions on a single node's local disk, each writes its decisions to a replicated log managed by a consensus group (such as a Paxos group). If a coordinator node fails, another node in its Paxos group immediately takes over the coordination task, inspects the replicated log, and safely completes the 2PC protocol without blocking.
 
-## Summary
+Summary
 
-### **Key Takeaways:**
+**Key Takeaways:**
 
 - **Distributed Transactions:** Global transactions require coordinator and manager coordination across independent nodes, exposing systems to unique failure modes and network partitions.
 - **Commit Protocols:** Two-Phase Commit (2PC) guarantees atomicity but suffers from the blocking problem if the coordinator fails. Persistent messaging with compensating transactions offers a non-blocking alternative for decoupled systems.

@@ -1,0 +1,256 @@
+export const metadata = {
+	title: "Advanced Database Types and Applications",
+	description:
+		"Explore modern database extensions and advanced data models beyond traditional relational structures. Learn semi-structured data representation using JSON, XML, and RDF; object-relational features such as user-defined types, inheritance, references, and ORMs; information retrieval techniques including TF-IDF and PageRank; and spatial database representations, indexing, and geographic query operations.",
+	order: 8,
+	draft: false,
+	tags: [
+		"database systems",
+		"semi-structured data",
+		"JSON",
+		"XML",
+		"RDF",
+		"knowledge graphs",
+		"SPARQL",
+		"object-relational databases",
+		"user-defined types",
+		"table inheritance",
+		"object-relational mapping",
+		"information retrieval",
+		"TF-IDF",
+		"PageRank",
+		"spatial databases",
+		"PostGIS",
+		"geographic information systems",
+	],
+};
+
+Introduction
+
+Why does the highly successful relational database model, which demands strict atomicity and rigid tables, struggle with modern web, search, and map applications? The answer lies in the messy complexity of real-world data. From fast-evolving JSON user profiles and multi-billion-node knowledge graphs to physical CAD solids and global map systems, databases have had to shatter the rule of atomicity. This lesson explores the specialized data types and advanced query mechanics that power modern, highly connected data ecosystems.
+
+Learning Objectives
+
+- Master semi-structured data models, comparing the design, storage, and querying of JSON, XML, and RDF schemas.
+- Implement object-relational extensions in SQL, including user-defined types, inheritance, reference types, and Object-Relational Mappings (ORMs).
+- Analyze text retrieval mechanics, detailing TF-IDF calculations, PageRank iterative algorithms, and search effectiveness metrics.
+- Understand geometric and geographic data representations, indexing strategies, and spatial query executions.
+
+Semi-Structured Data and Flexible Schemas
+
+Traditional relational database designs rely on tables with a fixed number of atomic attributes. However, fast-evolving applications (such as web user profiles) frequently add new attributes or require attributes containing complex, non-atomic structures. Semi-structured data models offer alternative approaches to resolve this mismatch.
+
+- **Flexible Schemas (Wide-Column):** Some database engines allow each tuple within a single table to have a completely different set of attributes. New columns can be added dynamically as needed.
+- **Sparse Column Representation:** A more restricted relational approach where a table contains a very large, fixed set of attributes, and each tuple uses only a small subset of them, leaving the unused attributes with null values.
+- **Multivalued Data Types:** Databases often support collection structures like sets, multisets, or arrays directly as attribute values. This avoids the join overhead of normalization when a lookup is always key-based (e.g., retrieving a user's set of interest topics).
+  - **Key-Val\*\***ue Maps:\*\* A set of `(key, value)` pairs where each key is unique. Managed via `put(key, value)`, `get(key)`, and `delete(key)` operations (e.g., `{ (brand, Apple), (size, 13) }`).
+  - **Arrays:** Highly useful for scientific measurements and monitoring streams. Treating sequential readings as a compressed array saves substantial space and per-tuple indexing overhead compared to storing individual `(time, reading)` rows.
+  - **Array Databases:** Specialized engines (like Oracle GeoRaster, PostGIS, MonetDB SciQL, or SciDB) tailored to provide highly compressed array storage and array-specific query optimizations.
+- **Nested Data Types:** These directly model composite hierarchical attributes (such as an address split into street, city, and zip code, or sub-objects containing arrays). The most popular nested structures used today for both storage and client-server data exchange are JSON and XML.
+
+JSON and XML for Data Exchange
+
+Web services frequently transmit data between backend servers and frontend clients using standardized, hierarchical text formats.
+
+JavaScript Object Notation (JSON)
+
+JSON is a lightweight text representation supporting primitive data types (integers, reals, strings), arrays, and objects (key-value maps). Objects are self-documenting and do not require a rigid, pre-defined schema.
+
+Because parsing text is CPU-intensive and verbose, databases often store JSON in a compressed binary format called **BSON** (Binary JSON) to allow fast value extraction without parsing the entire document.
+
+SQL database engines have standard extensions to handle JSON:
+
+- **Storage:** Stored as a native `JSON` type.
+- **Generation:** Generating JSON objects from relational query rows. In PostgreSQL, `json_build_object('ID', 12345, 'name', 'Einstein')` constructs a JSON object. Aggregate functions like `json_agg` (PostgreSQL), `json_objectagg`/`json_arrayagg` (Oracle), or the `FOR JSON AUTO` clause (SQL Server) package relational rows into unified JSON outputs.
+- **Extraction:** Extracting values using path queries. For instance, `v->'ID'` in PostgreSQL extracts the ID field, whereas SQL Server uses the function `JSON_VALUE(value, path)`.
+
+Extensible Markup Language (XML)
+
+XML uses matched tag pairs (such as `<title>Database System Concepts</title>`) to mark up structured or semi-structured information, enabling nested hierarchical business documents like purchase orders.
+
+XML datasets can be queried using **XQuery** or **XPath** path expressions. SQL extensions support XML through native `XML` storage types, generating documents using the `XMLAGG` aggregate, and extracting components via SQL path-extraction queries.
+
+RDF and Knowledge Graphs
+
+The **Resource Description Framework (RDF)** is a data representation standard designed to model extremely large knowledge bases with billions of facts. Unlike standard E-R models, RDF represents all information as a collection of binary relationships.
+
+The Triple Representation
+
+Every RDF fact is stored as a triple of the structure **(subject, predicate, object)**, where:
+
+1. **Subject:** The identifier (resource) of the entity.
+2. **Predicate:** The attribute name or relationship name.
+3. **Object:** Either an attribute value or another entity identifier.
+
+For example, the student-takes-course relationship and attributes are flattened into simple declarative statements:
+
+```
+00128 instance-of student .
+00128 name "Zhang" .
+00128 takes sec1 .
+sec1 sec-course CS-101 .
+```
+
+Graph Interpretation and SPARQL
+
+RDF triples map directly to a directed graph known as a **Knowledge Graph**. Entities and attribute values form the nodes, while the predicates act as labeled, directed edges connecting them.
+
+To query this graph, we use **SPARQL**, which matches subgraph triple patterns containing variables (prefixed with `?`). Common variables across triple clauses enforce joins:
+
+```
+SELECT ?name
+WHERE {
+  ?cid title "Intro. to Computer Science" .
+  ?sid course ?cid .
+  ?id takes ?sid .
+  ?id name ?name .
+}
+```
+
+Representing N-ary Relationships
+
+Because RDF edges can only link exactly two nodes (binary relationships), more complex n-ary relationships (e.g., tracking a president's precise term of office) require specialized techniques:
+
+- **Reification:** Creating an artificial entity to represent the relationship instance itself, and linking the participants and properties to that intermediate node.
+- **Quads:** Storing 4-tuples that add a fourth "context" attribute to the triple. This context entity holds metadata such as the temporal validity of the link.
+
+Object Orientation in Databases
+
+Object-relational databases bridge the gap between object-oriented programming (OOP) languages and relational storage by extending SQL's native type systems with structured user-defined types, inheritance, and reference structures.
+
+User-Defined Types (UDTs)
+
+SQL supports user-defined structured types that can include complex nested arrays or tables.
+
+```
+CREATE TYPE Person AS (
+  ID VARCHAR(20),
+  name VARCHAR(20),
+  address VARCHAR(20)
+);
+
+CREATE TABLE people OF Person;
+```
+
+In systems like SQL Server, custom table-valued types can be declared and used directly as complex attributes within other tables.
+
+Type and Table Inheritance
+
+Object-relational SQL supports type hierarchies (subtypes and supertypes), which automatically inherit attributes and methods:
+
+```
+CREATE TYPE Student UNDER Person (degree VARCHAR(20));
+CREATE TYPE Teacher UNDER Person (salary INTEGER);
+```
+
+**Table inheritance** allows a table to inherit all columns of a parent table. Inserting a row into a child table implicitly makes it queryable via the parent table. For example, querying `people` in PostgreSQL will return rows from `students` and `teachers` as well. To query only the base table, developers must explicitly use the `ONLY` clause:
+
+```
+SELECT * FROM ONLY people;
+```
+
+Reference Types
+
+Instead of foreign keys, attributes can store pointer-like references (`REF`) targeting row objects of a specific type. For instance, a department head field can refer to a person object:
+
+```
+CREATE TYPE Department (
+  dept_name VARCHAR(20),
+  head REF(Person) SCOPE people
+);
+```
+
+References are dereferenced using the arrow operator (`->`), allowing query engines to automatically traverse links without writing manual relational joins:
+
+```
+SELECT head->name, head->address
+FROM departments;
+```
+
+Alternatively, SQL provides a `deref()` function to return the entire referenced tuple (e.g., `SELECT deref(head).name FROM departments`).
+
+Object-Relational Mapping
+
+While object-relational databases extend SQL itself, **Object-Relational Mapping (ORM)** systems act as a middleware framework on the application side. They automatically translate database rows into native programming objects (e.g., Java objects in Hibernate, Python objects in Django or SQLAlchemy) and vice versa.
+
+Core Mechanics
+
+1. **Retrieval:** The program queries the ORM using object-oriented queries. The ORM translates these into optimized native SQL queries, retrieves the relational tuples, constructs language-native objects, and caches them in memory.
+2. **Tracking & Persistence:** The application modifies the objects in memory. When a transaction commits or a `save` command is called, the ORM computes the changes and issues the corresponding SQL `INSERT`, `UPDATE`, or `DELETE` statements automatically.
+
+Trade-offs of using an ORM
+
+| Advantages                                                                                                                              | Disadvantages                                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Simplifies Code:** Eliminates tedious SQL string construction inside application logic.                                               | **Bulk Inefficiencies:** Batch insertions and massive dataset updates perform poorly compared to raw SQL.                                           |
+| **Memory Caching:** Significant read performance speedups because objects are cached directly in client memory.                         | **Query Overhead:** Complex aggregations or deeply nested joins written in the ORM's native dialect can result in highly sub-optimal generated SQL. |
+| **Database Abstraction:** Code remains completely independent of database vendor-specific SQL syntax, facilitating seamless migrations. | **Black-Box Effect:** Developers lose fine-grained control over exactly when and how queries are hitting the database.                              |
+
+Textual Data and Information Retrieval
+
+Traditional databases match exact structured values, but querying unstructured textual data requires Information Retrieval (IR) models to assess and rank document relevance dynamically.
+
+Keyword Relevance: TF-IDF
+
+The relevance of a search keyword (term $t$) to a document $d$ is computed by balancing how frequently the term appears in that document against how common that term is across the entire collection.
+
+- **Term Frequency (TF):** Measures how relevant a term is to a single document. To prevent long documents with raw repetitive keywords from dominating, TF is usually log-scaled and normalized by the document's total term count $n(d)$: $$TF(d, t) = \log \left(1 + \frac{n(d, t)}{n(d)}\right)$$ where $n(d, t)$ is the frequency of term $t$ in document $d$.
+- **Inverse Document Frequency (IDF):** Discounts highly common words that carry little unique meaning (excluding "stop words" like 'and', 'the', 'or'): $$IDF(t) = \frac{1}{n(t)}$$ where $n(t)$ is the count of all indexed documents containing term $t$.
+- **Relevance Score:** The total relevance score $r(d$$, Q)$ for a multi-keyword query $Q$ is computed as: $$r(d, Q) = \sum_{t \in Q} TF(d, t) * IDF(t)$$ Proximity of terms in the text further refines this score.
+
+Popularity-Based Ranking: PageRank
+
+Introduced by Google, PageRank is a static, query-independent popularity metric calculated iteratively based on how many important webpages link to a page.
+
+Letting $T[i, j]$ be the probability that a random web surfer on page $i$ will follow a link to page $j$ (equal to $1 / N_i$, where $N_i$ is the number of outbound links on page $i$), the PageRank $P[j]$ for a web of $N$ pages is: $$P[j] = \frac{\delta}{N} + (1 - \delta) * \sum_{i=1}^N (T[i, j] * P[i])$$ where $\delta$ (usually set to $0.15$) is the random jump probability. PageRank values are computed iteratively until they stabilize below a convergence threshold.
+
+Effectiveness and Structured Keyword Search
+
+- **Precision:** The percentage of retrieved documents that are actually relevant.
+- **Recall:** The percentage of all relevant documents in the system that were successfully retrieved.
+- **Structured Search:** IR techniques can also be applied to graph-modeled relational databases, where keyword searches identify matching nodes and traverse relationships (like foreign keys) to build connecting result paths.
+
+Spatial Data Systems
+
+Spatial databases store, index, and query information based on physical locations. They manage two distinct categories: **geometric data** (flat Euclidean 2D/3D spaces) and **geographic data** (round-earth spherical coordinate systems of latitude, longitude, and elevation).
+
+Representation of Spatial Data
+
+- **Vector Data:** Built from precise geometric primitives. Points are coordinates; polylines (or linestrings) represent roads as connected sequences of line segments; and polygons model boundaries. Complex polygons are often stored as triangulated sets (Triangulated Irregular Networks or TINs) for highly accurate 3D rendering.
+- **Raster Data:** Pixel-based grids (e.g., satellite imagery, elevation grids) stored as uniform matrices. These are often divided into standardized image **tiles** across multiple pre-rendered zoom levels to enable fast map panning in client interfaces.
+
+Spatial Query Types
+
+Standardized functions defined by the Open Geospatial Consortium (OGC), such as those in PostGIS and SQL Server, execute queries utilizing specialized spatial index structures:
+
+1. **Region Queries:** Return objects lying partially or fully inside a specified boundary using topological relationship predicates:
+
+```
+-- Finds all shops located inside a defined municipal polygon
+SELECT name FROM shops
+WHERE ST_Contains(municipal_polygon, location);
+```
+
+Common predicates include `ST_Contains()`, `ST_Overlaps()`, `ST_Disjoint()`, and `ST_Touches()`.
+
+1. **Nearness and Nearest-Neighbor Queries:** Find spatial features within a specific radius of a coordinate, or determine the closest single entity without setting a distance limit:
+
+```
+-- Computes distance to locate the geographically closest gas station
+SELECT station_id FROM gas_stations
+ORDER BY ST_Distance(current_location, station_location)
+LIMIT 1;
+```
+
+1. **Spatial Graph Queries:** Traverse spatial networks (such as road networks stored with distance, speeds, and turn-lane weights) to compute optimal routes and shortest paths.
+2. **Spatial Joins:** Merges two tables on spatial conditions instead of flat keys (e.g., joining real estate parcels with geological flood-zone polygons where the parcels overlap the flood zone).
+
+Summary
+
+Key Takeaways
+
+- **Beyond Atomicity:** Semi-structured formats like JSON, XML, and wide-column structures allow databases to handle highly flexible, nested schemas, which are critical for fast-evolving web services.
+- **Graphs and Triples:** RDF represents web-scale facts as simple `(subject, predicate, object)` triples. When visualized as a directed knowledge graph, these triples are queried via SPARQL path matches.
+- **Object Integration:** SQL databases bridge structural OOP conflicts using User-Defined Types, reference scopes (`REF`), and table inheritance, while application-side ORMs map relational tables directly into memory-cached objects.
+- **Search Engine Retrieval:** IR systems leverage log-scaled TF-IDF metrics to weight keyword matches alongside PageRank, a query-independent link popularity analysis calculated via iterative transition matrices.
+- **Spatial Operations:** Spatial databases handle flat vector geometries and spherical geographical rasters, optimizing region, proximity, and spatial join queries through topological predicates.

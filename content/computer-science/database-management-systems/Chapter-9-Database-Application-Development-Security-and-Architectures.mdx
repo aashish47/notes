@@ -1,0 +1,67 @@
+export const metadata = {
+	title: "Database Application Development and Security",
+	description:
+		"Explore the architecture, implementation, performance, and security of modern database-driven applications. Learn web fundamentals, HTTP protocols, session management with cookies, server-side technologies such as Java Servlets, JSP, PHP, and Django, client-side JavaScript, Ajax, RESTful APIs, and Progressive Web Apps. Understand multi-tier architectures, ORM frameworks such as Hibernate, connection pooling, caching, load balancing, application security threats, authentication, authorization, and database encryption.",
+	order: 9,
+	draft: false,
+	tags: [
+		"database systems",
+		"database application development",
+		"web architecture",
+		"HTTP",
+		"session management",
+		"cookies",
+		"Java Servlets",
+		"JSP",
+		"PHP",
+		"Django",
+		"JavaScript",
+		"Ajax",
+		"RESTful APIs",
+		"Progressive Web Apps",
+		"multi-tier architecture",
+		"Hibernate",
+		"ORM",
+		"connection pooling",
+		"caching",
+		"load balancing",
+		"SQL injection",
+		"XSS",
+		"CSRF",
+		"authentication",
+		"authorization",
+		"database encryption",
+		"application security",
+	],
+};
+
+## **Introduction**
+
+Did you know that practically all modern database interactions happen indirectly behind a web browser or mobile app interface? When you search for a term, purchase an item, or book a flight, a multi-layered software architecture springs to life to securely query the database, apply business logic, and dynamically render results. Developing these applications requires a fine-tuned balance of web protocols, performance optimization, data-access frameworks, and hardened security protocols.
+
+In this lesson, you will learn to:
+
+- Explain the mechanics of web architectures, connectionless protocols, and session tracking using cookies.
+- Develop and compare server-side database frameworks including Java Servlets, JSP, PHP, and Django.
+- Analyze client-side architectures, Ajax, RESTful web services, and Progressive Web Apps (PWAs).
+- Implement multi-tier application architectures and Object-Relational Mappings (ORMs) such as Hibernate.
+- Mitigate security vulnerabilities such as SQL injection, XSS, and CSRF while applying database encryption.
+
+## **Application Programs and User Interfaces**
+
+Most users never write SQL queries directly. Instead, they interact with databases via application programs that present user interfaces (UIs) at the front end and communicate with databases at the back end. These applications accept input through forms, query or update the database, and display customized outputs.
+
+Historically, database systems evolved from centralized mainframes in the 1960s—where users connected via text-based terminals—to client-server systems with graphical user interfaces (GUIs) in the personal computer era. However, traditional client-server designs had critical flaws: client machines held direct database connections (a massive security risk) and any software updates had to be installed manually on every user's machine.
+
+To bypass these problems, two modern development approaches arose:
+
+- **Web-Based Applications**: Standard web browsers serve as a universal client interface. Browsers parse HyperText Markup Language (HTML) to render formatted screens and forms. Advanced interfaces utilize client-side JavaScript, which executes inside a browser security sandbox without requiring manual software installations.
+- **Mobile Applications**: Installed programs on mobile devices communicate with a backend application via an Application Programming Interface (API) instead of directly accessing the database. Mobile apps optimize layouts for small touchscreens and can run offline by saving local state, syncing back only when connected to a network.
+
+## **Web Fundamentals**
+
+The World Wide Web relies on standardized protocols and naming conventions to transfer data between clients and servers.
+
+**Uniform Resource Locators (URLs)**: A URL is a globally unique address for web documents. It begins with the protocol (such as HTTP or the encrypted HTTPS), followed by the server domain name, and the file path. URLs can contain arguments to execute program files on the web server (e.g., `https://www.google.com/search?q=silberschatz`, where `q=silberschatz` is the parameter passed to the search program).
+
+**HyperText Markup Language (HTML)**: HTML uses standardized tags to define document elements, such as tables (`,`, `<table><tbody><tr><th>`, `</th><td>`) and forms (`
