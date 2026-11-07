@@ -13,18 +13,18 @@ export const metadata = {
 	],
 };
 
-Introduction
+## Introduction
 
 Did you know that the core mathematical model powering almost all modern enterprise databases has remained virtually unchanged for over half a century? Despite the rise of NoSQL and massive scale changes, the Relational Model continues to rule database design because of its simplicity and mathematical elegance. In this lesson, we will deconstruct this elegant model from its foundational structures to the expressive operations of formal Relational Algebra.
 
-**Learning Objectives:**
+### Learning Objectives:
 
 - Deconstruct the mathematical structure of relational databases (relations, tuples, attributes, and domains).
 - Distinguish between database schemas (logical designs) and database instances (snapshots of data).
 - Analyze and apply structural constraints, focusing on superkeys, candidate keys, primary keys, and foreign keys.
 - Formulate queries using the core operations of formal Relational Algebra.
 
-Structure of Relational Databases
+## Structure of Relational Databases
 
 A **relational database** consists of a collection of tables, each assigned a unique name. The relational model is grounded in mathematical terminology, which maps directly to database concepts:
 
@@ -40,14 +40,14 @@ A **relational database** consists of a collection of tables, each assigned a un
 
 **Null Values** The **null value** is a special value signifying that a value is unknown or does not exist (e.g., an instructor with an unlisted phone number). Because null values introduce computational difficulties during query updates and evaluation, database designers attempt to eliminate them whenever possible.
 
-Database Schema and Instances
+## Database Schema and Instances
 
 When designing or working with databases, we must carefully differentiate between structural definitions and the actual data:
 
 - **Database Schema**: The logical design of the database. It is highly static and rarely changes.
 - **Database Instance**: A snapshot of the actual data in the database at a specific instant in time. It changes frequently as tuples are inserted, updated, or deleted.
 
-**Analogy to Programming**
+### Analogy to Programming
 
 - A **relation schema** corresponds to a programming language's **type definition** (e.g., `struct` or `class`).
 - A **relation instance** corresponds to the **value of a variable** of that type.
@@ -56,23 +56,23 @@ When designing or working with databases, we must carefully differentiate betwee
 
 To relate tuples across distinct relations, database designers duplicate attributes. For instance, `dept_name` appears in both the `instructor` schema and the `department` schema, allowing us to associate an instructor with the details of their department.
 
-Keys and Integrity Constraints
+## Keys and Integrity Constraints
 
 To distinguish tuples within a relation, we specify constraints using attributes. No two tuples in a relation instance can have identical values across all attributes.
 
-**Superkeys, Candidate Keys, and Primary Keys**
+### Superkeys, Candidate Keys, and Primary Keys
 
 - **Superkey**: A set of one or more attributes that, taken collectively, uniquely identify a tuple in a relation. If $K$ is a superkey, then any superset of $K$ (adding more attributes) is also a superkey.
 - **Candidate Key**: A minimal superkey—meaning a superkey for which no proper subset is itself a superkey.
 - **Primary Key**: The candidate key chosen by the database designer as the principal means of identifying tuples within a relation. By convention, primary key attributes are listed first and underlined in the schema (e.g., `classroom (building, room_number, capacity)` where `building` and `room_numb``er` form a composite primary key).
 
-**Foreign Keys and Referential Integrity**
+### Foreign Keys and Referential Integrity
 
 - **Foreign-Key Constraint**: A constraint requiring that a value in attribute(s) $A$ of a referencing relation $r_1$ must match the primary-key value of attribute(s) $B$ in a referenced relation $r_2$.
 - _Example_: The `dept_name` attribute in the `instructor` table is a foreign key referencing the `department` table's primary key (`dept_name`).
 - **Referential-Integrity Constraint**: A broader constraint requiring that the values appearing in specified attributes of a referencing relation must also appear in specified attributes of the referenced relation. Unlike foreign keys, the referenced attributes do not have to be the primary key of the referenced relation.
 
-Schema Diagrams
+## Schema Diagrams
 
 A database schema, along with its primary key and foreign-key constraints, is graphically depicted using a **schema diagram**.
 
@@ -81,7 +81,7 @@ A database schema, along with its primary key and foreign-key constraints, is gr
 - **Foreign-key constraints** are shown as directed arrows pointing from the foreign-key attributes in the referencing relation to the primary key of the referenced relation.
 - **Referential integrity constraints** (which do not target a primary key) are distinguished by using a **two-headed arrow** pointing from the referencing attribute to the referenced attribute.
 
-Relational Query Languages
+## Relational Query Languages
 
 A query language is a specialized language in which a user requests information from a database. These are categorized into three main paradigms:
 
@@ -91,7 +91,7 @@ A query language is a specialized language in which a user requests information 
 
 Commercial languages, such as SQL, combine elements of all three approaches to make query writing practical and highly expressive.
 
-The Relational Algebra: Unary Operations
+## The Relational Algebra: Unary Operations
 
 Relational algebra consists of a set of formal operations that take one or two relations as input and produce a new relation as their result. In formal relational algebra, all duplicate tuples are automatically eliminated because relations are mathematical sets.
 
@@ -112,7 +112,7 @@ Relational algebra consists of a set of formal operations that take one or two r
 
 - _Example_: "Find the names of all instructors in the Physics department": $$\Pi_{name}(\sigma_{dept\_name = 'Physics'}(instructor))$$
 
-Combining Relations: Cartesian Product and Joins
+## Combining Relations: Cartesian Product and Joins
 
 Often, the data we need spans multiple tables. Relational algebra provides operations to combine separate relations.
 
@@ -128,11 +128,11 @@ Often, the data we need spans multiple tables. Relational algebra provides opera
 - **Notation**: $r \bowtie_{\theta} s = \sigma_{\theta}(r \times s)$, where $\theta$ is a joining predicate.
 - _Example_: To find all instructors paired with the courses they actually teach: $$instructor \bowtie_{instructor.ID = teaches.ID} teaches$$
 
-Set, Assignment, and Rename Operations
+## Set, Assignment, and Rename Operations
 
 To handle complex query logic, relational algebra utilizes set-theoretic operations alongside expression-management tools.
 
-**Set Operations (**$\cup$**,** $\cap$**,** $-$**)**
+### Set Operations (**$\cup$**,** $\cap$**,** $-$**)
 
 - **Union (**$\cup$**)**: Combines tuples from both input relations, eliminating duplicates.
 - **Intersection (**$\cap$**)**: Returns only tuples that appear in both relations.
@@ -155,9 +155,9 @@ _Crucial Constraint: Relation Compatibility._ For set operations to be valid, th
 
 **Equivalent Queries and Optimization** There are often multiple ways to express the same query in relational algebra. For instance, applying a selection _before_ a join is mathematically equivalent to applying it _after_ the join: $$\sigma_{dept\_name = 'Physics'}(instructor \bowtie_{instructor.ID = teaches.ID} teaches) \equiv (\sigma_{dept\_name = 'Physics'}(instructor)) \bowtie_{instructor.ID = teaches.ID} teaches$$ Finding these equivalent expressions is the fundamental mechanism used by modern database **query optimizers** to execute queries as efficiently as possible.
 
-Summary
+## Summary
 
-**Key Takeaways:**
+### Key Takeaways:
 
 - **The Relational Model** structures data as relations (tables), tuples (rows), and attributes (columns) over atomic domains.
 - **Database Schemas** are the logical designs of relations, while **Database Instances** are the highly dynamic snapshots of data.

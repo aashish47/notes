@@ -24,9 +24,11 @@ export const metadata = {
 	],
 };
 
-Introduction
+## Introduction
 
 Did you know that a bad database design can make it physically impossible to add a new course to a university system unless a student immediately enrolls in it? This is the peril of completeness and redundancy constraints—design flaws that cost organizations millions in corrupted or inconsistent data. The Entity-Relationship (E-R) model serves as your conceptual blueprint, allowing you to map real-world operations into clean, relational database tables before writing a single line of SQL. In this lesson, we will systematically master the process of translating complex enterprise requirements into robust, high-performance database schemas.
+
+### Learning Objectives:
 
 By completing this lesson, you will be able to:
 
@@ -36,11 +38,11 @@ By completing this lesson, you will be able to:
 - Implement advanced database features like specialization, generalization, and aggregation.
 - Translate conceptual E-R models into physical, clean relational tables with optimal key constraints.
 
-Overview of the Design Process
+## Overview of the Design Process
 
 Creating a database application is a complex process. It involves designing the database schema, writing the programs that access and update the data, and configuring a security scheme to control access.
 
-**Database Design Phases:**
+### Database Design Phases:
 
 - **User Requirements Specification:** The initial phase where the designer interacts extensively with domain experts and users to fully characterize and document the data needs of the enterprise. This results in a textual or diagrammatic specification of requirements.
 - **Conceptual Design:** The designer chooses a data model (typically the Entity-Relationship model) and translates user requirements into a conceptual schema. This high-level overview specifies the entities, attributes, relationships, and constraints without detailing physical storage mechanics.
@@ -52,7 +54,7 @@ Creating a database application is a complex process. It involves designing the 
 1. **Redundancy:** Storing the same piece of information multiple times (e.g., replicating a course's title with every single section offering). Redundancy leads to update anomalies—if a course title changes and you fail to update every copy, your data becomes inconsistent.
 2. **Incompleteness:** A schema design that makes certain enterprise states impossible to record. For instance, if you only store course information within a section table, you cannot represent a newly designed course in the database until a class section is actively scheduled for it.
 
-The Entity-Relationship Model
+## The Entity-Relationship Model
 
 The Entity-Relationship (E-R) model is a conceptual tool designed to facilitate logical database design. It utilizes three core concepts: entity sets, relationship sets, and attributes.
 
@@ -67,13 +69,13 @@ The Entity-Relationship (E-R) model is a conceptual tool designed to facilitate 
 - The participating entity sets are said to have _participation_ in the relationship set.
 - In E-R diagrams, relationship sets are depicted as diamonds connected by lines to the participating entity rectangles.
 
-**Roles, Descriptive Attributes, and Degree:**
+### Roles, Descriptive Attributes, and Degree:
 
 - **Roles:** The function that an entity plays in a relationship is its role. Roles are implicit when entity sets are distinct, but they must be explicitly labeled when dealing with _recursive relationship sets_ (where the same entity set participates in a relationship set more than once in different roles, such as a course being a prerequisite for another course).
 - **Descriptive Attributes:** Relationships can have their own attributes to record details about the association itself (e.g., a `grade` attribute attached to the `takes` relationship linking a student to a section).
 - **Degree:** The number of participating entity sets in a relationship set. A relationship set of degree 2 is _binary_ (most common), while degree 3 is _ternary_ (e.g., a `proj_guide` relationship set linking an instructor, a student, and a project).
 
-Complex Attributes
+## Complex Attributes
 
 Attributes represent the descriptive properties possessed by each member of an entity set. While simple attributes represent indivisible atomic values, real-world data frequently demands complex attribute types:
 
@@ -89,7 +91,7 @@ Attributes represent the descriptive properties possessed by each member of an e
 - _Missing:_ The value exists in the real world, but we do not currently possess it.
 - _Unknown:_ We do not know whether the value exists at all.
 
-Mapping Cardinalities
+## Mapping Cardinalities
 
 Mapping cardinalities (or cardinality ratios) express the maximum number of entities to which another entity can be associated via a binary relationship set. For a relationship set between entity sets $A$ and $B$, the cardinality must be one of the following:
 
@@ -98,13 +100,13 @@ Mapping cardinalities (or cardinality ratios) express the maximum number of enti
 - **Many-to-One (N:1):** An entity in $A$ is associated with at most one entity in $B$, but an entity in $B$ can be associated with any number of entities in $A$. This is represented by an undirected line to $A$ and an arrow pointing to the "one" side ($B$).
 - **Many-to-Many (M:N):** Entities in both sets can be associated with any number of entities in the other. This is shown using undirected lines (—) on both sides of the relationship.
 
-**Participation Constrai\*\***nts and Cardinality Limits:\*\*
+### Participation Constraints and Cardinality Limits:
 
 - **Total Participation:** Every entity in the entity set must participate in at least one relationship instance within the relationship set. For example, if every student must have an advisor, the participation of `student` in the `advisor` relationship is total. This is depicted in diagrams using double lines.
 - **Partial Participation:** Only some entities in the set participate in the relationship. This is the default and is represented by a single line.
 - **Cardinality Limits:** E-R diagrams can specify precise minimum and maximum limits on how many times an entity can participate in a relationship. This is denoted as a label _l..h_ on the line connecting the entity set to the relationship. Here, $l$ represents the minimum cardinality ($l=1$ implies total participation, $l=0$ implies partial participation), and $h$ represents the maximum cardinality ($h=*$ represents no upper limit).
 
-Primary Key
+## Primary Key
 
 To uniquely identify entities and relationships, we apply the formal concepts of superkeys, candidate keys, and primary keys:
 
@@ -127,7 +129,7 @@ For nonbinary relationships without cardinality constraints, the union of all pr
 - **Primary Key Composition:** The primary key of a weak entity set is formed by the union of the primary key of its identifying strong entity set and its own local discriminator. For example, for the weak entity set `section`, its primary key is `{‌course_id, sec_id, semester, year}` where `course_id` is inherited from the strong entity set `course`.
 - **Diagram Notation:** A weak entity set is depicted using a double rectangle, and its identifying relationship is represented with a double diamond.
 
-Removing Redundant Attributes in Entity Sets
+## Removing Redundant Attributes in Entity Sets
 
 A crucial rule of high-quality database design is that _no entity set should contain redundant attributes_.
 
@@ -138,7 +140,7 @@ When we establish explicit relationship sets between entities, attributes repres
 
 Removing foreign-key style attributes from entity sets keeps the E-R design clean. When we subsequently generate our relational table schemas from the E-R diagram, the `dept_name` attribute will be automatically restored as a column in the `instructor` table, but _only_ if the mapping cardinality is many-to-one. If the relationship is many-to-many, it will instead be correctly placed in a separate table representing the relationship set itself. Treating relationships explicitly in the E-R phase prevents designers from making premature assumptions about cardinality.
 
-Reducing E-R Diagrams to Relational Schemas
+## Reducing E-R Diagrams to Relational Schemas
 
 Because the E-R model and the relational database model share similar design principles, we can systematically translate any E-R diagram into a unique set of relation schemas (tables):
 
@@ -159,7 +161,7 @@ Because the E-R model and the relational database model share similar design pri
 - **Identifying Relationship Redundancy:** The relation schema created for an identifying relationship of a weak entity set (e.g., `sec_course` linking `section` to `course`) is completely redundant. Its primary key and attributes are already fully contained within the weak entity's relation schema. It can be safely deleted from the design.
 - **Schema Combination:** For a many-to-one relationship set $AB$ from entity set $A$ to $B$, if the participation of $A$ in $AB$ is total, the relation schemas for $A$ and $AB$ can be merged into a single schema. This combined schema contains the attributes of $A$ and the primary key attributes of $B$ (acting as a foreign key). This combination can also be performed for partial participation by setting the foreign key column to `null` for entities that do not participate. For 1:1 relationships, the relationship schema can be merged with either of the participating entity schemas.
 
-Extended E-R Features
+## Extended E-R Features
 
 To express complex real-world data constraints more elegantly, we use several extended E-R design features:
 
@@ -179,7 +181,7 @@ To express complex real-world data constraints more elegantly, we use several ex
 - **Method 1 (Superclass Table + Subclass Tables):** Create a relation schema for the superclass (containing all shared attributes) and individual schemas for each subclass (containing only subclass-specific attributes and the superclass's primary key). The primary key of each subclass table is the inherited superclass primary key, which also acts as a foreign key referencing the superclass table.
 - **Method 2 (No Superclass Table):** If the specialization is disjoint and complete, we can omit the superclass schema entirely. We create individual schemas for each subclass, with each schema containing all inherited superclass attributes plus its own local attributes. The drawback is that defining foreign keys referencing the general superclass becomes impossible, and overlapping data would be duplicated if the specialization was not disjoint.
 
-Entity-Relationship Design Issues
+## Entity-Relationship Design Issues
 
 Designing a schema is as much an art as it is a science. Engineers must actively recognize and correct common design anti-patterns:
 
@@ -195,7 +197,7 @@ Designing a schema is as much an art as it is a science. Engineers must actively
 
 **Binary vs. n-ary Relationship Sets:** While any $n$-ary relationship set can be mathematically replaced by an entity set and $n$ binary many-to-one relationships, preserving the $n$-ary relationship is often cleaner. A binary split can fail to enforce complex joint constraints. For instance, in a ternary relationship `proj_guide` (linking `instructor`, `student`, and `project`), we cannot split it into binary relations without losing the specific joint binding of which instructor guides which student on which project.
 
-Alternative Notations for Modeling Data
+## Alternative Notations for Modeling Data
 
 Several visual notations exist for mapping data models, with E-R diagrams and Unified Modeling Language (UML) class diagrams being the most widely adopted:
 
@@ -212,7 +214,7 @@ Several visual notations exist for mapping data models, with E-R diagrams and Un
 - **Multiplicity Constraints:** Written as _l..h_ (e.g., `0..*` or `1..1`), but their positioning is the exact _reverse_ of E-R diagrams. A multiplicity placed next to class $B$ represents the number of $B$ entities that can link to a single $A$ entity.
 - **Composition:** Depicted as a line with a small, shaded black diamond. This represents an existence-dependency relationship where the child class cannot exist without the parent, making it equivalent to a weak entity set.
 
-Other Aspects of Database Design
+## Other Aspects of Database Design
 
 Beyond schema structure, database design requires careful consideration of several broader system constraints:
 
@@ -220,11 +222,11 @@ Beyond schema structure, database design requires careful consideration of sever
 - **Data Flow and Workflow:** Database applications are often part of larger business processes. The design must accommodate workflows—the combination of data and routing tasks (such as a travel expense report passing through sequential manager approvals)—to ensure the database handles active read/write sequences efficiently.
 - **Schema Evolution:** Enterprise needs change continually. A good schema design anticipates future changes (such as a university transition from single-department affiliations to multi-department joint appointments) and builds in structural flexibility to minimize destructive table modifications later.
 
-Summary
+## Summary
 
 Congratulations on completing this lesson on Database Design using the E-R Model!
 
-**Key Takeaways:**
+### Key Takeaways:
 
 - **Systematic Design:** Conceptual database design uses the E-R model to map real-world requirements into a structured, visual format, avoiding update anomalies (redundancy) and structural roadblocks (incompleteness).
 - **Core Components:** Entity sets represent distinct objects, relationship sets model associations between those objects, and attributes describe their properties.

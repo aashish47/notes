@@ -24,9 +24,11 @@ export const metadata = {
 	],
 };
 
-Introduction
+## Introduction
 
 Did you know that simply decomposing a database table to eliminate duplicate data can actually _destroy_ your information if done incorrectly? While trying to clean up redundancy, you might inadvertently mix up critical connections between records—creating "phantom" data that never existed. Welcome to the mathematical foundation of relational database design, where we use functional and multivalued dependencies to systematically transform messy, redundant tables into precise, bulletproof schemas.
+
+### Learning Objectives:
 
 By completing this lesson, you will be able to:
 
@@ -36,7 +38,7 @@ By completing this lesson, you will be able to:
 - Identify and mitigate database design flaws using atomic domains and naming strategies.
 - Model complex temporal data with valid-time intervals and implement temporal primary and foreign keys.
 
-Features of Good Relational Designs
+## Features of Good Relational Designs
 
 The ultimate goal of relational database design is to construct a set of relation schemas that store information without unnecessary redundancy, while enabling straightforward data retrieval.
 
@@ -52,7 +54,7 @@ If we decompose `employee(ID, name, street, city, salary)` into `employee1(ID, n
 
 Conversely, a decomposition of $R$ into $R_1$ and $R_2$ is **lossless** if, for all legal instances of relation $r(R)$: $$\Pi_{R_1}(r) \bowtie \Pi_{R_2}(r) = r$$ If the natural join produces a proper superset ($r \subset \Pi_{R_1}(r) \bowtie \Pi_{R_2}(r)$), the decomposition is lossy.
 
-Decomposition Using Functional Dependencies
+## Decomposition Using Functional Dependencies
 
 To systematically verify if a design is in a desirable normal form, we must formalize real-world constraints using **functional dependencies (FDs)**. Let's establish our notation:
 
@@ -72,11 +74,11 @@ We can use functional dependencies to determine when a binary decomposition of $
 
 In plain terms, the attributes common to both schemas must form a superkey for at least one of the schemas. To guarantee consistency when a schema is decomposed, we must enforce that $R_1 \cap R_2$ is the primary key of $R_1$ and a foreign key in $R_2$ (or vice-versa).
 
-Normal Forms
+## Normal Forms
 
 We classify schemas into different **normal forms** based on the types of functional dependencies they satisfy.
 
-Boyce-Codd Normal Form (BCNF)
+### Boyce-Codd Normal Form (BCNF)
 
 BCNF eliminates all redundancy discoverable by functional dependencies. A relation schema $R$ is in BCNF with respect to a set $F$ of FDs if, for all functional dependencies in $F^+$ of the form $\alpha \rightarrow \beta$ (where $\alpha \subseteq R$ and $\beta \subseteq R$), at least one of the following holds:
 
@@ -95,7 +97,7 @@ While BCNF is highly desirable, it is not always **dependency-preserving**. Cons
 
 This schema violates BCNF because `i_ID` is not a superkey. Decomposing it to BCNF yields `(s_ID, i_ID)` and `(i_ID, dept_name)`. However, the critical constraint `s_ID, dept_name -> i_ID` can no longer be checked within a single relation without computing a natural join. This design is not dependency-preserving.
 
-Third Normal Form (3NF)
+### Third Normal Form (3NF)
 
 To handle scenarios where BCNF cannot preserve dependencies, we relax the constraint slightly using 3NF. A relation schema $R$ is in 3NF with respect to $F$ if, for all FDs in $F^+$ of the form $\alpha \rightarrow \beta$, at least one of the following holds:
 
@@ -105,15 +107,15 @@ To handle scenarios where BCNF cannot preserve dependencies, we relax the constr
 
 In our `dept_advisor` example, because `dept_name` (which is $\beta - \alpha$ under `i_ID -> dept_name`) is part of the candidate key `(s_ID, dept_name)`, the relation is already in 3NF!
 
-Comparing BCNF and 3NF
+### Comparing BCNF and 3NF
 
 With functional dependencies, database designers face a classic trilemma. It is always possible to achieve lossless decomposition and BCNF, _or_ lossless decomposition, 3NF, and dependency preservation. If we cannot get dependency-preserving BCNF, we must choose between accepting potential redundancy (3NF) or accepting expensive join operations to check constraints (BCNF). Note that standard SQL only natively enforces FDs where the left-hand side is a key, meaning that non-key FDs are incredibly difficult to maintain in practice without custom application code or materialized views.
 
-Functional-Dependency Theory
+## Functional-Dependency Theory
 
 To systematically reason about dependencies and build algorithms for normalization, we must study **Functional-Dependency Theory**.
 
-Armstrong's Axioms
+### Armstrong's Axioms
 
 The closure of $F$ (denoted $F^+$) is the set of all functional dependencies logically implied by $F$. We calculate $F^+$ using **Armstrong's Axioms**, which are both **sound** (they generate only correct FDs) and **complete** (they generate all valid FDs):
 
@@ -127,13 +129,13 @@ From these axioms, we can derive three additional highly useful rules:
 - **Decomposition:** If $\alpha \rightarrow \beta\gamma$, then $\alpha \rightarrow \beta$ and $\alpha \rightarrow \gamma$.
 - **Pseudotransitivity:** If $\alpha \rightarrow \beta$ and $\gamma\beta \rightarrow \delta$, then $\alpha\gamma \rightarrow \delta$.
 
-Attribute Closure
+### Attribute Closure
 
 Computing the full set $F^+$ is computationally expensive because a relation with $n$ attributes has $2^{2n}$ possible FDs. Instead, we compute the **attribute closure** of a specific set of attributes $\alpha$ (denoted $\alpha^+$) under $F$.
 
 We initialize `result := α`. We then repeatedly scan our set of FDs: if we find an FD $\beta \rightarrow \gamma$ where $\beta \subseteq \text{result}$, we update `result := result ∪ γ`. We repeat this until `result` stops changing. This algorithm allows us to easily check if $\alpha$ is a superkey (by verifying if $\alpha^+ = R$) or if $\alpha \rightarrow \beta$ holds (by verifying if $\beta \subseteq \alpha^+$).
 
-Canonical Cover
+### Canonical Cover
 
 A **canonical cover** $F_c$ is a simplified, minimal set of functional dependencies equivalent to $F$ (meaning $F_c^+ = F^+$). It must satisfy two rules:
 
@@ -145,7 +147,7 @@ An attribute $A$ in $\alpha \rightarrow \beta$ is extraneous if:
 - **On the left-hand side (**$A \in \alpha$**):** Removing $A$ from $\alpha$ results in a dependency $(\alpha - A) \rightarrow \beta$ that is still logically implied by $F$. To test this, check if $\beta \subseteq (\alpha - A)^+$ under $F$.
 - **On the right-hand side (**$A \in \beta$**):** Removing $A$ results in a weaker dependency $\alpha \rightarrow (\beta - A)$ that, together with the rest of $F$, still logically implies $F$. To test this, check if $\alpha \rightarrow A$ can be inferred from $F' = (F - \{\alpha \rightarrow \beta\}) \cup \{\alpha \rightarrow (\beta - A)\}$.
 
-Testing Dependency Preservation
+### Testing Dependency Preservation
 
 Let $R$ be decomposed into $R_1, R_2, \dots, R_n$. The **restriction** of $F$ to $R_i$ (denoted $F_i$) is the set of all FDs in $F^+$ that only use attributes in $R_i$. The decomposition preserves dependencies if $(F_1 \cup F_2 \cup \dots \cup F_n)^+ = F^+$.
 
@@ -155,11 +157,11 @@ Instead of computing $F^+$, we can test each FD $\alpha \rightarrow \beta$ in $F
 2. For each $R_i$ in the decomposition, update `result := result ∪ (((result ∩ R_i)^+ ∩ R_i))`.
 3. Repeat step 2 until `result` is stable. If $\beta \subseteq \text{result}$, the dependency $\alpha \rightarrow \beta$ is preserved.
 
-Algorithms for Decomposition Using Functional Dependencies
+## Algorithms for Decomposition Using Functional Dependencies
 
 To design real-world relational databases, we rely on precise, algorithmic execution of BCNF and 3NF decompositions.
 
-BCNF Decomposition Algorithm
+### BCNF Decomposition Algorithm
 
 Given a schema $R$ and a set of FDs $F$:
 
@@ -171,7 +173,7 @@ Given a schema $R$ and a set of FDs $F$:
 
 _Note on testing BCNF on a decomposed relation_ $R_i$_:_ We cannot simply use the FDs in $F$. We must test whether every subset $\alpha$ of $R_i$ satisfies: $\alpha^+$ either contains no attributes of $R_i - \alpha$, or includes all attributes of $R_i$. If this condition is violated, the FD $\alpha \rightarrow (\alpha^+ - \alpha) \cap R_i$ is a BCNF violation.
 
-3NF Decomposition Algorithm (Synthesis Algorithm)
+### 3NF Decomposition Algorithm (Synthesis Algorithm)
 
 This algorithm synthesizes a set of 3NF, lossless, dependency-preserving schemas from a canonical cover $F_c$:
 
@@ -185,13 +187,13 @@ This algorithm synthesizes a set of 3NF, lossless, dependency-preserving schemas
 4. Optionally, remove redundant schemas: if any $R_j$ is a proper subset of another schema $R_k$, delete $R_j$.
 5. Return the collection of schemas.
 
-Decomposition Using Multivalued Dependencies
+## Decomposition Using Multivalued Dependencies
 
 Even BCNF schemas can suffer from severe redundancy if they contain independent, multi-valued properties of an entity. Consider a schema `inst(ID, dept_name, street, city)` where an instructor can belong to multiple departments and have multiple addresses.
 
 Since no functional dependencies hold on this schema, it is technically in BCNF. However, if instructor `22222` has 2 departments and 2 addresses, we are forced to record 4 tuples to ensure that every department is matched with every address. To formalize and eliminate this issue, we define **multivalued dependencies (MVDs)**.
 
-Multivalued Dependencies
+### Multivalued Dependencies
 
 Let $r(R)$ be a relation schema, with $\alpha \subseteq R$ and $\beta \subseteq R$. The MVD $\alpha \rightarrow\rightarrow \beta$ holds on $R$ if, for all pairs of tuples $t_1$ and $t_2$ in any legal instance of $r$ where $t_1[\alpha] = t_2[\alpha]$, there exist tuples $t_3$ and $t_4$ in $r$ such that:
 
@@ -199,24 +201,24 @@ Let $r(R)$ be a relation schema, with $\alpha \subseteq R$ and $\beta \subseteq 
 - $t_3[\beta] = t_1[\beta]$ and $t_3[R - \beta] = t_2[R - \beta]$
 - $t_4[\beta] = t_2[\beta]$ and $t_4[R - \beta] = t_1[R - \beta]$
 
-Essentially, an MVD states that the values for $\beta$ and $R $$- \beta$ are completely independent for a given $\alpha$.
+Essentially, an MVD states that the values for $\beta$ and $R$ $- \beta$ are completely independent for a given $\alpha$.
 
 - An MVD is **trivial** if $\beta \subseteq \alpha$ or $\beta \cup \alpha = R$.
 - Every functional dependency is also a multivalued dependency (if $\alpha \rightarrow \beta$, then $\alpha \rightarrow\rightarrow \beta$).
 - MVDs satisfy the **complementation rule**: if $\alpha \rightarrow\rightarrow \beta$ holds, then $\alpha \rightarrow\rightarrow R - \alpha - \beta$ also holds.
 
-Fourth Normal Form (4NF)
+### Fourth Normal Form (4NF)
 
 We use MVDs to define **Fourth Normal Form (4NF)**, which is strictly stronger than BCNF. A relation schema $R$ is in 4NF with respect to a set $D$ of functional and multivalued dependencies if, for all MVDs in $D^+$ of the form $\alpha \rightarrow\rightarrow \beta$ (where $\alpha, \beta \subseteq R$), at least one of the following holds:
 
 - $\alpha \rightarrow\rightarrow \beta$ is trivial.
 - $\alpha$ is a superkey for $R$.
 
-4NF Decomposition
+### 4NF Decomposition
 
 The 4NF decomposition algorithm is identical to BCNF decomposition, but it operates on MVDs. If an MVD $\alpha \rightarrow\rightarrow \beta$ violates 4NF on schema $R_i$, we replace $R_i$ with $(R_i - \beta)$ and $(\alpha \cup \beta)$. This decomposition is guaranteed to be lossless because a decomposition into $R_1$ and $R_2$ is lossless if and only if $R_1 \cap R_2 \rightarrow\rightarrow R_1$ (or $R_2$).
 
-More Normal Forms, Atomic Domains, and First Normal Form
+## More Normal Forms, Atomic Domains, and First Normal Form
 
 There are several additional normal forms that address even more subtle forms of redundancy:
 
@@ -224,7 +226,7 @@ There are several additional normal forms that address even more subtle forms of
 - **Domain-Key Normal Form (DKNF):** The theoretical ultimate normal form, where all constraints are logical consequences of domain constraints and key constraints. PJNF and DKNF are rarely used in practice due to the lack of algorithmic rules.
 - **Second Normal Form (2NF):** Of historical interest only, 2NF requires that no non-prime attribute is partially dependent on any candidate key. Every 3NF schema is automatically in 2NF.
 
-Atomic Domains and First Normal Form (1NF)
+### Atomic Domains and First Normal Form (1NF)
 
 In the relational model, we require that all attribute domains are **atomic**—meaning their values are considered indivisible units.
 
@@ -236,7 +238,7 @@ A relation schema $R$ is in **First Normal Form (1NF)** if the domains of all at
 
 While some modern database systems relax 1NF to support nested relations, JSON, or XML for specialized developer convenience, doing so can compromise data consistency and make declarative querying significantly more complex.
 
-Database-Design Process
+## Database-Design Process
 
 Normalization must be contextualized within the broader database design lifecycle. There are several ways schemas are created:
 
@@ -246,31 +248,31 @@ Normalization must be contextualized within the broader database design lifecycl
 
 If an E-R diagram is built carefully—properly identifying entities, relationships, and multivalued attributes—the generated tables will almost always be in 4NF. Normalization acts as a formal verification step to correct mistakes in the E-R design.
 
-Naming Conventions
+### Naming Conventions
 
 Good design relies on the **unique-role assumption**: each attribute name must have a unique meaning in the database. Using the name `number` to mean phone number in one table and room number in another is a major design risk. Conversely, attributes with identical meanings across tables (like `dept_name`) should share the same name to make joins intuitive.
 
-Denormalization for Performance
+### Denormalization for Performance
 
 Occasionally, database administrators deliberately introduce redundancy (called **denormalization**) to speed up queries that require expensive joins. However, this forces the application program to maintain consistency across copies of the data. A superior alternative supported by modern database engines is using a normalized schema combined with **materialized views**, shifting the maintenance burden from the developer to the database system.
 
-Modeling Temporal Data
+## Modeling Temporal Data
 
 Most databases store a snapshot of the real world at the current point in time. However, many systems require **temporal data**—data that has an associated time interval during which it is valid.
 
 To represent temporal data, we add valid-time interval attributes, typically denoted as `start` and `end`. By convention (and standard SQL:2011), these intervals are closed on the left and open on the right: `[start, end)`. This prevents overlapping when one state transitions directly into the next.
 
-Temporal Functional Dependencies and Keys
+### Temporal Functional Dependencies and Keys
 
 When tracking historical data, traditional FDs like `course_id -> title` no longer hold, because a course's title can change over time. Instead, we define a **temporal functional dependency**: $$\alpha \xrightarrow{\tau} \beta$$ This states that $\alpha \rightarrow \beta$ holds on any temporary snapshot of the relation at any given point in time $t$.
 
 Similarly, a traditional primary key constraint is insufficient because multiple records can share the same `course_id` (representing different valid time intervals). A **temporal primary key** requires that if two tuples have the same primary key attributes, their valid-time intervals must not overlap.
 
-Temporal Foreign Keys
+### Temporal Foreign Keys
 
 A **temporal foreign key** ensures that for each tuple in the referencing relation with interval `[l, u)`, there is a matching set of tuples in the referenced relation whose combined, overlapping valid-time intervals completely cover `[l, u)`.
 
-SQL Implementation and PostgreSQL Workaround
+### SQL Implementation and PostgreSQL Workaround
 
 SQL:2011 introduces native temporal declarations:
 
@@ -287,7 +289,7 @@ EXCLUDE (course_id WITH =, validtime WITH &&);
 
 This constraint uses the `=` operator to check for matching IDs and the `&&` operator to block overlapping ranges, robustly enforcing temporal database integrity.
 
-Summary
+## Summary
 
 We have covered the rigorous mathematical theory and practical considerations of relational database design:
 

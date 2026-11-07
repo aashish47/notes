@@ -39,13 +39,13 @@ export const metadata = {
 	],
 };
 
-Introduction
+## Introduction
 
 Did you know that every time you click an online ad or swipe a credit card, database systems make split-second predictions using billions of rows of historical data? In high-volume environments, making millions of low-value decisions correctly can translate into massive fortunes. Conversely, in inventory management, failing to accurately predict demand results in severe monetary losses due to overstocking or missed sales.
 
 In this lesson, you will master the architectural and algorithmic components that power modern data-driven enterprises.
 
-**Learning Objectives:**
+### Learning Objectives:
 
 - Compare the architectures, trade-offs, and data flows of **Data Warehouses** and **Data Lakes**.
 - Master multidimensional modeling, including **Star** and **Snowflake schemas**.
@@ -53,7 +53,7 @@ In this lesson, you will master the architectural and algorithmic components tha
 - Perform **Online Analytical Processing (OLAP)** multidimensional operations and implement them natively using advanced **SQL** constructs.
 - Analyze foundational data mining paradigms: **Classification**, **Regression**, **Association Rules**, **Clustering**, and **Text Mining**.
 
-Overview of Analytics
+### Overview of Analytics
 
 The term **data analytics** broadly refers to the processing of data to infer patterns, correlations, or predictive models that drive business decisions.
 
@@ -61,14 +61,14 @@ Large enterprises operate with diverse internal operational systems, often store
 
 To bridge the gap between raw data sources and analytical environments, organizations use **Extract, Transform, and Load (ETL)** or **Extract, Load, and Transform (ELT)** workflows. These workflows extract data from multiple sources, clean and deduplicate it, and load it into the warehouse.
 
-Analytical Paradigms
+### Analytical Paradigms
 
 - **Decision Support Systems (DSS):** Focus on reporting and aggregation using SQL queries over massive datasets. Unlike **Online Transaction Processing (OLTP)** systems—which process many small, concurrent updates—DSS queries primarily read vast volumes of historical data.
 - **Business Intelligence (BI):** Represents a broadly similar domain to data analytics, focusing on reporting, dashboards, and KPI monitoring.
 - **Online Analytical Processing (OLAP):** Specialized systems designed to execute complex aggregate queries over large datasets in near real-time.
 - **Data Mining & Machine Learning:** Algorithmic techniques used to automatically extract non-obvious predictive models or rules from historical datasets.
 
-Data Warehousing and ETL/ELT Architectures
+## Data Warehousing and ETL/ELT Architectures
 
 A **data warehouse** acts as a long-term, unified historical archive of information consolidated from multiple operational databases. When architecting a data warehouse, system designers must resolve several structural challenges:
 
@@ -99,7 +99,7 @@ When source data updates, changes must flow to the warehouse. This is fundamenta
 - **ETL (Extract, Transform, Load):** Data is extracted, cleaned and transformed in a separate staging area, and then loaded into the target database.
 - **ELT (Extract, Load, Transform):** Data is extracted and directly loaded into the warehouse. Transformations are executed _inside_ the warehouse using high-performance parallel processing frameworks (e.g., MapReduce or User-Defined Functions).
 
-Multidimensional Data and Warehouse Schemas
+## Multidimensional Data and Warehouse Schemas
 
 To facilitate multi-perspective aggregation, data warehouses organize relational data using **multidimensional models**. Under this paradigm, tables are classified into two roles:
 
@@ -108,14 +108,14 @@ To facilitate multi-perspective aggregation, data warehouses organize relational
   2. **Dimension Attributes:** Structural keys that represent the perspectives or axes along which measures are grouped (e.g., `item_id`, `store_id`, `customer_id`, `date`).
 - **Dimension Tables:** Ancillary lookup tables containing descriptive attributes linked to the dimension keys in the fact table. For example, a `store` dimension table lists the city, state, and country of a specific `store_id` foreign key.
 
-Schema Designs
+### Schema Designs
 
 These relationships are structured using specific schema topologies:
 
 - **Star Schema:** A central fact table surrounded by simplified, denormalized dimension tables. The dimension attributes connect directly as foreign keys, resembling a star. This minimizes query joins at the cost of redundant storage in the dimension tables.
 - **Snowflake Schema:** A more normalized variation where dimension tables are broken down into secondary lookup tables (e.g., `item_info` references a normalized `manufacturer` table). This reduces redundancy but increases the number of SQL joins required during query execution.
 
-Database Engine Support: Column-Oriented Storage and Data Lakes
+## Database Engine Support: Column-Oriented Storage and Data Lakes
 
 Traditional databases use **row-oriented storage**, where all attributes of an individual tuple are stored sequentially in a single disk block. This is highly efficient for OLTP databases that retrieve, insert, or modify individual records.
 
@@ -131,37 +131,37 @@ File 2 (Name):   [T1_Name, T2_Name, T3_Name]
 File 3 (Salary): [T1_Salary, T2_Salary, T3_Salary]
 ```
 
-Column-Oriented Benefits and Trade-offs
+### Column-Oriented Benefits and Trade-offs
 
 1. **Reduced I/O Bottlenecks:** Queries only load files corresponding to the specific attributes referenced in the `SELECT` and `WHERE` clauses. Unused attributes are never read from disk or loaded into RAM.
 2. **Advanced Compression:** Storing identical data types sequentially (e.g., a column of integers or dates) dramatically increases compression efficiency (such as run-length or dictionary encoding), reducing storage footprints and disk I/O.
 3. **The Drawback:** Storing or retrieving a single, complete tuple requires multiple distinct disk seek operations across multiple files. Thus, columnar storage is highly inefficient for transactional writes or point-lookups.
 
-Big Data Ecosystems
+### Big Data Ecosystems
 
 Modern column-oriented platforms integrate directly with distributed file systems. Big data systems use compressed columnar formats like **Apache Parquet** and **ORC** (Optimized Row Columnar). Tools like **Apache Hive** and **Apache Spark** execute parallel SQL queries on top of distributed storage frameworks like Apache Hadoop.
 
-Data Lakes
+### Data Lakes
 
 While data warehouses demand highly integrated, uniform schemas up-front, a **data lake** is a flexible repository that stores raw data in multiple structured, semi-structured, and unstructured formats.
 
 - Data lakes do not require up-front schema design or cleaning (adopting a "schema-on-read" approach).
 - They require less preparation to ingest data but place a higher computational and complexity burden on analysts when creating queries. Apache Spark and Hadoop are widely used to query data lakes.
 
-Online Analytical Processing (OLAP) Principles
+## Online Analytical Processing (OLAP) Principles
 
 Analysts evaluate data patterns by grouping multidimensional data in various ways. **Online Analytical Processing (OLAP)** systems present these groupings interactively through a logical abstraction called the **data cube**.
 
 An $n$-dimensional data cube aggregates measures across all subsets of the chosen dimension attributes. Because each of the $n$ dimensions can either be grouped or summarized across "all" values, there are $2^n$ distinct grouping combinations.
 
-Hierarchical Dimensions
+### Hierarchical Dimensions
 
 Dimension attributes can be organized into structural detail hierarchies. For example:
 
 - **Temporal Hierarchy:** `hour` $\rightarrow$ `date` $\rightarrow$ `month` $\rightarrow$ `quarter` $\rightarrow$ `year`
 - **Geographic Hierarchy:** `city` $\rightarrow$ `state` $\rightarrow$ `country` $\rightarrow$ `region`
 
-Core OLAP Operations
+### Core OLAP Operations
 
 Analysts navigate data cubes using interactive operations:
 
@@ -171,7 +171,7 @@ Analysts navigate data cubes using interactive operations:
 - **Rollup:** Moving from fine-grained data to a coarser granularity along a dimension hierarchy (e.g., consolidating daily sales figures into monthly totals).
 - **Drill down:** The inverse of rollup; moving from coarse, aggregated summaries to highly granular details (e.g., splitting annual numbers down into quarterly or monthly rows).
 
-Advanced SQL for Multidimensional Analytics
+## Advanced SQL for Multidimensional Analytics
 
 To avoid writing multiple independent `GROUP BY` queries joined together with inefficient `UNION` operators, the SQL standard provides advanced aggregation clauses.
 
@@ -232,7 +232,7 @@ FROM sales
 GROUP BY CUBE(item_name);
 ```
 
-Foundations of Data Mining
+## Foundations of Data Mining
 
 While OLAP systems require manual interaction from an analyst to uncover patterns, **data mining** is the semi-automatic process of analyzing massive, disk-stored databases to discover novel, valid, and actionable models or rules.
 
@@ -253,7 +253,7 @@ Identifying rules that describe co-occurrence patterns in data, such as items th
 
 Grouping heterogeneous populations of data points into distinct clusters where elements in the same cluster are highly similar, and elements in different clusters are highly dissimilar. This is an unsupervised learning task because the groupings are not pre-labeled.
 
-Predictive Models: Classification and Regression
+## Predictive Models: Classification and Regression
 
 Classification models are built using **training data** (past instances with known labels) and evaluated on **test data** (instances with unknown labels).
 
@@ -271,7 +271,7 @@ $$p(c_j|d) = \frac{p(d|c_j)p(c_j)}{p(d)}$$
 - $p(d|c_j)$ is the probability of generating instance $d$ given class $c_j$.
 - $p(d)$ is a constant normalizer across all classes and can be ignored during comparison.
 
-Naive Bayesian Classifiers
+### Naive Bayesian Classifiers
 
 Calculating $p(d|c_j)$ exactly across high-dimensional combinations of attributes is computationally intractable and requires massive training sets. To solve this, **Naive Bayesian** classifiers assume that all attributes are conditionally independent given the class:
 
@@ -302,7 +302,7 @@ $$Y = a_0 + a_1 X_1 + a_2 X_2 + \dots + a_n X_n$$
 
 Statistical techniques calculate optimal coefficients $a_i$ to minimize the distance between the model's predictions and actual values.
 
-Descriptive Mining: Association, Clustering, and Text Mining
+## Descriptive Mining: Association, Clustering, and Text Mining
 
 Unlike predictive mining, descriptive mining uncovers relationships and structures within existing data.
 
@@ -333,9 +333,9 @@ Because a vast amount of enterprise data is stored in unstructured textual forma
 - **Named Entity Recognition (NER):** Identifies and disambiguates mentions of real-world entities (e.g., distinguishing whether the name "Michael Jordan" in a document refers to the basketball player or the machine learning professor based on context).
 - **Knowledge Graphs:** Integrated networks of extracted real-world entities and their relationships, which are used by search engines to answer queries.
 
-Summary
+## Summary
 
-Key Takeaways
+### Key Takeaways
 
 - **Data Warehouses vs. Data Lakes:** Data warehouses store consolidated data under a highly integrated, unified schema (schema-on-write). Data lakes store diverse, heterogeneous formats in their raw state, defining schemas only when querying (schema-on-read).
 - **Storage Layouts:** Row-oriented storage is optimized for OLTP write-heavy workloads. Column-oriented storage is highly optimized for analytical read workloads, reducing disk I/O and enabling advanced data compression.

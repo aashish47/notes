@@ -35,9 +35,11 @@ export const metadata = {
 	],
 };
 
-## **Introduction**
+## Introduction
 
 Did you know that practically all modern database interactions happen indirectly behind a web browser or mobile app interface? When you search for a term, purchase an item, or book a flight, a multi-layered software architecture springs to life to securely query the database, apply business logic, and dynamically render results. Developing these applications requires a fine-tuned balance of web protocols, performance optimization, data-access frameworks, and hardened security protocols.
+
+### Learning Objectives
 
 In this lesson, you will learn to:
 
@@ -47,7 +49,7 @@ In this lesson, you will learn to:
 - Implement multi-tier application architectures and Object-Relational Mappings (ORMs) such as Hibernate.
 - Mitigate security vulnerabilities such as SQL injection, XSS, and CSRF while applying database encryption.
 
-## **Application Programs and User Interfaces**
+## Application Programs and User Interfaces
 
 Most users never write SQL queries directly. Instead, they interact with databases via application programs that present user interfaces (UIs) at the front end and communicate with databases at the back end. These applications accept input through forms, query or update the database, and display customized outputs.
 
@@ -58,10 +60,139 @@ To bypass these problems, two modern development approaches arose:
 - **Web-Based Applications**: Standard web browsers serve as a universal client interface. Browsers parse HyperText Markup Language (HTML) to render formatted screens and forms. Advanced interfaces utilize client-side JavaScript, which executes inside a browser security sandbox without requiring manual software installations.
 - **Mobile Applications**: Installed programs on mobile devices communicate with a backend application via an Application Programming Interface (API) instead of directly accessing the database. Mobile apps optimize layouts for small touchscreens and can run offline by saving local state, syncing back only when connected to a network.
 
-## **Web Fundamentals**
+## Web Fundamentals
 
 The World Wide Web relies on standardized protocols and naming conventions to transfer data between clients and servers.
 
 **Uniform Resource Locators (URLs)**: A URL is a globally unique address for web documents. It begins with the protocol (such as HTTP or the encrypted HTTPS), followed by the server domain name, and the file path. URLs can contain arguments to execute program files on the web server (e.g., `https://www.google.com/search?q=silberschatz`, where `q=silberschatz` is the parameter passed to the search program).
 
-**HyperText Markup Language (HTML)**: HTML uses standardized tags to define document elements, such as tables (`,`, `<table><tbody><tr><th>`, `</th><td>`) and forms (`
+**HyperText Markup Language (HTML)**: HTML uses standardized tags to define document elements, such as tables (`,`, `<table><tbody><tr><th>`, `</th><td>`) and forms (`form>`) . Forms define input fields `(``, <select>)` to capture user variables. Forms submit data to a specified URL path using one of two primary methods defined by the HyperText Transfer Protocol (HTTP):
+
+- **GET**: Appends parameter values directly to the URL as query strings (e.g., `?name=Brandt`). This is visible to the user and is intended only for read-only retrieval.
+- **POST**: Sends parameters inside the body of the HTTP request, keeping them out of the URL bar.
+
+**Web Servers and Sessions**: A web server accepts HTTP requests and returns HTML pages. Because HTTP is a connectionless protocol, the temporary connection between browser and server is closed immediately after a request is fulfilled. While this prevents servers from running out of connections, web applications need a way to maintain state (such as user logins and shopping carts).
+
+To maintain state, applications use **cookies**—small text parameters stored on the client browser. The server sets a session cookie (e.g., `sessionid`) containing a randomly generated session identifier. For subsequent requests in the same session, the browser automatically transmits this cookie to the server. The server verifies the incoming session ID against its active, internal registry. If the cookie is missing, timed out, or modified, access is denied.
+
+## Java Servlets
+
+The Java Servlet API establishes a standard interface for communication between a web/application server and a backend Java program. A servlet is a Java class extending `HttpServlet` that executes inside the application server's process.
+
+**How Servlets Work**: Servlets are commonly mapped to specific URL paths using the `@WebServlet` annotation. When a matching request arrives, the servlet container spawns a new thread and invokes the `service()` method, which routes execution to methods like `doGet()` or `doPost()`. The methods parse input parameters via the `HttpServletRequest` object, execute backend logic (such as querying a database using JDBC), and write the resulting HTML to the client browser via the `HttpServletResponse` output writer.
+
+**Servlet Sessions**: To manage session state securely, servlets use `request.getSession(false)`. If a valid session object exists, the servlet can read attributes (e.g., `session.getAttribute("userid")`). To verify logins, the application hashes the user-supplied password with a cryptographic salt and compares the result to the hashed password stored in the database. If correct, `request.getSession(true)` is called, a unique session ID cookie is generated, and the user's ID is bound to the session via `session.setAttribute("userid", userid).
+
+**Servlet Life Cycle**: The execution of a servlet is managed strictly by the application server:
+
+- **Loading/Instantiating**: The servlet class is loaded into the Java Virtual Machine (JVM).
+- **Initialization**: The server calls the `init()` method exactly once when the servlet is first loaded.
+- **Execution**: Each incoming HTTP request is handled inside its own thread, running the `service()` method concurrently without blocking other users.
+- **Destruction**: The container shuts down the servlet by calling the `destroy()` method when it is no longer needed.
+
+Servlets run within application servers such as Apache Tomcat, Glassfish, JBoss, WebSphere, or WebLogic, which provide performance monitoring, J2EE API integrations, and parallel processing capabilities.
+
+## Alternative Server-Side Frameworks
+
+While writing application code inside compiled servlets is robust, alternative development frameworks can drastically simplify server-side programming.
+
+**Server-Side Scripting**: Instead of printing HTML as strings inside a program, server-side scripting allows programmers to embed code blocks directly inside standard HTML pages. Before serving the document to a client, the server executes these embedded scripts and outputs the result in-line. The raw code is stripped away, ensuring that only pure HTML reaches the client browser.
+
+- **Java Server Pages (JSP)**: JSP embeds Java code inside HTML files using scriptlet tags: `&lt;% ... %&gt;`. JSPs are translated into standard servlets and compiled transparently behind the scenes. JSP also supports custom tag libraries and expression languages to cleanly format dynamic datasets.
+- **PHP**: PHP is a server-side scripting language denoted by ``tags. It accesses incoming HTTP request parameters using associative arrays like`$\_REQUEST['name']`and prints data directly to the document using functions like`echo`.
+
+**Web Application Frameworks**: To eliminate repetitive programming, modern frameworks organize code by integrating templating engines, session controllers, input validation systems, and data-mapping tools. These frameworks are designed around the Model-View-Controller (MVC) architecture, and they often provide generators to construct Create, Read, Update, and Delete (CRUD) administrative portals automatically.
+
+**The Django Framework**: Written in Python, Django maps URLs to view functions using a central routing file (`urls.py`). In a Django view, developer-defined Python functions manage session data, run parameterized SQL statements using a database cursor to eliminate SQL injection risks, and return an `HttpResponse` containing the generated document. Django also includes built-in migration tools to synchronize database schemas with Python code.
+
+## Client-Side Code and Web Services
+
+To build responsive interfaces and minimize round-trip times to the database server, modern software shifts significant UI execution onto the client browser.
+
+**JavaScript**: JavaScript is the standard programming language executed inside web browsers. It performs key application duties:
+
+- **Input Validation**: Before submitting forms to the server, JavaScript functions validate inputs (e.g., checking that a start date is earlier than an end date or verifying numeric bounds). This saves network bandwidth and server processing cycles.
+- **DOM Manipulation**: JavaScript interacts with the browser's Document Object Model (DOM)—the memory tree representation of the HTML document. Programs use library frameworks like jQuery to dynamically insert, alter, or remove rows in a table without refreshing the page.
+- **Ajax**: Asynchronous JavaScript and XML (Ajax) enables the browser to make background HTTP requests to a backend server. This allows features like autocomplete text boxes: as the user types, background requests fetch database-matched suggestions and update the screen asynchronously.
+
+**Web Services and REST**: A web service is a backend software component designed to be invoked programmatically over HTTP. The dominant architectural pattern is Representation State Transfer (REST). In RESTful web services, the client requests a structured URL containing parameters, and the backend returns raw data, usually formatted as JavaScript Object Notation (JSON) or Extensible Markup Language (XML). JavaScript on the browser parses this JSON data to dynamically update the UI.
+
+**Disconnected Operation**: To support offline access, the HTML5 standard includes browser storage engines:
+
+- **localStorage**: Stores simple key-value strings up to 5MB.
+- **IndexedDB**: A client-side transactional database that stores structured JSON objects with multi-attribute indexing and schema versioning.
+
+**Mobile and PWA Platforms**: Native mobile application platforms (such as Android and iOS) require separate, specialized codebases. Cross-platform frameworks like React Native (JavaScript-based) or Flutter (Dart-based) allow developers to write a single codebase that runs on both platforms. Alternatively, Progressive Web Apps (PWAs) are web apps tailored for mobile devices. Using background browser scripts called **Service Workers**, PWAs sync offline browser data with backend web services and manage system push notifications.
+
+## Application Architectures
+
+To prevent codebases from becoming tangled and unmaintainable, software systems partition their logic into distinct architectural layers:
+
+- **Presentation (User Interface) Layer**: Manages user interaction. This layer is often designed around the Model-View-Controller (MVC) pattern. The Controller translates user inputs into model updates, the Model contains the business state, and the View presents the data to the browser.
+- **Business-Logic Layer**: Models business entities (e.g., students, departments) and executes the explicit rules of the domain. It enforces logical rules (e.g., validating course prerequisites or processing payments) and implements complex workflows with automated escalation rules for delayed steps.
+- **Data-Access Layer**: Handles communication with the underlying relational database. It is responsible for bridging the impedance mismatch between object-oriented in-memory representations (objects, properties, relationships) and relational schemas (tables, rows, foreign keys).
+
+To automate this data-access bridge, systems employ **Object-Relational Mapping (ORM)**:
+
+- **Hibernate ORM**: A widely used Java framework implementing the Java Persistence API (JPA). Developers mark Java classes with annotations like `@Entity` and primary key attributes with `@Id`. Hibernate maps these definitions to relational schemas, automatically generating and executing the SQL required when calling transactional methods like `session.save(object)` or `session.get(Class, ID)`. It also translates object queries written in Hibernate Query Language (HQL) into optimized SQL queries.
+- **Django ORM**: A Python-based ORM. Relational tables are declared as Python classes inheriting from `models.Model`. Django models allow easy handling of complex relationships (such as `ManyToManyField`) and run structured database queries using Python syntax (e.g., `Student.objects.filter(name=personname)`), completely bypassing raw SQL writing.
+
+## Application Performance
+
+Large applications must service thousands of requests per second. Developers employ a combination of optimization and scale-out techniques to prevent performance bottlenecks:
+
+**Connection Pooling**: Establishing a new database connection (e.g., JDBC or ODBC) requires an expensive network handshake that can take several milliseconds. To eliminate this overhead, a Connection Pool Manager creates a dedicated set of open, active database connections when the application server starts. When a program needs database access, it leases an existing connection from the pool and immediately returns it when finished. If the pool runs empty, the manager creates new connections up to a safe database ceiling.
+
+**Caching**: Caching significantly reduces database workloads by saving and reusing static or calculated values:
+
+- **Query-Result Caching**: Stores the output of common database queries. To prevent stale data, modern databases use query change notifications to alert application servers to discard cached results when underlying tables are modified.
+- **Fragment Caching**: Stores individual, processed segments of HTML pages to speed up view rendering.
+- **In-Memory Caches**: Systems like Memcached and Redis store raw database values in RAM, indexing them on unique keys (e.g., `"student:12328"`). The application first checks the memory cache. If a cache miss occurs, the program queries the relational database, saves a copy to the cache for future requests, and returns the result to the user.
+
+**Parallel Processing**: High-traffic systems route user requests across a farm of parallel application servers using a load-balancer router. Because servers maintain state for active client sessions, routers use session-sticky routing (e.g., mapping IP addresses to specific application servers) to ensure a user's requests always reach the server holding their session state. The application servers share a single, robust parallel database system at the back end.
+
+## Application Security
+
+Security is a paramount concern for application development, requiring safeguards that extend beyond simple SQL authorization rules.
+
+**SQL Injection**: This exploit occurs when user input is concatenated directly into SQL query strings. If an attacker inputs structured SQL symbols (such as `'; DROP TABLE student; --`), they can prematurely terminate the original query and inject arbitrary SQL command sequences that execute with administrative privileges. To eliminate this threat, developers must use **prepared statements**, which treat user parameters strictly as raw literal values, or apply proper character escape filters before executing queries.
+
+**Cross-Site Scripting (XSS)**: An attack where a malicious script (typically JavaScript) is injected into a database through an input form (like a comment section). When other users view this data, their browsers execute the malicious script, which can steal session cookies or forge actions. To prevent XSS, applications must strip or escape HTML tags from user inputs.
+
+**Cross-Site Request Forgery (XSRF/CSRF)**: An exploit that trick's a user's browser into executing an unauthorized action on a target site where they are currently authenticated (e.g., clicking a link on a malicious page that triggers a transfer form on a bank site). Prevention strategies include using custom session verification tokens (CSRF tokens), validating HTTP Referer headers, restricting sessions to a single IP address, and never executing database updates using HTTP GET requests.
+
+**Authentication Mechanisms**: Applications use multi-factor authentication (MFA) to require two or more independent factors: passwords (hashed and salted) and a possession factor (such as hardware tokens, SMS one-time codes, or smart cards containing secure cryptographic chips). Centralized authentication systems use LDAP, Active Directory, and Single Sign-On (SSO) standards like SAML, OpenID, or OAuth to authenticate users securely across multiple domains.
+
+**Application Authorization**: Standard SQL role-based security is too coarse and is bypassed because application servers connect to databases using a single, high-privilege service account. To enforce fine-grained access control, developers implement custom authorization rules in application code, or use database features like Row-Level Security (RLS) or Oracle's Virtual Private Database (VPD), which automatically append custom predicates (such as `ID = sys_context.user_id()`) directly onto incoming SQL queries.
+
+**Audit Trails**: An audit trail is an unalterable log recording database changes, timestamps, usernames, and originating IP addresses. Using database triggers or append-only blockchain storage keeps these logs safe from malicious modification by compromised database administrators.
+
+## Encryption and Its Applications
+
+Encryption transforms plaintext into an unreadable ciphertext using cryptographic keys, securing data both in transit and at rest.
+
+**Encryption Techniques**:
+
+- **Symmetric-Key Encryption**: Uses the same secret key to encrypt and decrypt data. The Advanced Encryption Standard (AES) is the gold standard, operating on 128-bit blocks of data using key lengths of 128, 192, or 256 bits. It relies on secure key-distribution channels to prevent key leakage.
+- **Public-Key (Asymmetric) Encryption**: Uses two mathematically linked keys. A public key (E) is visible to anyone and is used to encrypt data. A private key (D) is kept strictly secret by the owner and is used to decrypt data. It is computationally expensive and based on the mathematical difficulty of factoring products of extremely large prime numbers.
+- **Hybrid Cryptography**: For secure internet communication (such as HTTPS), systems use public-key cryptography to securely exchange a one-time symmetric key, then use fast symmetric-key algorithms (like AES) for bulk session encryption.
+- **Dictionary Attacks**: Attackers can crack small encrypted values (like dates of birth or ages) by encrypting all possible values until they find a matching ciphertext. Adding random bits—known as **salt** or **initialization vectors**—to the plaintext before encryption prevents this attack.
+
+**Dat** **abase Encryption**: Encryption can be applied at multiple layers within database architectures:
+
+- **Disk-Block-Level Encryption**: Encrypts all data block files stored on disk, protecting backup files and physical media from theft.
+- **Attribute-Level Encryption**: Encrypts specific sensitive columns (e.g., credit card numbers). Decryption keys are stored in a secure file wallet unlocked by a master key.
+- **Application-Level Encryption**: Encrypts data within the application client code before it is sent over the network to the database, ensuring the database server never sees the raw plaintext.
+
+**Authentication and Cryptography**: Systems use challenge-response protocols to authenticate users without sending passwords across networks. The server sends a random challenge string, which the client encrypts using their private key (often stored on a secure Smart Card chip) and returns. Digital signatures verify authenticity and ensure nonrepudiation by encrypting a data hash with a private key. Digital certificates verify web host identity in HTTPS using hierarchical chains of public keys signed by trusted root Certification Authorities (CAs).
+
+## Summary
+
+### Key Takeaways
+
+- **Web Sessions**: HTTP is connectionless; applications use cookies containing random session IDs verified against a server registry to track state.
+- **Servlets & Scripting**: Java Servlets provide robust, compiled multi-threaded database programming. Server-side scripting (JSP, PHP) integrates code within HTML pages, while frameworks (Django, Rails) provide routing, templates, and automated schema migrations.
+- **Client-Side Technologies**: JavaScript validates inputs and modifies the browser's DOM. Modern systems use RESTful APIs communicating via JSON in-browser, supporting offline storage via localstorage and IndexedDB.
+- **Application Architecture**: Multi-tier designs isolate the Presentation layer, the rule-enforcing Business-Logic layer, and the Data-Access layer. ORMs (Hibernate, Django ORM) bridge the object-relational database gap.
+- **Performance Optimization**: Connection pooling eliminates startup delays. Caching systems (query-level, web fragment, Redis) minimize direct database reads, and sticky-load balancers scale servers horizontally.
+- **Application Security**: Parametrized queries/prepared statements eliminate SQL injection. Strict input filtering prevents XSS, and CSRF tokens mitigate cross-site forged actions. Virtual Private Databases (VPDs) append secure predicates directly onto SQL queries.

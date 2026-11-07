@@ -23,13 +23,13 @@ export const metadata = {
 	],
 };
 
-Introduction
+## Introduction
 
 Did you know that a simple user input like `X' or 'Y' = 'Y` can bypass security screens and expose an entire corporate database? This represents one of many high-stakes challenges database programmers face. While basic SQL is incredibly powerful for declarative querying, complex enterprise applications require something more: the ability to run procedural logic, respond dynamically to database events, and perform complex recursive or analytical computations.
 
 In this lesson, you will learn to bridge the gap between application code and relational databases while unlocking advanced SQL structures.
 
-**Learning Objectives:**
+### Learning Objectives:
 
 - Establish secure, injection-free connections between application code (Java, Python, C) and databases.
 - Build and manage stored functions, procedures, and procedural control blocks within the database system.
@@ -37,7 +37,7 @@ In this lesson, you will learn to bridge the gap between application code and re
 - Construct recursive SQL queries to compute transitive closures and navigate hierarchical datasets.
 - Apply advanced analytical SQL techniques, including window functions, ranking, pivoting, and multidimensional aggregations.
 
-Accessing SQL from a Programming Language
+## Accessing SQL from a Programming Language
 
 SQL is declarative, which makes querying straightforward but limits its capabilities: it is not Turing-complete and cannot natively build user interfaces or print formatted reports. To bridge this gap, applications must execute SQL from general-purpose languages. Doing so introduces an **impedance mismatch**: relational databases operate on entire tables (sets of tuples), whereas traditional programming languages operate on one variable or object at a time.
 
@@ -80,11 +80,11 @@ Like JDBC, Python requires an explicit `conn.commit()` to finalize updates.
 
 **Embedded SQL** Under embedded SQL, raw database queries are embedded within host languages (C, C++, Fortran) prefixed by keyword tokens like `EXEC SQL`. Host variables are prefixed with a colon (`:var_name`) within SQL blocks. Cursors are declared and opened to iterate over query result sets. Today, dynamic SQL is preferred because embedded preprocessors complicate debugging and limit language flexibility.
 
-Stored Functions and Procedures
+## Stored Functions and Procedures
 
 Modern relational databases can store procedural programs directly inside the database. This allows developers to centralize business rules (e.g., maximum class capacities, enrollment rules) and execute them directly on the database server. Doing so simplifies application code, ensures consistency across multiple applications, and reduces network communication overhead.
 
-**Declaring SQL Functions and Procedures**
+### Declaring SQL Functions and Procedures
 
 - **Stored Functions:** Return a single value or table. They are called directly within SQL queries:
 
@@ -124,7 +124,7 @@ end
 
 **External Language Routines** Databases also support execution of procedures written in standard imperative languages like Java, C#, C, or Python. Running external C code alongside the database engine poses safety risks, as a program bug could corrupt internal database memory. To prevent this, secure environments use a **sandbox** (such as Java or .NET CLR virtual environments) within the database process. This allows quick execution without the overhead of external interprocess communication while keeping the database safe from memory exploitation.
 
-Database Triggers
+## Database Triggers
 
 A **trigger** is a statement that the system executes automatically as a side effect of database modifications (inserts, updates, or deletes). Triggers allow developers to implement complex security rules, update aggregate data, or automate background logging.
 
@@ -134,12 +134,12 @@ A **trigger** is a statement that the system executes automatically as a side ef
 2. **Condition:** An optional boolean check (`when` clause) evaluated before trigger action occurs.
 3. **Action:** The procedural block containing SQL or PSM commands to run if the condition evaluates to true.
 
-**Row vs. Statement Triggers**
+### Row vs. Statement Triggers
 
 - **Row-Level Triggers:** Defined using the `for each row` clause. The trigger runs independently for every modified tuple. Inside the trigger, **transition variables** (`new row as nrow`, `old row as orow`) provide access to the pre-modification and post-modification values of the tuple.
 - **Statement-Level Triggers:** Defined using the `for each statement` clause. The trigger executes exactly once per SQL statement, regardless of how many rows are updated. Transition tables (`referencing old table as` or `new table as`) allow access to all affected rows at once.
 
-**Before vs. After Triggers**
+### Before vs. After Triggers
 
 - **Before Triggers:** Execute _prior_ to executing the initiating write operation. These are useful for validating inputs, replacing invalid entries (e.g., substituting blank text with a `null` value), or preventing violations of external constraints.
 - **After Triggers:** Execute _after_ the database modification is applied. These are useful for maintaining audit logs, updating total counts in related tables, or replicating transaction records.
@@ -150,7 +150,7 @@ A **trigger** is a statement that the system executes automatically as a side ef
 - Triggers hide side effects from application developers, which can make debugging difficult.
 - Badly designed triggers can chain into infinite loops (e.g., an insert trigger on a table that programmatically performs an insert on the same table). Modern database systems mitigate this by capping trigger nesting depths.
 
-Recursive Queries
+## Recursive Queries
 
 Many database applications require querying hierarchical or networked structures—such as parts and subparts of a machine, organizational hierarchies, or course prerequisite webs. This requires computing a **transitive closure** over a relation.
 
@@ -185,7 +185,7 @@ Because of this constraint, recursive queries **cannot** contain:
 - `not exists` clauses referencing the recursive view.
 - Set difference (`except`) where the right-hand side uses the recursive view.
 
-Advanced Aggregation Features
+## Advanced Aggregation Features
 
 Standard SQL aggregations (`group by` with `sum`, `avg`, `count`) are highly effective for basic statistics but struggle with complex analytical tasks. Advanced SQL provides specialized functions for sophisticated data warehouse analyses.
 
@@ -227,9 +227,9 @@ This consolidates transactional sales details into a clean table structure where
 - **Cube:** Generates subtotals for all possible combinations. `group by cube(A, B)` computes grouping sets: `{(A, B), (A), (B), ()}`.
 - **Grouping Functions:** Because missing attributes are represented as `null` in subtotal rows, `grouping(column)` returns 1 if a null value is a generated subtotal placeholder, helping to distinguish it from a normal, database-stored `null` value.
 
-Summary
+## Summary
 
-**Key Takeaways:**
+### Key Takeaways:
 
 - **Database Connectivity:** Programming languages access relational data through dynamic APIs (JDBC, Python DB API, ODBC) or preprocessed embedded SQL. Prepared statements are essential for security because they escape user inputs to prevent SQL Injection attacks.
 - **Procedural Logic:** Stored functions and procedures locate execution logic on the database engine. Standardized through SQL PSM, procedural rules can also be executed in secure virtual sandboxes using external languages like Java or C#.

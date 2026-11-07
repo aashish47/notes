@@ -29,9 +29,11 @@ export const metadata = {
 	],
 };
 
-## **Introduction**
+## Introduction
 
 Did you know that the Internet of Things (IoT) now contains more active, interconnected computing devices than there are humans on the Earth? This hyper-connected world has triggered an exponential surge in data generation, pushing traditional relational databases past their physical scaling limits. Managing this massive footprint requires specialized systems optimized for extreme volume, velocity, and variety.
+
+### Learning Objectives
 
 By the end of this lesson, you will be able to:
 
@@ -41,7 +43,7 @@ By the end of this lesson, you will be able to:
 - Implement advanced data processing pipelines using Apache Spark's RDDs, DataSets, and lazy evaluation mechanisms.
 - Apply real-time stream processing models (windowing, publish-subscribe) and parallel vertex-centric graph processing (Pregel/BSP).
 
-## **Motivation and Characterizing Big Data**
+## Motivation and Characterizing Big Data
 
 Big Data is defined by three main characteristics that differentiate it from traditional relational databases:
 
@@ -54,7 +56,7 @@ Big Data is defined by three main characteristics that differentiate it from tra
 - **Highly Scalable Transaction-Processing**: These rely on key-value stores that trade full relational database features (like complex joins) for horizontal scalability. To execute a logical join, application code retrieves related keys manually, or writes are propagated as materialized summaries.
 - **Highly Scalable Query Processing**: These perform analytic scans over highly parallel file structures (such as server web logs) to generate business intelligence, search indices, and user recommendations.
 
-## **Big Data Storage Systems**
+## Big Data Storage Systems
 
 Modern big data applications utilize specialized storage strategies to partition and persist scale-out data:
 
@@ -72,16 +74,16 @@ Modern big data applications utilize specialized storage strategies to partition
 
 **Consistency, Availability, and Partitions** Replicating data prevents loss but introduces consistency challenges. The CAP Theorem proves that a distributed system cannot simultaneously guarantee strict Consistency (all replicas show the same state) and Availability (every read/write request succeeds) during a network Partition. Systems must choose to either block writes to maintain consistency or accept stale/divergent reads to maintain availability.
 
-## **The MapReduce Paradigm**
+## The MapReduce Paradigm
 
 The MapReduce paradigm simplifies parallel computation across clusters by abstracting the low-level orchestration:
 
-**The Core Functions**
+### The Core Functions
 
 - **map(key, value)**: Process an input record to emit zero or more intermediate `(reduce-key, value)` pairs.
 - **reduce(key, list of values)**: Aggregate all intermediate values collected for a specific reduce-key.
 
-**The Execution Pipeline**
+### The Execution Pipeline
 
 1. **Map Step**: Multiple map tasks execute in parallel on data blocks local to their respective machines.
 2. **Shuffle and Sort Step**: The framework transfers intermediate map outputs across the network (shuffling) and groups them so that all values for a given reduce-key are collected into a single list at a designated reduce machine.
@@ -97,7 +99,7 @@ The MapReduce paradigm simplifies parallel computation across clusters by abstra
 - **Group-by & Aggregation**: The group-by key serves as the reduce-key; the `reduce()` function computes the aggregate.
 - **Equijoin (r ⋈ r.A=s.A s)**: The `map()` function tags tuples with their relation name and outputs `(join_attribute, tuple)`. The `reduce()` function separates the tagged tuples for each key and outputs their cross-product.
 
-## **Beyond MapReduce: Algebraic Operations and Spark**
+## Beyond MapReduce: Algebraic Operations and Spark
 
 As computation chains grow complex, compiling queries into rigid MapReduce stages incurs severe overhead because intermediate results must be written to disk. Next-generation engines use arbitrary directed acyclic graphs (DAGs) of algebraic operations to process data in memory.
 
@@ -112,7 +114,7 @@ Lazy evaluation allows Spark's query optimizer to inspect the entire execution g
 
 **Spark DataSets** For structured data, Spark provides the `DataSet<Row>` type. This format interfaces cleanly with optimized storage layouts like Parquet, ORC, and Avro. It supports relational operators (like `.filter()`, `.join()`, and `.groupBy()`) and allows schema compilation into strongly-typed Java objects, improving execution speed by avoiding dynamic runtime attribute mapping.
 
-## **Streaming Data**
+## Streaming Data
 
 Streaming data refers to continuous, unbounded records generated in real time (e.g., IoT sensors, network packet monitors, stock ticks, social media feeds).
 
@@ -123,12 +125,12 @@ Streaming data refers to continuous, unbounded records generated in real time (e
 - **Sliding Window**: A moving window centered around each incoming tuple.
 - **Session Window**: Defined by periods of activity separated by a gap of inactivity.
 
-**Routing Architectures**
+### Routing Architectures
 
 - **DAG-based routing**: Stream networks are structured as graphs of operator nodes (e.g., Storm's 'spouts' and 'bolts') where data flows along dedicated edges.
 - **Publish-Subscribe Routing (e.g., Apache Kafka)**: Topics act as message buffers. Operators subscribe to input topics, process incoming tuples, and publish outputs to downstream topics. This decouple-and-buffer model protects processing layers from sudden velocity spikes.
 
-## **Graph Databases**
+## Graph Databases
 
 Graphs capture complex networks of entities (nodes) and their relationships (edges). While relational databases can represent graphs using node and edge tables, specialized graph databases (such as Neo4j) offer unique advantages:
 
@@ -145,9 +147,9 @@ Graphs capture complex networks of entities (nodes) and their relationships (edg
 3. The vertex processes messages from the previous superstep, updates its local state, and sends messages to neighboring vertices.
 4. A vertex can vote to halt execution. When all vertices are inactive and no messages remain in transit, the computation terminates.
 
-## **Summary**
+## Summary
 
-**Key Takeaways**:
+### Key Takeaways:
 
 - **Big Data Characteristics**: volume, velocity, and variety require scalable, parallel architectures rather than monolithic transactional servers.
 - **Storage Architectures**: HDFS divides and replicates large file blocks, while sharding and key-value systems partition transactional database workloads.

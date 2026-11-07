@@ -17,18 +17,18 @@ export const metadata = {
 	],
 };
 
-Introduction
+## Introduction
 
 Did you know that SQL, the language powering almost every modern database, was originally named "Sequel" in the 1970s? Far more than a mere "query" tool, SQL is a comprehensive engine that defines data structures, secures databases, manages concurrent transactions, and modifies information. In this lesson, you will master the foundational mechanics of SQL.
 
-Learning Objectives
+### Learning Objectives
 
 - **Master DDL and DML Foundations:** Define relational schemas with complex integrity constraints and write robust queries.
 - **Deconstruct Query Execution Order:** Trace exactly how SQL filters, groups, and projects data using multiset relational algebra.
 - **Safely Handle Null Values:** Navigate the complexities of three-valued logic and its impact on aggregates and set operations.
 - **Implement Advanced Subqueries & Modifications:** Leverage nested, correlated, and scalar subqueries to execute precise data retrievals and safe database modifications.
 
-Overview of the SQL Query Language
+## Overview of the SQL Query Language
 
 Developed by IBM in the early 1970s as part of the System R project, the language evolved from _Sequel_ to _SQL_ (Structured Query Language). Standardized first in 1986 (SQL-86) and continuously updated through versions like SQL-92, SQL:1999, and SQL:2016, SQL has established itself as the global standard for relational databases.
 
@@ -42,11 +42,11 @@ SQL is not a single tool, but rather a unified language made of several function
 - **Embedded and Dynamic SQL:** Defines how SQL statements embed within general-purpose programming languages (e.g., C, C++, Java).
 - **Authorization:** DDL commands to configure access rights to relations and views.
 
-SQL Data Definition and Basic Types
+## SQL Data Definition and Basic Types
 
 The SQL DDL is used to specify relation schemas, attribute domains, integrity constraints, security configurations, and physical storage structures.
 
-Basic SQL Types
+### Basic SQL Types
 
 - **char(n)**: Fixed-length character string of length $n$. If a shorter string is stored, it is padded with trailing spaces.
 - **varchar(n)**: Variable-length character string with a maximum length of $n$. Spaces are not padded. **Note:** Comparing a `char` to a `varchar` can fail depending on the engine due to space padding; using `varchar` consistently is highly recommended.
@@ -58,7 +58,7 @@ Basic SQL Types
 
 Every type can also store a special placeholder value called a **null value**, which indicates an absent, missing, or unknown value.
 
-Schema Definition Commands
+### Schema Definition Commands
 
 Relations are defined using the `create table` command:
 
@@ -85,13 +85,13 @@ create table r (
 );
 ```
 
-Integrity Constraints
+### Integrity Constraints
 
 - **primary key (Aj1, ..., Ajm)**: Declares the primary key. Attributes must be unique and non-null.
 - **foreign key (Ak1, ..., Akn) references s**: Specifies that the values of the foreign key attributes in relation $r$ must match the primary key attributes of some tuple in relation $s$.
 - **not null**: Restricts the attribute from ever accepting a null value.
 
-Dropping and Altering Tables
+### Dropping and Altering Tables
 
 - To entirely delete a relation's schema and all of its tuples from the database, use:
 
@@ -115,11 +115,11 @@ All existing tuples are assigned a value of `null` for the new attribute $A$.
 alter table r drop A;
 ```
 
-Basic Structure of SQL Queries
+## Basic Structure of SQL Queries
 
 An SQL query consists of three basic clauses: `select`, `from`, and `where`.
 
-Queries on a Single Relation
+### Queries on a Single Relation
 
 To retrieve data from one relation:
 
@@ -133,7 +133,7 @@ where salary > 70000;
 - **Arithmetic Expressions:** The `select` clause can process basic math on attributes or constants, such as `select ID, name, salary * 1.1` (this displays a projected 10% raise without modifying the base database values).
 - **The Where Clause:** Specifies the conditional predicate to filter results. You can use comparison operators (`<`, `<=`, `>`, `>=`, `=`, `<>`) and logical connectives (`and`, `or`, `not`).
 
-Queries on Multiple Relations
+### Queries on Multiple Relations
 
 When accessing multiple tables, SQL matches tuples across relations:
 
@@ -145,7 +145,7 @@ where instructor.dept_name = department.dept_name;
 
 When attributes have identical names across different tables (like `dept_name` above), they must be prefixed with the relation name (`instructor.dept_name`).
 
-Operational Evaluation Order
+### Operational Evaluation Order
 
 Though written as `select` $\rightarrow$ `from` $\rightarrow$ `where`, the internal evaluation sequence is:
 
@@ -153,11 +153,11 @@ Though written as `select` $\rightarrow$ `from` $\rightarrow$ `where`, the inter
 2. **where** **Clause:** Evaluates the predicate $P$ against each concatenated tuple from the Cartesian product. Only matching tuples are passed to the next step.
 3. **select** **Clause:** Projects the specified attributes or evaluates expressions from the surviving tuples.
 
-Additional Query Operations
+## Additional Query Operations
 
 SQL provides a rich set of additional mechanisms to refine queries.
 
-The Rename Operation (`as` Clause)
+### The Rename Operation (`as` Clause)
 
 Renaming is useful to avoid duplicate attribute names in query results, to provide clean names to calculated values, or to rename long table names:
 
@@ -175,7 +175,7 @@ from instructor as T, instructor as S
 where T.salary > S.salary and S.dept_name = 'Biology';
 ```
 
-String Operations
+### String Operations
 
 Strings are bounded by single quotes (`'Biology'`). To escape a single quote within a literal, use two single quotes (`'It''s right'`). Standard SQL comparisons are case-sensitive.
 
@@ -186,14 +186,14 @@ SQL supports string manipulation functions such as concatenation (`||`), `upper(
 - **Escape characters**: Declared using the `escape` keyword. For example, `like 'ab\%cd%' escape '\'` forces the engine to treat the literal `%` after `ab` as a normal character rather than a wildcard.
 - **not like**: Checks for pattern mismatches.
 
-Wildcard Attribute Selection
+### Wildcard Attribute Selection
 
 The asterisk (`*`) can be used to project all attributes:
 
 - `select *` projects every attribute of the relations in the `from` clause.
 - `select instructor.*` projects only the attributes of the `instructor` relation.
 
-Sorting Results (`order by` Clause)
+### Sorting Results (`order by` Clause)
 
 Use `order by` to sort output tuples. It defaults to ascending (`asc`) order. Specify `desc` for descending order:
 
@@ -203,7 +203,7 @@ from instructor
 order by salary desc, name asc;
 ```
 
-Advanced Where-Clause Predicates
+### Advanced Where-Clause Predicates
 
 - **between**: An inclusive range operator.
 
@@ -219,9 +219,9 @@ _(equivalent to_ _salary >= 90000 and salary \<= 100000\_\_)_. A `not between` v
 where (instructor.ID, dept_name) = (teaches.ID, 'Biology')
 ```
 
-Set Operations and Null Values
+## Set Operations and Null Values
 
-Set Operations
+### Set Operations
 
 SQL provides standard set operations: `union`, `intersect`, and `except` (equivalent to mathematical $\cup$, $\cap$, and $-$). The relations participating must be compatible (same arity and compatible attribute types).
 
@@ -231,7 +231,7 @@ By default, `union`, `intersect`, and `except` automatically eliminate duplicate
 - **intersect all**: The result contains $\min(c_1, c_2)$ copies of $t$.
 - **except all**: The result contains $\max(0, c_1 - c_2)$ copies of $t$.
 
-Null Values & Three-Valued Logic
+### Null Values & Three-Valued Logic
 
 Null values introduce unique complexities in evaluations:
 
@@ -258,15 +258,15 @@ To explicitly check for nulls, SQL provides special predicates:
 - `is null` / `is not null`
 - `is unknown` / `is not unknown`
 
-Nulls in Set Operations and Distinct Clauses
+### Nulls in Set Operations and Distinct Clauses
 
 While null comparisons in `where` clauses return `unknown`, the behavior of duplicate elimination (`distinct`, `union`, `intersect`, `except`) is different: **two nulls are treated as identical duplicate values** and will be collapsed into a single null value.
 
-Aggregate Functions and Grouping
+## Aggregate Functions and Grouping
 
 Aggregate functions compute a single value from a collection of inputs. SQL has five standard aggregates: `avg`, `min`, `max`, `sum`, and `count`.
 
-Grouping with `group by`
+### Grouping with `group by`
 
 The `group by` clause slices a relation into subsets based on matching attributes, and applies aggregates to each group independently:
 
@@ -278,7 +278,7 @@ group by dept_name;
 
 **Crucial SELECT Rule:** When grouping, any attribute in the `select` clause that is not wrapped in an aggregate function must be listed in the `group by` clause. Otherwise, the query is erroneous because there is no single value to display for the unaggregated column.
 
-Group Filtering with `having`
+### Group Filtering with `having`
 
 To filter groups, use `having` instead of `where`. Predicates in `having` are evaluated _after_ groups are constructed, allowing the use of aggregate functions:
 
@@ -297,17 +297,17 @@ having avg(salary) > 42000;
 4. **having** filters groups based on aggregate conditions.
 5. **select** projects the requested attributes and aggregates.
 
-Aggregates and Nulls
+### Aggregates and Nulls
 
 - All aggregate functions except `count(*)` ignore null values in their input collections.
 - If the input collection is empty, `count` returns `0`, while all other aggregates (`sum`, `avg`, `min`, `max`) return `null`.
 - **Boolean aggregates**: `some` (calculates the logical `OR` of a boolean collection) and `every` (calculates the logical `AND` of a boolean collection).
 
-Nested Subqueries
+## Nested Subqueries
 
 A subquery is a `select-from-where` expression nested within another query, enabling powerful comparative operations.
 
-Set Membership (`in` and `not in`)
+### Set Membership (`in` and `not in`)
 
 Tests if a value matches any member of a subquery result or an explicit set:
 
@@ -315,7 +315,7 @@ Tests if a value matches any member of a subquery result or an explicit set:
 where course_id in (select course_id from section where year = 2018)
 ```
 
-Set Comparison (`some` and `all`)
+### Set Comparison (`some` and `all`)
 
 - **some** **/** **any**: True if the comparison holds for at least one value in the subquery.
   - `= some` is identical to `in`.
@@ -330,7 +330,7 @@ from instructor
 where salary > all (select salary from instructor where dept_name = 'Biology');
 ```
 
-Test for Empty Relations (`exists` and `not exists`)
+### Test for Empty Relations (`exists` and `not exists`)
 
 - **exists** returns `true` if its subquery returns a nonempty result.
 - **Correlated Subqueries**: Subqueries that reference variables from outer queries (e.g., scoping rules require looking up variables in containing scopes if they aren't declared locally).
@@ -347,11 +347,11 @@ where semester = 'Fall' and exists (
 
 - **not exists** can express set containment: "Relation $A$ contains relation $B$" can be written as `not exists (B except A)`.
 
-Test for Duplicate Tuples (`unique` and `not unique`)
+### Test for Duplicate Tuples (`unique` and `not unique`)
 
 - **unique** returns `true` if the subquery result contains no duplicates. _(Note: Unique can evaluate to true even with duplicate rows if at least one of the row's attributes is null, as null-equality is unknown)._ This construct is not widely implemented.
 
-Subqueries in the `from` Clause
+### Subqueries in the `from` Clause
 
 Because query results are themselves relations, they can be nested directly in the `from` clause:
 
@@ -363,7 +363,7 @@ where avg_salary > 42000;
 
 To access attributes of preceding relations in the same `from` clause, prefix the nested subquery with the **lateral** keyword (SQL:2003).
 
-The `with` Clause
+### The `with` Clause
 
 Introduced in SQL:1999, the `with` clause defines temporary relations whose definitions are available only to the query in which they are declared:
 
@@ -376,11 +376,11 @@ from department, max_budget
 where department.budget = max_budget.value;
 ```
 
-Scalar Subqueries
+### Scalar Subqueries
 
 A scalar subquery is a subquery that projects exactly one attribute and returns exactly one tuple. It can be used anywhere a literal value is expected (e.g., in `select`, `where`, or `having`). If a scalar subquery returns more than one tuple during execution, a runtime error is raised.
 
-Scalar Operations Without a `from` Clause
+### Scalar Operations Without a `from` Clause
 
 To run calculations or evaluations without querying a real physical table, some systems support omitting the `from` clause entirely, while others (like Oracle) require referencing a system dummy table called **dual**:
 
@@ -389,11 +389,11 @@ select (select count(*) from teaches) / (select count(*) from instructor)
 from dual;
 ```
 
-Database Modification
+## Database Modification
 
 Beyond querying, SQL provides DML statements to insert, update, and delete information.
 
-Deletion
+### Deletion
 
 Deletion syntax takes the form:
 
@@ -409,7 +409,7 @@ delete from instructor
 where salary < (select avg(salary) from instructor);
 ```
 
-Insertion
+### Insertion
 
 To insert a single tuple:
 
@@ -429,7 +429,7 @@ where dept_name = 'Music' and tot_cred > 144;
 
 Like deletion, the source `select` is fully evaluated before any insertions begin. This prevents infinite loops if inserting into the same table being queried.
 
-Updates
+### Updates
 
 To update specific attributes within existing tuples:
 
@@ -439,7 +439,7 @@ set salary = salary * 1.05
 where salary < 70000;
 ```
 
-Conditional Updates via `case`
+#### Conditional Updates via `case`
 
 To execute complex conditional assignments without writing multiple conflicting update queries, use the `case` construct:
 
@@ -462,7 +462,7 @@ case
 end
 ```
 
-Updates with Scalar Subqueries and Coalesce
+#### Updates with Scalar Subqueries and Coalesce
 
 Scalar subqueries can be used within the `set` clause. To handle possible nulls returned by aggregates (like empty groups returning `null`), use the **coalesce** function to fallback to a default value:
 
@@ -476,9 +476,9 @@ set tot_cred = coalesce(
 );
 ```
 
-Summary
+## Summary
 
-Key Takeaways
+### Key Takeaways
 
 - **Comprehensive Components**: SQL comprises both DDL (for schema creation, primary/foreign key definitions, types) and DML (for querying, inserting, deleting, and updating data).
 - **Calculated Query Execution Order**: SQL reads tables first (`from`), filters tuples (`where`), aggregates them (`group by`), filters groups (`having`), projects final columns (`select`), and finally sorts them (`order by`).

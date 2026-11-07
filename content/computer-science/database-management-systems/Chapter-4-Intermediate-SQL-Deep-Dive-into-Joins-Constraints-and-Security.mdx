@@ -20,11 +20,11 @@ export const metadata = {
 	],
 };
 
-## **Introduction**
+## Introduction
 
 Did you know that a simple, well-intentioned database update can silently corrupt your data or leak sensitive financial information unless you master the strict security and transactional controls of Intermediate SQL? Building on basic query structure, intermediate SQL introduces advanced join operations, schemas, transaction boundaries, and sophisticated authorization mechanisms designed to enforce absolute data integrity.
 
-### **Learning Objectives**
+### Learning Objectives
 
 - Master complex **join expressions** (natural, inner, outer) and avoid the pitfalls of implicit column matching.
 - Create, query, and understand the maintenance overhead of **views** and **materialized views**.
@@ -33,11 +33,11 @@ Did you know that a simple, well-intentioned database update can silently corrup
 - Leverage advanced data types, custom schemas, and physical **indexes** to optimize data layout and access.
 - Configure robust access controls utilizing database **roles**, cascading privileges, and **row-level security**.
 
-## **Join Expressions**
+## Join Expressions
 
 In standard SQL, combining data from multiple tables often defaults to the Cartesian product paired with a `where` clause. SQL join expressions offer more natural, readable, and powerful syntax options to combine relations.
 
-### **The Natural Join**
+### The Natural Join
 
 The natural join operator automatically matches rows from two relations that share identical values on _all_ common attributes. It returns a combined relation while omitting redundant duplicate columns.
 
@@ -57,7 +57,7 @@ from (student natural join takes) join course using (course_id);
 
 ```
 
-### **Join Conditions with "on"**
+### Join Conditions with "on"
 
 The `on` condition permits arbitrary predicates to determine matching tuples. Unlike `using` or `natural` joins, the resulting relation preserves duplicate matching columns (e.g., displaying both `student.ID` and `takes.ID`), which can be aliased or references explicitly.
 
@@ -67,7 +67,7 @@ from student join takes on student.ID = takes.ID;
 
 ```
 
-### **Outer Joins**
+### Outer Joins
 
 An inner join discards any tuple that does not have a matching row in the joined relation. To preserve these missing details, SQL provides **outer joins**, filling missing values with `null`:
 
@@ -77,11 +77,11 @@ An inner join discards any tuple that does not have a matching row in the joined
 
 _Key Distinction:_ The `on` clause behaves differently than the `where` clause in outer joins. Because `on` dictates how outer joins generate null-padded tuples, moving an outer-join condition to a `where` clause can eliminate the preserved null rows entirely, transforming it logically back into an inner join.
 
-## **Views**
+## Views
 
 A **view** is a "virtual relation" defined by a query. Instead of storing precomputed query results, the database system stores the query definition itself. When a query references the view, the database executes the definition on-demand.
 
-### **View Definition and Usage**
+### View Definition and Usage
 
 Views are declared using the `create view` statement and remain in the database until dropped:
 
@@ -94,7 +94,7 @@ from instructor;
 
 You can query this view just like a standard table, and you can even define new views on top of existing ones.
 
-### **Materialized Views**
+### Materialized Views
 
 Some database engines permit **materialized views**, where the query results _are_ physically stored to accelerate complex computations. However, this introduces the need for **view maintenance**:
 
@@ -102,7 +102,7 @@ Some database engines permit **materialized views**, where the query results _ar
 - **Lazy maintenance**: The view is updated only when accessed.
 - **Periodic maintenance**: The view is refreshed at scheduled intervals (meaning it may temporarily serve stale data).
 
-### **View Updates and Updatability**
+### View Updates and Updatability
 
 Modifying data through a view is highly restricted. An SQL view is considered **updatable** (permitting `insert`, `update`, or `delete`) only if:
 
@@ -113,24 +113,24 @@ Modifying data through a view is highly restricted. An SQL view is considered **
 
 Appending `with check option` at the end of a view definition rejects updates that violate the view's original `where` filter.
 
-## **Transactions**
+## Transactions
 
 A **transaction** is an atomic sequence of query and update statements executed as a single unit of work. To ensure database consistency, the database system guarantees that a transaction is completely applied, or not applied at all.
 
-### **Controlling Transactions**
+### Controlling Transactions
 
 - **Commit Work (** **commit;** **)**: Permanently saves all modifications made during the current transaction to the database.
 - **Rollback Work (** **rollback;** **)**: Cancels and reverses all modifications made during the transaction, restoring the database to its state before the transaction began.
 
-### **Autocommit and Session Boundaries**
+### Autocommit and Session Boundaries
 
 In many SQL engines (e.g., MySQL, PostgreSQL), **autocommit** is enabled by default—meaning every single SQL statement behaves as its own committed transaction. To run multi-statement transactions, autocommit must be disabled (e.g., via `set autocommit off` or by wrapping commands inside explicit block scopes using `begin` and `commit/rollback` commands).
 
-## **Integrity Constraints**
+## Integrity Constraints
 
 Integrity constraints protect against accidental database corruption from authorized operations. They are declared as part of schema definitions.
 
-### **Single-Relation Constraints**
+### Single-Relation Constraints
 
 - **not null**: Forbids null values for an attribute.
 - **unique**: Declares that a set of attributes forms a superkey (no two tuples can match on all specified non-null fields).
@@ -145,7 +145,7 @@ create table section (
 
 ```
 
-### **Referential Integrity and Cascading**
+### Referential Integrity and Cascading
 
 Referential integrity constraints ensure that a value appearing in a referencing table exists in a referenced table's candidate key.
 
@@ -162,13 +162,13 @@ create table course (
 - **on delete cascade** **/** **on update cascade**: Automatically deletes or updates referencing rows when the parent row is modified.
 - **set null** **/** **set default**: Nullifies or sets the referencing key to its default value if the parent key changes.
 
-### **Constraint Timing and Deferred Constraints**
+### Constraint Timing and Deferred Constraints
 
 Under normal execution, constraints are verified immediately after an SQL statement runs. However, circular foreign keys (such as matching spouses referencing each other) would make insertions impossible.
 
 By adding `initially deferred` or `deferrable` to a named constraint, SQL delays validation until the end of the transaction (`commit`).
 
-### **Assertions**
+### Assertions
 
 An **assertion** is a declarative check evaluating conditions across multiple tables:
 
@@ -184,18 +184,18 @@ create assertion credits_earned_constraint check (
 
 Because checking arbitrary assertions is computationally expensive, modern relational engines generally omit support for assertions, encouraging developers to utilize **triggers** instead.
 
-## **SQL Data Types and Schemas**
+## SQL Data Types and Schemas
 
 SQL provides comprehensive controls for constructing rich domains, distinct schemas, and custom operational environments.
 
-### **Date and Time Types**
+### Date and Time Types
 
 - **date**: Holds calendar dates (year, month, day).
 - **time**: Holds the time of day. Optional variants include fractional precision `time(p)` and timezone awareness `time with timezone`.
 - **timestamp**: Combines date and time.
 - **interval**: Represents durations of time (allows mathematical calculations like adding days to dates).
 
-### **Large-Object Types**
+### Large-Object Types
 
 For multi-megabyte binary data, SQL provides **LOBs (Large Objects)**:
 
@@ -204,7 +204,7 @@ For multi-megabyte binary data, SQL provides **LOBs (Large Objects)**:
 
 Applications retrieve a **locator** rather than loading the entire object into memory, facilitating chunked streaming.
 
-### **User-Defined Types and Domains**
+### User-Defined Types and Domains
 
 SQL supports two methods of custom type definitions:
 
@@ -217,7 +217,7 @@ create domain DDollars as numeric(12,2) not null;
 
 ```
 
-### **Unique Key Generation**
+### Unique Key Generation
 
 Automatically generate unique surrogate keys using system configurations:
 
@@ -225,15 +225,15 @@ Automatically generate unique surrogate keys using system configurations:
 - **System-specific markers**: `serial` (PostgreSQL), `auto_increment` (MySQL), or `identity` (SQL Server).
 - **Sequence counter objects**: `create sequence` constructs counters that can generate unique values across multiple tables.
 
-### **Catalogs, Schemas, and Environments**
+### Catalogs, Schemas, and Environments
 
 To eliminate name collisions, SQL engines establish a three-tier naming hierarchy: **Catalog** contains **Schemas**, which contain **Relations/Views**. Relations are referenced uniquely via `<catalog>.<schema>.<relation>` paths.
 
-## **Index Definition in SQL**
+## Index Definition in SQL
 
 An **index** is a physical storage structure that enables the database to locate matching tuples directly without performing a full-table sequential scan.
 
-### **Defining and Removing Indexes**
+### Defining and Removing Indexes
 
 Indexes are declared on one or more target attributes:
 
@@ -251,15 +251,15 @@ create unique index instructor_id_idx on instructor (ID);
 
 Use the `drop index <index-name>;` command to delete indexes.
 
-### **Performance Trade-offs**
+### Performance Trade-offs
 
 While indexes significantly accelerate `select` performance, they incur physical storage costs and degrade `insert`, `update`, and `delete` speeds, since the engine must update index structures alongside the data rows.
 
-## **Authorization**
+## Authorization
 
 The database controls permissions through specific **privileges** granted to users or collection of privileges called **roles**.
 
-### **Granting and Revoking Privileges**
+### Granting and Revoking Privileges
 
 Standard SQL privileges include `select`, `insert`, `update`, and `delete`:
 
@@ -273,7 +273,7 @@ revoke select on department from Amit, Satoshi;
 - **with grant option**: Permits the grantee to pass the authorization onto other users.
 - **references** **privilege**: Authorizes a user to create a foreign key referencing another table's candidate keys.
 
-### **Roles**
+### Roles
 
 Roles simplify permission administration by grouping access rights and assigning the role to individual users:
 
@@ -286,11 +286,11 @@ grant instructor to Satoshi;
 
 Roles can be granted to other roles, building an inheritance chain of privileges.
 
-### **Authorization on Views**
+### Authorization on Views
 
 Views enable row-level and column-level masking. A user can be granted `select` access to a view without having permissions on the underlying base relations, preventing direct table queries while exposing approved virtual tables.
 
-### **Transfer and Cascading Revocation**
+### Transfer and Cascading Revocation
 
 Privilege propagation is represented logically as a directed authorization graph rooted at the DBA:
 
@@ -298,13 +298,13 @@ Privilege propagation is represented logically as a directed authorization graph
 - **Restricted Revocation (** **restrict** **)**: Halts execution and returns an error if a revoke operation would cause any cascading revocations.
 - **Role-based Granting (** **granted by current role** **)**: Decouples grants from specific users by attributing the privilege grant to an active role instead of an individual account, preventing cascading revocations if a user account is deleted.
 
-### **Row-Level Authorization**
+### Row-Level Authorization
 
 Modern databases support row-level permissions (e.g., Oracle VPD, PostgreSQL RLS) by appending a dynamic filter to all executed queries. This is accomplished using context functions (like `sys_context` or `session_user`) to filter rows dynamically so users can only view their own records.
 
-## **Summary**
+## Summary
 
-### **Key Takeaways**
+### Key Takeaways
 
 - **Join Expressions**: Use outer joins to avoid discarding unmatched data, and prefer the safety of `join ... using` over `natural join` to prevent accidental matches on modified schemas.
 - **Views**: Provide abstractions over raw tables. Materialized views optimize aggregate queries at the expense of computational maintenance.
